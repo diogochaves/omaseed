@@ -28,6 +28,12 @@ public:
     /// C45 V9: on qBittorrent, after one read of the log (at most kErrorsWait); a server
     /// that isn't the current one, an unknown one, or one still loading is a failure.
     void errors(const QString &options, Reply reply) override;
+    /// C45 V10: one read of qBittorrent's log, the whole of it at that level; another
+    /// server, another engine, a server down or a `--torrent` that names none is a failure.
+    void log(const QString &options, Reply reply) override;
+    /// C45 V11: the server omaseed is on, or any saved one by `--server` (its history and
+    /// journal as kept, no move back).
+    void moves(const QString &options, Reply reply) override;
 
     /// How long errors waits for the log before it answers with what is held (design 12).
     static constexpr int kErrorsWaitMs = 5000;
@@ -49,6 +55,16 @@ public Q_SLOTS:
 private:
     /// A failure the app makes for `command` (C45 V4).
     static QString failure(const QString &command, const QString &code, const QString &message);
+    /// `--server QUERY`'s failure for `command`, "" when it names a saved server; that one's
+    /// id in `id`.
+    QString serverFailure(const QString &command, const QString &query, QString *id) const;
+    /// C45 V6's not-current failure for `command`, naming the saved server `id`.
+    QString notCurrent(const QString &command, const QString &current, const QString &id) const;
+    /// Design 12: the server omaseed is on is still on its first sync (nothing to read yet).
+    bool firstSync(const core::AgentAnswers::Server &current) const;
+    QString firstSyncFailure(const QString &command, const QString &name) const;
+    /// The library as log lines name it (C3 D13).
+    QList<core::AgentAnswers::LogTorrent> logLibrary() const;
 
     App *m_app;
     bool m_windowShown = false;

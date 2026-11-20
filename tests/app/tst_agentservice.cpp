@@ -113,7 +113,9 @@ protected:
                     {QStringLiteral("added_on"), 1700000000}};
                 body =
                     QJsonDocument(QJsonObject{{QStringLiteral("rid"), polls},
-                                              {QStringLiteral("full_update"), true},
+                                              // Only the first poll is a full update, as
+                                              // qBittorrent's: each one resets ProblemLog.
+                                              {QStringLiteral("full_update"), polls == 1},
                                               {QStringLiteral("server_state"),
                                                QJsonObject{{QStringLiteral("dl_info_speed"), 4096},
                                                            {QStringLiteral("up_info_speed"), 512},
@@ -175,7 +177,15 @@ private slots:
     void firstSync();
     void serverProblemComesFirst();
 
+    void logOnTransmissionIsNoLog();
+    void logUnreachable();
+    void unknownTorrent();
+    void ambiguousPrefix();
+
 private:
+    /// log's answer, with `options`.
+    static QJsonObject log(AgentService &service, const QString &options = QString());
+    static QString codeOf(const QJsonObject &answer);
     /// errors' answer, with `options`.
     static QJsonObject errors(AgentService &service, const QString &options = QString());
     /// An app on `server`, polling fast, synced once.
@@ -508,6 +518,128 @@ void TestAgentService::serverProblemComesFirst()
                   .isEmpty(),
              qPrintable(raw));
     QVERIFY(object.value(QLatin1String("torrents")).isArray());
+}
+
+QJsonObject TestAgentService::log(AgentService &service, const QString &options)
+{
+    return answer([&](AgentService::Reply reply) { service.log(options, reply); });
+}
+
+QString TestAgentService::codeOf(const QJsonObject &answer)
+{
+    return answer.value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString();
+}
+
+// C45 V10: Transmission and Deluge keep no log omaseed reads; said before anything is tried.
+void TestAgentService::logOnTransmissionIsNoLog()
+{
+    qputenv("OMASEED_SERVER_URL", "http://127.0.0.1:9");
+    qputenv("OMASEED_SERVER_NAME", "seedbox");
+    qputenv("OMASEED_SERVER_ENGINE", "transmission");
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    const QJsonObject object = log(service);
+    qunsetenv("OMASEED_SERVER_NAME");
+    qunsetenv("OMASEED_SERVER_ENGINE");
+    QCOMPARE(codeOf(object), QStringLiteral("no-log"));
+    QCOMPARE(
+        object.value(QLatin1String("error")).toObject().value(QLatin1String("message")).toString(),
+        QStringLiteral("seedbox runs Transmission, which keeps no log omaseed can read. "
+                       "omaseed errors has each torrent's own error text."));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 4);
+}
+
+// C45 V10: a server down can't be read: its problem's line says why.
+void TestAgentService::logUnreachable()
+{
+    FakeQbt server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(app.engine()->globalState()->connected(), 5000);
+    server.close();
+    QTRY_VERIFY_WITH_TIMEOUT(!app.engine()->globalState()->connected(), 10000);
+    const QJsonObject object = log(service);
+    QCOMPARE(codeOf(object), QStringLiteral("unreachable"));
+    const QString message =
+        object.value(QLatin1String("error")).toObject().value(QLatin1String("message")).toString();
+    QVERIFY2(message.startsWith(QLatin1String("127.0.0.1 is unreachable, so its log can't be "
+                                              "read: ")),
+             qPrintable(message));
+    QVERIFY2(message.size() > 50, qPrintable(message)); // the problem's own line follows
+    QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 4);
+}
+
+// C45 V10: --torrent names one torrent of the library; a hash it has none of is a failure.
+// A read that works: the log's lines, the torrent's own, and the next id.
+void TestAgentService::unknownTorrent()
+{
+    FakeQbt server;
+    server.log = {QJsonObject{{QStringLiteral("id"), 0},
+                              {QStringLiteral("timestamp"), 1792075500},
+                              {QStringLiteral("type"), 2},
+                              {QStringLiteral("message"), QStringLiteral("qBittorrent started")}},
+                  QJsonObject{{QStringLiteral("id"), 1},
+                              {QStringLiteral("timestamp"), 1792075569},
+                              {QStringLiteral("type"), 4},
+                              {QStringLiteral("message"),
+                               QStringLiteral("File error alert. Torrent: \"Lantern Festival\".")}},
+                  QJsonObject{{QStringLiteral("id"), 2},
+                              {QStringLiteral("timestamp"), 1792075600},
+                              {QStringLiteral("type"), 4},
+                              {QStringLiteral("message"),
+                               QStringLiteral("UPnP/NAT-PMP: Port mapping failure.")}}};
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.engine()->globalState()->connected() && app.engine()->torrents()->count() == 1, 5000);
+
+    const int reads = server.logReads;
+    QJsonObject object = log(service);
+    QVERIFY(server.logReads > reads);
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("log"));
+    QCOMPARE(object.value(QLatin1String("matched")).toInt(), 2);
+    QCOMPARE(object.value(QLatin1String("next")).toInt(), 3);
+    const QJsonArray lines = object.value(QLatin1String("lines")).toArray();
+    QCOMPARE(lines.size(), 2);
+    QCOMPARE(lines.at(0).toObject().value(QLatin1String("torrent")).toString(),
+             QLatin1String(kHash));
+    QVERIFY(lines.at(1).toObject().value(QLatin1String("torrent")).isNull());
+
+    object = log(service, QStringLiteral(R"({"torrent":"3f9a1c0e3f9a"})"));
+    QCOMPARE(object.value(QLatin1String("matched")).toInt(), 1);
+
+    object = log(service, QStringLiteral(R"({"torrent":"deadbeefcafe"})"));
+    QCOMPARE(codeOf(object), QStringLiteral("unknown-torrent"));
+    QCOMPARE(
+        object.value(QLatin1String("error")).toObject().value(QLatin1String("message")).toString(),
+        QStringLiteral("No torrent deadbeefcafe on 127.0.0.1."));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 4);
+}
+
+void TestAgentService::ambiguousPrefix()
+{
+    FakeQbt server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    useServer(server);
+    App app;
+    startOn(app);
+    AgentService service(&app);
+    QTRY_VERIFY_WITH_TIMEOUT(
+        app.engine()->globalState()->connected() && app.engine()->torrents()->count() == 1, 5000);
+    const QJsonObject object = log(service, QStringLiteral(R"({"torrent":"3f9a"})"));
+    QCOMPARE(codeOf(object), QStringLiteral("ambiguous"));
+    QCOMPARE(
+        object.value(QLatin1String("error")).toObject().value(QLatin1String("message")).toString(),
+        QStringLiteral("3f9a matches 1 torrent on 127.0.0.1: give at least 8 characters of "
+                       "the hash."));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 2);
 }
 
 QTEST_GUILESS_MAIN(TestAgentService)

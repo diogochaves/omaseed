@@ -25,7 +25,7 @@ using omaseed::integration::StatusHandler;
 
 namespace {
 
-/// Answers Status a moment later with the options it was given, Errors at once.
+/// Answers Status a moment later with the options it was given, the others at once.
 class FakeAgent : public AgentHandler
 {
 public:
@@ -43,6 +43,18 @@ public:
     {
         calls << QStringLiteral("errors ") + options;
         reply(QStringLiteral(R"({"v":1,"command":"errors"})"));
+    }
+
+    void log(const QString &options, Reply reply) override
+    {
+        calls << QStringLiteral("log ") + options;
+        reply(QStringLiteral(R"({"v":1,"command":"log"})"));
+    }
+
+    void moves(const QString &options, Reply reply) override
+    {
+        calls << QStringLiteral("moves ") + options;
+        reply(QStringLiteral(R"({"v":1,"command":"moves"})"));
     }
 };
 
@@ -184,13 +196,13 @@ void TestAgentBus::agentBesideStatusAndApplication()
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
     const QString agent = block(xml, AgentBus::interfaceName());
     QVERIFY2(!agent.isEmpty(), qPrintable(xml));
-    // Status(s) → s and Errors(s) → s, for now (C45 V3; Log and Moves come with their reads).
-    QCOMPARE(agent.count(QStringLiteral("<method ")), 2);
-    QVERIFY(agent.contains(QStringLiteral("method name=\"Status\"")));
-    QVERIFY(agent.contains(QStringLiteral("method name=\"Errors\"")));
-    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 2);
-    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 2);
-    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 4);
+    // Status, Errors, Log and Moves, each (s) → s (C45 V3; Do comes with the actions).
+    QCOMPARE(agent.count(QStringLiteral("<method ")), 4);
+    for (const char *method : {"Status", "Errors", "Log", "Moves"})
+        QVERIFY(agent.contains(QStringLiteral("method name=\"%1\"").arg(QLatin1String(method))));
+    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 4);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 4);
+    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 8);
     QVERIFY(!agent.contains(QStringLiteral("<property")));
     QVERIFY(!agent.contains(QStringLiteral("<signal")));
 }
@@ -224,6 +236,17 @@ void TestAgentBus::delayedReplyArrives()
     QCOMPARE(errors.arguments().value(0).toString(),
              QStringLiteral(R"({"v":1,"command":"errors"})"));
     QCOMPARE(m_agent.calls.last(), QStringLiteral("errors "));
+
+    // And Log and Moves to theirs (C45 V10, V11).
+    QCOMPARE(call(QStringLiteral("Log"), {QStringLiteral(R"({"lines":3})")})
+                 .arguments()
+                 .value(0)
+                 .toString(),
+             QStringLiteral(R"({"v":1,"command":"log"})"));
+    QCOMPARE(m_agent.calls.last(), QStringLiteral(R"(log {"lines":3})"));
+    QCOMPARE(call(QStringLiteral("Moves"), {QStringLiteral("{}")}).arguments().value(0).toString(),
+             QStringLiteral(R"({"v":1,"command":"moves"})"));
+    QCOMPARE(m_agent.calls.last(), QStringLiteral("moves {}"));
 }
 
 void TestAgentBus::notExportedWithoutConnection()

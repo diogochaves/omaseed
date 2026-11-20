@@ -40,6 +40,18 @@ public Q_SLOTS:
         return QString();
     }
 
+    QString Log(const QString &options, const QDBusMessage &message)
+    {
+        m_handler->log(options, delayedReply(message));
+        return QString();
+    }
+
+    QString Moves(const QString &options, const QDBusMessage &message)
+    {
+        m_handler->moves(options, delayedReply(message));
+        return QString();
+    }
+
 private:
     AgentHandler::Reply delayedReply(const QDBusMessage &message)
     {

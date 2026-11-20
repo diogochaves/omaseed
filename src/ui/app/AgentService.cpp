@@ -1,18 +1,24 @@
 #include "ui/app/AgentService.hpp"
 
+#include "core/AgentText.hpp"
 #include "core/AgentWords.hpp"
 #include "core/AltPresets.hpp"
+#include "core/AnnounceMask.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
 #include "core/MoveJob.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/Reply.hpp"
 #include "core/ServerListModel.hpp"
+#include "core/ServerLog.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentFilterModel.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TorrentProblem.hpp"
 #include "core/Version.hpp"
+#include "core/engines/EngineClient.hpp"
+#include "core/engines/LogEntry.hpp"
 #include "integration/BarMenu.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
@@ -20,6 +26,7 @@
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QPointer>
 #include <QTimer>
 
 #include <memory>
@@ -65,38 +72,21 @@ void AgentService::errors(const QString &options, Reply reply)
     }
     const Answers::Server current = currentServer();
     if (!parsed.options.server.isEmpty()) {
-        const Answers::ServerMatch match = matchServer(parsed.options.server);
-        if (!match.code.isEmpty()) {
-            reply(failure(command, match.code, match.message));
+        QString id;
+        const QString refused = serverFailure(command, parsed.options.server, &id);
+        if (!refused.isEmpty()) {
+            reply(refused);
             return;
         }
-        if (match.id != current.id) {
+        if (id != current.id) {
             // C45 V6: errors reads only the server omaseed is on; no word switches servers.
-            const ServerListModel *list = m_app->serverList();
-            const QString name =
-                list->data(list->index(list->indexOfId(match.id), 0), ServerListModel::NameRole)
-                    .toString();
-            reply(failure(command,
-                          QStringLiteral("not-current"),
-                          Answers::notCurrentWords(current.name, name, command)));
+            reply(notCurrent(command, current.name, id));
             return;
         }
     }
-    if (!current.reachable && !current.problem) {
-        // Design 12: before the first full update there is nothing to read yet.
-        const ServerListModel *list = m_app->serverList();
-        const int row = current.id.isEmpty() ? -1 : list->indexOfId(current.id);
-        const QString state =
-            row < 0 ? QString()
-                    : list->data(list->index(row, 0), ServerListModel::StateRole).toString();
-        if (row < 0 || state == QLatin1String("syncing") || state == QLatin1String("connecting")) {
-            reply(failure(command,
-                          QStringLiteral("first-sync"),
-                          QStringLiteral("%1 is still loading its torrents. Ask again in a "
-                                         "moment.")
-                              .arg(current.name)));
-            return;
-        }
+    if (firstSync(current)) {
+        reply(firstSyncFailure(command, current.name));
+        return;
     }
 
     // One answer, whichever comes first: the read's end or the wait's.
@@ -116,6 +106,216 @@ void AgentService::errors(const QString &options, Reply reply)
     }
     QTimer::singleShot(kErrorsWaitMs, this, answer);
     log->readNow(this, answer);
+}
+
+QString AgentService::serverFailure(const QString &command, const QString &query, QString *id) const
+{
+    const Answers::ServerMatch match = matchServer(query);
+    *id = match.id;
+    return match.code.isEmpty() ? QString() : failure(command, match.code, match.message);
+}
+
+QString
+AgentService::notCurrent(const QString &command, const QString &current, const QString &id) const
+{
+    const ServerListModel *list = m_app->serverList();
+    const QString name =
+        list->data(list->index(list->indexOfId(id), 0), ServerListModel::NameRole).toString();
+    return failure(
+        command, QStringLiteral("not-current"), Answers::notCurrentWords(current, name, command));
+}
+
+bool AgentService::firstSync(const Answers::Server &current) const
+{
+    if (current.reachable || current.problem)
+        return false;
+    // Design 12: before the first full update there is nothing to read yet.
+    const ServerListModel *list = m_app->serverList();
+    const int row = current.id.isEmpty() ? -1 : list->indexOfId(current.id);
+    const QString state =
+        row < 0 ? QString()
+                : list->data(list->index(row, 0), ServerListModel::StateRole).toString();
+    return row < 0 || state == QLatin1String("syncing") || state == QLatin1String("connecting");
+}
+
+QString AgentService::firstSyncFailure(const QString &command, const QString &name) const
+{
+    return failure(
+        command,
+        QStringLiteral("first-sync"),
+        QStringLiteral("%1 is still loading its torrents. Ask again in a moment.").arg(name));
+}
+
+QList<Answers::LogTorrent> AgentService::logLibrary() const
+{
+    const core::TorrentModel *torrents = m_app->engine()->torrents();
+    QList<Answers::LogTorrent> library;
+    library.reserve(torrents->count());
+    for (int row = 0; row < torrents->count(); ++row) {
+        const core::Torrent &torrent = torrents->torrentAt(row);
+        library.append({torrent.hash, torrent.name, core::ProblemMatch::hashPrefix(torrent)});
+    }
+    return library;
+}
+
+void AgentService::log(const QString &options, Reply reply)
+{
+    const QString command = QStringLiteral("log");
+    const Answers::ParsedOptions parsed = Answers::parseOptions(command, options);
+    if (!parsed.usage.isEmpty()) {
+        reply(failure(command, QStringLiteral("usage"), parsed.usage));
+        return;
+    }
+    const Answers::Server current = currentServer();
+    if (!parsed.options.server.isEmpty()) {
+        QString id;
+        const QString refused = serverFailure(command, parsed.options.server, &id);
+        if (!refused.isEmpty()) {
+            reply(refused);
+            return;
+        }
+        if (id != current.id) {
+            reply(notCurrent(command, current.name, id)); // C45 V6
+            return;
+        }
+    }
+    // C45 V10: only qBittorrent keeps a log omaseed can read.
+    if (!m_app->features().engineLog) {
+        reply(failure(command,
+                      QStringLiteral("no-log"),
+                      QStringLiteral("%1 runs %2, which keeps no log omaseed can read. omaseed "
+                                     "errors has each torrent's own error text.")
+                          .arg(current.name, core::AgentText::engineName(current.engine))));
+        return;
+    }
+    const auto unreachable = [command, name = current.name](const QString &line) {
+        return failure(
+            command,
+            QStringLiteral("unreachable"),
+            core::AnnounceMask::maskText(
+                QStringLiteral("%1 is unreachable, so its log can't be read: %2").arg(name, line)));
+    };
+    if (!current.reachable) {
+        if (firstSync(current))
+            reply(firstSyncFailure(command, current.name));
+        else
+            reply(unreachable(current.problem ? current.problem->line : QString()));
+        return;
+    }
+
+    Answers::LogInput input;
+    input.omaseed = core::version();
+    input.server = current;
+    input.options = parsed.options;
+    input.library = logLibrary();
+    if (!parsed.options.torrent.isEmpty()) {
+        const Answers::TorrentMatch match =
+            Answers::matchTorrent(input.library, parsed.options.torrent, current.name);
+        if (!match.code.isEmpty()) {
+            reply(failure(command, match.code, match.message));
+            return;
+        }
+        input.torrent = match.torrent;
+    }
+    core::EngineClient *client = m_app->client();
+    if (client == nullptr) {
+        reply(unreachable(QString()));
+        return;
+    }
+    // Design 13: one read, the whole log at once; warnings and worse need only qBittorrent's
+    // problems.
+    const bool problemsOnly = Answers::levelOf(parsed.options.level) >= core::ServerLog::Warning;
+    QPointer<AgentService> self(this);
+    client->log(-1, problemsOnly)
+        ->then(this,
+               [self, reply, asked = input, unreachable](
+                   const core::Result<QList<core::LogEntry>> &result) {
+                   if (self.isNull())
+                       return;
+                   if (result.isError()) {
+                       const QVariantMap problem =
+                           self->m_app->serverProblem(result.error().toString(), 0);
+                       const QString line = problem.value(QStringLiteral("lineBase")).toString();
+                       reply(unreachable(line.isEmpty()
+                                             ? problem.value(QStringLiteral("line")).toString()
+                                             : line));
+                       return;
+                   }
+                   Answers::LogInput input = asked;
+                   for (const core::LogEntry &entry : result.value()) {
+                       if (entry.id < 0)
+                           continue;
+                       input.log.append(
+                           {entry.id,
+                            QDateTime::fromSecsSinceEpoch(entry.timestamp, QTimeZone::UTC),
+                            entry.type,
+                            entry.message});
+                   }
+                   input.at = QDateTime::currentDateTimeUtc();
+                   reply(QString::fromUtf8(Answers::log(input)));
+               });
+}
+
+void AgentService::moves(const QString &options, Reply reply)
+{
+    const QString command = QStringLiteral("moves");
+    const Answers::ParsedOptions parsed = Answers::parseOptions(command, options);
+    if (!parsed.usage.isEmpty()) {
+        reply(failure(command, QStringLiteral("usage"), parsed.usage));
+        return;
+    }
+    Answers::MovesInput input;
+    input.at = QDateTime::currentDateTimeUtc();
+    input.omaseed = core::version();
+    input.server = currentServer();
+    QString id = input.server.id;
+    if (!parsed.options.server.isEmpty()) {
+        const QString refused = serverFailure(command, parsed.options.server, &id);
+        if (!refused.isEmpty()) {
+            reply(refused);
+            return;
+        }
+    }
+    const MoveController *move = m_app->move();
+    if (move == nullptr) {
+        reply(QString::fromUtf8(Answers::moves(input)));
+        return;
+    }
+    if (id == input.server.id) {
+        const core::MoveJob *job = move->job();
+        if (job && job->isActive()) {
+            const QVariantMap band = move->band();
+            input.running.append(
+                Answers::runningOf(*job,
+                                   band.value(QStringLiteral("headline")).toString(),
+                                   band.value(QStringLiteral("line")).toString()));
+        }
+        // C18 D7: what a move back would do now, against the library as it is.
+        QHash<QString, QString> savePaths;
+        const core::TorrentModel *torrents = m_app->engine()->torrents();
+        for (int row = 0; row < torrents->count(); ++row)
+            savePaths.insert(torrents->torrentAt(row).hash, torrents->torrentAt(row).savePath);
+        const core::MoveHistory &history = move->history();
+        input.landed = Answers::landedOf(history, parsed.options.landed, &savePaths);
+        input.kept = int(history.records().size());
+    } else {
+        // C45 V11: another server, from what omaseed keeps for it; its library isn't here.
+        const ServerListModel *list = m_app->serverList();
+        const QModelIndex at = list->index(list->indexOfId(id), 0);
+        Answers::Server server;
+        server.id = id;
+        server.name = list->data(at, ServerListModel::NameRole).toString();
+        server.engine = list->data(at, ServerListModel::EngineRole).toString();
+        server.address = list->data(at, ServerListModel::UrlTextRole).toString();
+        server.connection = QStringLiteral("disconnected");
+        input.server = server;
+        if (const std::unique_ptr<core::MoveJob> job = move->savedJobOf(id); job && job->isActive())
+            input.running.append(Answers::runningOf(*job, QString(), QString()));
+        const core::MoveHistory history = move->historyOf(id);
+        input.landed = Answers::landedOf(history, parsed.options.landed, nullptr);
+        input.kept = int(history.records().size());
+    }
+    reply(QString::fromUtf8(Answers::moves(input)));
 }
 
 Answers::Server AgentService::currentServer() const
