@@ -19,9 +19,13 @@ Exit 4: that server can't answer now (the JSON says why).
 ### Exit codes
 
   0  answered (status answers even when the server doesn't)
+  1  unreadable: that skin doesn't read; it is drawn as Omarchy's
   2  usage, unknown-server, ambiguous: fix the command; omaseed help <word>
+     unknown-skin, bad-name, skin-exists, no-theme: the same, for skins
   3  not-running, too-old, no-bus, no-reply: omaseed can't be asked now
   4  not-current, unreachable, no-log, unknown-torrent, first-sync
+  5  not-written: a file omaseed would write can't be, or would replace
+     one that doesn't parse; nothing was written
 
 A failure is {"error": {"code", "message"}}; the message is for the person.
 
