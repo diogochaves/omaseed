@@ -873,6 +873,9 @@ step "A setting on the daemon" "ctrl+shift+,: Settings › Deluge, Speed (Deluge
 keys ctrl+shift+comma
 expect_text "Settings › Deluge opens on Speed, its switches listed" "Count the protocol's overhead" 10
 expect_text "…and says Deluge has no turtle" "Deluge has no turtle" 5
+# Settings keeps the half the keyboard was last in, and a fresh start is the sections (the room
+# stage above restarts omaseed): h then l lands in the pane, on its first row, from either.
+keys h l
 keys j j j j j space
 expect_call "the daemon's rate_limit_ip_overhead is now $([ "$OVERHEAD" = true ] && echo false || echo true)" "r['rate_limit_ip_overhead'] is not $([ "$OVERHEAD" = true ] && echo True || echo False)" core.get_config_values '[["rate_limit_ip_overhead"]]'
 expect_node "the switch shows it" "check box \"Count the protocol's overhead\" \\[([^]]* )?$([ "$OVERHEAD" = true ] && echo unchecked || echo checked)"
