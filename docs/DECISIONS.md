@@ -2842,3 +2842,25 @@ Still to check in the build (the board's step 1, on the playground): `torrents/a
 `useDownloadPath`/`downloadPath`, a category's `download_path` in `torrents/categories`, which
 path `free_space_on_disk` reports with a temp folder on, and Deluge's per-torrent
 `download_location` with `move_completed`.
+
+**Checked (#271, 2026-11-19):** on qBittorrent 5.3.0 (API 2.16.2), Deluge 2.2.0 and
+Transmission 4.1.3, `scripts/dev/research/271-temp-folder/`. qBittorrent's `torrents/add` takes
+the switch per torrent: `useDownloadPath=false` gives `download_path` `""` (straight to Save to)
+with the session's temp folder on, `useDownloadPath=true&downloadPath=X` gives X even with it off,
+`downloadPath=X` alone also gives X, and no field gives the session's `temp_path` (I9 holds).
+`torrents/categories` says a category's `download_path` three ways: a path (its own), `false`
+(none) or `null` (the session's rule, which an add makes `temp_path/<category>`). A category's
+folders reach a torrent only with `autoTMM=true`; a manual add (`autoTMM=false`) keeps
+`temp_path` and its own save path whatever the category says, so I12's first line follows a
+pick only when Save to does, and an add that sends its paths sends `downloadPath` too.
+`server_state.free_space_on_disk` is always the session's default save path's filesystem, never
+the temp folder's (checked both ways round across two filesystems): the first line's `Y free`
+can't come from it, only from omaseed's own look at the drive where it sees it (I8, I10).
+Deluge's `core.add_torrent_file` honours `download_location`, `move_completed` and
+`move_completed_path` per torrent, `move_completed: false` against the session's on; there the
+download goes to `download_location` and ends in `move_completed_path`, so I9's off is
+`download_location` = Save to with `move_completed` false; `core.get_config_values` returns all
+three. Transmission's `session_get` has `incomplete_dir` and `incomplete_dir_enabled`;
+`torrent_add` ignores an `incomplete_dir` without an error and `torrent_get` has no such field
+(I9: session-wide). qBittorrent's pre-allocation is `preallocate_all` in `app/preferences`
+(Deluge's `pre_allocate_storage`) (I10).
