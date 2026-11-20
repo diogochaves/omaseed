@@ -20,6 +20,13 @@ private slots:
     void aPathNamedLikeAWordIsNot();
     void magnetsAndUrlsAreNot();
     void reservedWordsSayNotYet();
+    void checkAndSkinAreWordsNow();
+    void doStaysReserved();
+    void skinSubwords();
+    void positionalsCounted_data();
+    void positionalsCounted();
+    void exitForSkinCodes();
+    void helpPageHasTheSkinsBlock();
     void optionsBothForms();
     void unknownOptionIsUsage_data();
     void unknownOptionIsUsage();
@@ -72,20 +79,168 @@ void TestAgentWords::magnetsAndUrlsAreNot()
 
 void TestAgentWords::reservedWordsSayNotYet()
 {
-    for (const char *word : {"do", "check", "skin"}) {
-        const QString w = QString::fromLatin1(word);
-        QVERIFY(AgentWords::isReserved(w));
-        const auto request =
-            AgentWords::parse({w, QStringLiteral("anything"), QStringLiteral("--json")});
-        QCOMPARE(request.kind, Kind::Usage);
-        QVERIFY(request.json);
-        QCOMPARE(request.message,
-                 QStringLiteral("omaseed: %1 isn't in this omaseed yet. omaseed --help lists the "
-                                "words it has.")
-                     .arg(w));
-        QCOMPARE(AgentWords::parse({QStringLiteral("help"), w}).kind, Kind::Usage);
-    }
+    const QString w = QStringLiteral("do");
+    QVERIFY(AgentWords::isReserved(w));
+    const auto request =
+        AgentWords::parse({w, QStringLiteral("anything"), QStringLiteral("--json")});
+    QCOMPARE(request.kind, Kind::Usage);
+    QVERIFY(request.json);
+    QCOMPARE(request.message,
+             QStringLiteral("omaseed: %1 isn't in this omaseed yet. omaseed --help lists the "
+                            "words it has.")
+                 .arg(w));
+    QCOMPARE(AgentWords::parse({QStringLiteral("help"), w}).kind, Kind::Usage);
     QVERIFY(!AgentWords::isReserved(QStringLiteral("status")));
+}
+
+void TestAgentWords::checkAndSkinAreWordsNow()
+{
+    // C37 U3, U5, U6 (#223): check and skin left the reserved list for the table.
+    for (const char *word : {"check", "skin"}) {
+        const QString w = QString::fromLatin1(word);
+        QVERIFY(AgentWords::isWord(w));
+        QVERIFY(!AgentWords::isReserved(w));
+        QCOMPARE(AgentWords::parse({QStringLiteral("help"), w}).kind, Kind::Page);
+        QCOMPARE(AgentWords::parse({w, QStringLiteral("--help")}).page, w);
+        QVERIFY(!AgentWords::wordPage(w).isEmpty());
+    }
+    // Only the first argument counts (C37 U10): ./check and Check are files.
+    QVERIFY(!AgentWords::isWord(QStringLiteral("./check")));
+    QVERIFY(!AgentWords::isWord(QStringLiteral("Skin")));
+    const auto check = AgentWords::parse(
+        {QStringLiteral("check"), QStringLiteral("warm"), QStringLiteral("--theme=paper-light")});
+    QCOMPARE(check.kind, Kind::Local);
+    QCOMPARE(check.command(), QStringLiteral("check"));
+    QCOMPARE(check.positionals, QStringList{QStringLiteral("warm")});
+    QCOMPARE(check.options.value(QStringLiteral("theme")).toString(),
+             QStringLiteral("paper-light"));
+}
+
+void TestAgentWords::doStaysReserved()
+{
+    QVERIFY(AgentWords::isWord(QStringLiteral("do")));
+    QVERIFY(AgentWords::isReserved(QStringLiteral("do")));
+    QVERIFY(AgentWords::wordPage(QStringLiteral("do")).isEmpty());
+    QCOMPARE(AgentWords::parse({QStringLiteral("do"), QStringLiteral("pause")}).kind, Kind::Usage);
+}
+
+void TestAgentWords::skinSubwords()
+{
+    auto request = AgentWords::parse({QStringLiteral("skin"), QStringLiteral("list")});
+    QCOMPARE(request.kind, Kind::Local);
+    QCOMPARE(request.word, QStringLiteral("skin"));
+    QCOMPARE(request.subword, QStringLiteral("list"));
+    QCOMPARE(request.command(), QStringLiteral("skin list"));
+    QVERIFY(request.positionals.isEmpty());
+
+    request = AgentWords::parse({QStringLiteral("skin"),
+                                 QStringLiteral("clone"),
+                                 QStringLiteral("console"),
+                                 QStringLiteral("warm.v2"),
+                                 QStringLiteral("--json")});
+    QCOMPARE(request.kind, Kind::Local);
+    QVERIFY(request.json);
+    QCOMPARE(request.command(), QStringLiteral("skin clone"));
+    QCOMPARE(request.positionals,
+             (QStringList{QStringLiteral("console"), QStringLiteral("warm.v2")}));
+
+    // use asks the running omaseed (C37 U6), with the name as its option.
+    request = AgentWords::parse({QStringLiteral("skin"),
+                                 QStringLiteral("--json"),
+                                 QStringLiteral("use"),
+                                 QStringLiteral("warm")});
+    QCOMPARE(request.kind, Kind::Call);
+    QCOMPARE(request.command(), QStringLiteral("skin use"));
+    QCOMPARE(AgentWords::method(request.command()), QStringLiteral("UseSkin"));
+    QCOMPARE(request.options, (QJsonObject{{QStringLiteral("name"), QStringLiteral("warm")}}));
+
+    const QString takes =
+        QStringLiteral("omaseed: skin takes list, clone or use. omaseed help skin says how.");
+    for (const QStringList &arguments : {QStringList{"skin"},
+                                         QStringList{"skin", "remove", "warm"},
+                                         QStringList{"skin", "--json"}}) {
+        request = AgentWords::parse(arguments);
+        QCOMPARE(request.kind, Kind::Usage);
+        QCOMPARE(request.message, takes);
+    }
+    // skin's subwords take --json only.
+    request = AgentWords::parse({QStringLiteral("skin"),
+                                 QStringLiteral("list"),
+                                 QStringLiteral("--theme"),
+                                 QStringLiteral("x")});
+    QCOMPARE(request.kind, Kind::Usage);
+}
+
+void TestAgentWords::positionalsCounted_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<QString>("message");
+    const QString takes =
+        QStringLiteral("omaseed: skin takes list, clone or use. omaseed help skin says how.");
+    QTest::newRow("check alone")
+        << QStringList{"check"}
+        << QStringLiteral("omaseed: check takes a skin's name: omaseed check warm. omaseed help "
+                          "check says how.");
+    QTest::newRow("check two")
+        << QStringList{"check", "warm", "paper"}
+        << QStringLiteral(
+               "omaseed: check doesn't take \"paper\". omaseed help check says what it takes.");
+    QTest::newRow("list one") << QStringList{"skin", "list", "warm"}
+                              << QStringLiteral("omaseed: skin list doesn't take \"warm\". "
+                                                "omaseed help skin says what it takes.");
+    QTest::newRow("clone one") << QStringList{"skin", "clone", "console"} << takes;
+    QTest::newRow("clone three")
+        << QStringList{"skin", "clone", "console", "warm", "paper"}
+        << QStringLiteral("omaseed: skin clone doesn't take \"paper\". omaseed help skin says "
+                          "what it takes.");
+    QTest::newRow("use none") << QStringList{"skin", "use"} << takes;
+    QTest::newRow("a positional elsewhere")
+        << QStringList{"status", "warm"}
+        << QStringLiteral(
+               "omaseed: status doesn't take \"warm\". omaseed help status says what it takes.");
+}
+
+void TestAgentWords::positionalsCounted()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(QString, message);
+    const auto request = AgentWords::parse(arguments);
+    QCOMPARE(request.kind, Kind::Usage);
+    QCOMPARE(request.message, message);
+}
+
+void TestAgentWords::exitForSkinCodes()
+{
+    // C37 U3, U5, U6 in C45 V13's table.
+    QCOMPARE(AgentWords::exitFor(QStringLiteral("unreadable")), 1);
+    for (const char *code : {"unknown-skin", "bad-name", "skin-exists", "no-theme"})
+        QCOMPARE(AgentWords::exitFor(QString::fromLatin1(code)), 2);
+    QCOMPARE(AgentWords::exitFor(QStringLiteral("not-written")), 5);
+}
+
+void TestAgentWords::helpPageHasTheSkinsBlock()
+{
+    const QString page = AgentWords::helpPage(
+        QStringLiteral("Usage: omaseed [options]\nomaseed — torrents.\n\nOptions:\n  -h\n"));
+    const QStringList lines = page.split(QLatin1Char('\n'));
+    const qsizetype library =
+        lines.indexOf(QStringLiteral("Your library, from the running omaseed:"));
+    const qsizetype skins =
+        lines.indexOf(QStringLiteral("Your skins, in ~/.config/omaseed/skins/:"));
+    const qsizetype every =
+        lines.indexOf(QStringLiteral("Every word takes --json. omaseed help <word> says more."));
+    QVERIFY(library > 0);
+    QVERIFY(skins > library);
+    QVERIFY(every > skins);
+    QCOMPARE(lines.mid(skins + 1, 4),
+             (QStringList{
+                 QStringLiteral("  skin list    every skin, where it lives, whether it reads"),
+                 QStringLiteral("  skin clone   start one from a copy: omaseed skin clone console "
+                                "warm"),
+                 QStringLiteral("  check        what a skin reads and drops, and a picture, with "
+                                "no display"),
+                 QStringLiteral("  skin use     draw it in the open window, and keep it")}));
+    QCOMPARE(lines.at(skins + 5), QString());
 }
 
 void TestAgentWords::optionsBothForms()
@@ -244,14 +399,13 @@ void TestAgentWords::helpPageSplicesAboveOptions()
         "Options:\n  -h, --help   Displays help on commandline options.\n\nArguments:\n"
         "  uris         magnet: links or .torrent files to add.\n")));
     QVERIFY(!page.contains(QStringLiteral("/usr/bin/omaseed")));
-    // The do lines and the Skins block wait for their words (C45 V20).
+    // The do lines wait for their word (C45 V20).
     QVERIFY(!page.contains(QStringLiteral("  do ")));
-    QVERIFY(!page.contains(QStringLiteral("Skins")));
 }
 
 void TestAgentWords::wordPagesHaveUsageAndExit()
 {
-    for (const char *w : {"help", "status", "errors", "log", "moves"}) {
+    for (const char *w : {"help", "status", "errors", "log", "moves", "check", "skin"}) {
         const QString word = QString::fromLatin1(w);
         const QString page = AgentWords::wordPage(word);
         QVERIFY2(page.startsWith(QStringLiteral("Usage: omaseed %1").arg(word)), w);

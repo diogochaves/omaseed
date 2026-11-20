@@ -20,11 +20,13 @@
 #include "core/engines/EngineClient.hpp"
 #include "core/engines/LogEntry.hpp"
 #include "integration/BarMenu.hpp"
+#include "integration/SkinWords.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
 
 #include <QDateTime>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QPointer>
 #include <QTimer>
@@ -50,6 +52,29 @@ QString AgentService::failure(const QString &command, const QString &code, const
 {
     return QString::fromUtf8(core::AgentWords::failure(
         command, code, message, QDateTime::currentDateTimeUtc(), core::version()));
+}
+
+void AgentService::useSkin(const QString &options, Reply reply)
+{
+    const QString command = QStringLiteral("skin use");
+    const QJsonObject parsed = QJsonDocument::fromJson(options.toUtf8()).object();
+    const QString name = parsed.value(QStringLiteral("name")).toString();
+    if (name.isEmpty() || parsed.size() != 1) {
+        reply(failure(command,
+                      QStringLiteral("usage"),
+                      QStringLiteral("omaseed: skin use takes a skin's name: omaseed skin use "
+                                     "warm. omaseed help skin says how.")));
+        return;
+    }
+    const integration::SkinWords::Pick picked =
+        integration::SkinWords::pick(m_app->skinsDir(), name);
+    if (!picked.code.isEmpty()) {
+        reply(failure(command, picked.code, picked.message));
+        return;
+    }
+    m_app->setSkinChoice(name);
+    reply(QString::fromUtf8(integration::SkinWords::use(
+        name, picked.skin, true, QDateTime::currentDateTimeUtc(), core::version())));
 }
 
 void AgentService::status(const QString &options, Reply reply)

@@ -56,6 +56,12 @@ public:
         calls << QStringLiteral("moves ") + options;
         reply(QStringLiteral(R"({"v":1,"command":"moves"})"));
     }
+
+    void useSkin(const QString &options, Reply reply) override
+    {
+        calls << QStringLiteral("useSkin ") + options;
+        reply(QStringLiteral(R"({"v":1,"command":"skin use"})"));
+    }
 };
 
 /// The widget's handler, only so Status is there to compare.
@@ -196,13 +202,14 @@ void TestAgentBus::agentBesideStatusAndApplication()
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
     const QString agent = block(xml, AgentBus::interfaceName());
     QVERIFY2(!agent.isEmpty(), qPrintable(xml));
-    // Status, Errors, Log and Moves, each (s) → s (C45 V3; Do comes with the actions).
-    QCOMPARE(agent.count(QStringLiteral("<method ")), 4);
-    for (const char *method : {"Status", "Errors", "Log", "Moves"})
+    // Status, Errors, Log, Moves and UseSkin, each (s) → s (C45 V3, C37 U6; Do comes with
+    // the actions).
+    QCOMPARE(agent.count(QStringLiteral("<method ")), 5);
+    for (const char *method : {"Status", "Errors", "Log", "Moves", "UseSkin"})
         QVERIFY(agent.contains(QStringLiteral("method name=\"%1\"").arg(QLatin1String(method))));
-    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 4);
-    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 4);
-    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 8);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 5);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 5);
+    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 10);
     QVERIFY(!agent.contains(QStringLiteral("<property")));
     QVERIFY(!agent.contains(QStringLiteral("<signal")));
 }

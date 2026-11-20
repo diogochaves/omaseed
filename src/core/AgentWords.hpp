@@ -6,8 +6,10 @@
 //
 // - Only the first argument can be a word (C37 U10): `omaseed ./status`, a magnet or
 //   `--hidden status` are links and options, as they always were.
-// - `help`, `status`, `errors`, `log` and `moves` are built. `do`, `check` and `skin` are
-//   reserved: they answer usage until their words exist (#223, #224, the actions patch).
+// - `help`, `status`, `errors`, `log`, `moves`, `check` and `skin` are built. `do` is
+//   reserved: it answers usage until its word exists (the actions patch).
+// - `check <skin>` and `skin list | clone <from> <name> | use <name>` take positionals
+//   (C37 U3, U5, U6); every other word takes options only.
 // - The parser turns a word's arguments into the options JSON the Agent interface takes
 //   (C45 V3): only what was given; the running omaseed fills in the defaults.
 // - Every answer and failure is one JSON object led by v, command, at (and omaseed when the
@@ -39,7 +41,7 @@ inline const char *const kDefaultLevel = "warning";
 /// True when `argument` is a word of the table, built or reserved (C37 U10: compared whole,
 /// so a path or a link is never one).
 bool isWord(const QString &argument);
-/// True for a word whose handler isn't in this omaseed yet (`do`, `check`, `skin`).
+/// True for a word whose handler isn't in this omaseed yet (`do`).
 bool isReserved(const QString &word);
 
 /// What a command line that starts with a word asks for.
@@ -49,13 +51,19 @@ struct Request
         Call,  ///< ask the running omaseed: `method` with `options`
         Page,  ///< print `page` (empty: the help page) and exit 0
         Usage, ///< print `message` as a usage failure and exit 2
+        Local, ///< the CLI answers itself (check, skin list, skin clone; C37 U3, U5)
     };
     Kind kind = Kind::Usage;
-    QString word;        ///< the command: the envelope's "command"
-    bool json = false;   ///< `--json` was given (anywhere, so a usage failure is JSON too)
-    QString page;        ///< Page: the word whose page, or "" for the help page
-    QJsonObject options; ///< Call: server, level, lines, since, torrent, landed, as given
-    QString message;     ///< Usage: the words
+    QString word;            ///< the word ("skin" for every skin subword)
+    bool json = false;       ///< `--json` was given (anywhere, so a usage failure is JSON too)
+    QString page;            ///< Page: the word whose page, or "" for the help page
+    QJsonObject options;     ///< Call, Local: server, level, … theme, name, as given
+    QString message;         ///< Usage: the words
+    QString subword;         ///< skin's: list, clone or use; "" for every other word
+    QStringList positionals; ///< check's skin; clone's from and name; use's name
+
+    /// The envelope's "command": the word, then its subword ("skin list").
+    QString command() const { return subword.isEmpty() ? word : word + QLatin1Char(' ') + subword; }
 };
 
 /// `arguments` are the command line after the program, the word first.
@@ -65,8 +73,9 @@ Request parse(const QStringList &arguments);
 /// since, torrent, landed, as each word has them; none for status and help.
 QStringList optionsOf(const QString &word);
 
-/// The Agent interface's method for a read: "Status", "Errors", "Log", "Moves"; "" else.
-QString method(const QString &word);
+/// The Agent interface's method for a command: "Status", "Errors", "Log", "Moves",
+/// "UseSkin" (`skin use`); "" else.
+QString method(const QString &command);
 
 /// The help page: Qt's `helpText()` with its first line replaced by omaseed's two usage
 /// lines and the words' block inserted after the description (C45 V2, docs/62 §2).
@@ -79,9 +88,10 @@ QString doesNotTake(const QString &word, const QString &argument);
 QString noSuchWord(const QString &argument);
 QString notYet(const QString &word);
 
-/// The exit for an error code (C45 V13): 2 usage, unknown-server, ambiguous; 3 not-running,
-/// too-old, no-bus, no-reply; 4 not-current, unreachable, no-log, unknown-torrent,
-/// first-sync; 5 and 6 the actions'. 0 for "" (answered), 1 for a code it doesn't know.
+/// The exit for an error code (C45 V13): 2 usage, unknown-server, ambiguous, and the skins'
+/// unknown-skin, bad-name, skin-exists, no-theme; 3 not-running, too-old, no-bus, no-reply;
+/// 4 not-current, unreachable, no-log, unknown-torrent, first-sync; 5 the actions' and
+/// not-written; 6 failed. 0 for "" (answered), 1 for unreadable and a code it doesn't know.
 int exitFor(const QString &code);
 
 /// ISO 8601 in UTC with seconds and Z ("2026-11-12T14:03:11Z"); null when invalid (C45 V4).

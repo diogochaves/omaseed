@@ -5433,11 +5433,16 @@ QVariantList App::userSkins() const
     return skins;
 }
 
+QString App::skinsDir() const
+{
+    return m_themeReader && m_themeReader->userSkins()
+               ? m_themeReader->userSkins()->dir()
+               : omaseed::integration::ThemeReader::Paths::fromEnvironment().skinsDir;
+}
+
 void App::openSkinsFolder() const
 {
-    const QString dir = m_themeReader && m_themeReader->userSkins()
-                            ? m_themeReader->userSkins()->dir()
-                            : omaseed::integration::ThemeReader::Paths::fromEnvironment().skinsDir;
+    const QString dir = skinsDir();
     QDir().mkpath(dir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }

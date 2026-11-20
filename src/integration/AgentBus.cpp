@@ -52,6 +52,12 @@ public Q_SLOTS:
         return QString();
     }
 
+    QString UseSkin(const QString &options, const QDBusMessage &message)
+    {
+        m_handler->useSkin(options, delayedReply(message));
+        return QString();
+    }
+
 private:
     AgentHandler::Reply delayedReply(const QDBusMessage &message)
     {

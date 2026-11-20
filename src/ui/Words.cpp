@@ -4,9 +4,13 @@
 #include "core/AgentWords.hpp"
 #include "core/Version.hpp"
 #include "integration/AgentClient.hpp"
+#include "integration/SkinReader.hpp"
+#include "integration/SkinWords.hpp"
+#include "integration/ThemeReader.hpp"
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStringList>
@@ -22,6 +26,13 @@ namespace {
 
 namespace AgentWords = core::AgentWords;
 namespace AgentText = core::AgentText;
+namespace SkinWords = integration::SkinWords;
+
+/// The person's skins folder, as the app reads it (C37 U1).
+QString skinsDir()
+{
+    return integration::ThemeReader::Paths::fromEnvironment().skinsDir;
+}
 
 /// C45 V12: colour only on a terminal and without NO_COLOR; the terminal's width, else 80.
 AgentText::TextStyle styleFor(int fd)
@@ -90,9 +101,49 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
     }
     // C45 V12: the lines are made from the same JSON --json prints. A word whose lines aren't
     // in this omaseed yet (#163 steps C, D) prints its JSON.
-    const QString lines = AgentText::lines(object, styleFor(STDOUT_FILENO));
+    QString lines = AgentText::lines(object, styleFor(STDOUT_FILENO));
+    if (lines.isEmpty())
+        lines = SkinWords::lines(object, QDir::homePath());
     write(stdout, lines.isEmpty() ? bytes : lines.toUtf8());
     return 0;
+}
+
+/// The words the CLI answers itself (C37 U3): skin list and skin clone. check is step E's
+/// (#224): until it is built it says so.
+int local(const AgentWords::Request &request)
+{
+    const QString command = request.command();
+    const QDateTime at = QDateTime::currentDateTimeUtc();
+    if (request.word == QLatin1String("check"))
+        return fail(command, request.json, QStringLiteral("usage"), AgentWords::notYet(command));
+    if (request.subword == QLatin1String("list"))
+        return answer(command,
+                      request.json,
+                      SkinWords::list(skinsDir(),
+                                      SkinWords::savedChoice(),
+                                      qEnvironmentVariable("OMASEED_SKIN"),
+                                      at,
+                                      core::version()));
+    const SkinWords::Outcome outcome = SkinWords::clone(
+        skinsDir(), request.positionals.at(0), request.positionals.at(1), at, core::version());
+    if (!outcome.code.isEmpty())
+        return fail(command, request.json, outcome.code, outcome.message);
+    return answer(command, request.json, outcome.json);
+}
+
+/// `skin use` with no omaseed to draw it (C37 U6, #283): the choice saved for the next start,
+/// never over a state.json that doesn't parse.
+int saved(const AgentWords::Request &request, const integration::Skin &skin)
+{
+    const QString command = request.command();
+    const QString name = request.positionals.first();
+    const SkinWords::Outcome outcome = SkinWords::saveChoice(name);
+    if (!outcome.code.isEmpty())
+        return fail(command, request.json, outcome.code, outcome.message);
+    return answer(
+        command,
+        request.json,
+        SkinWords::use(name, skin, false, QDateTime::currentDateTimeUtc(), core::version()));
 }
 
 } // namespace
@@ -115,15 +166,28 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
         return 0;
     case AgentWords::Request::Kind::Usage:
         return fail(request.word, request.json, QStringLiteral("usage"), request.message);
+    case AgentWords::Request::Kind::Local:
+        return local(request);
     case AgentWords::Request::Kind::Call:
         break;
     }
 
+    const QString command = request.command();
+    // C37 U6: `skin use` names a skin that reads, checked before anything is asked or saved.
+    integration::SkinWords::Pick picked;
+    if (request.subword == QLatin1String("use")) {
+        picked = SkinWords::pick(skinsDir(), request.positionals.first());
+        if (!picked.code.isEmpty())
+            return fail(command, request.json, picked.code, picked.message);
+    }
     const integration::AgentClient::Reply reply =
-        integration::AgentClient::call(AgentWords::method(request.word), request.options);
+        integration::AgentClient::call(AgentWords::method(command), request.options);
+    if (request.subword == QLatin1String("use") &&
+        (reply.code == QLatin1String("not-running") || reply.code == QLatin1String("no-bus")))
+        return saved(request, picked.skin);
     if (!reply.code.isEmpty())
-        return fail(request.word, request.json, reply.code, reply.message);
-    return answer(request.word, request.json, reply.answer);
+        return fail(command, request.json, reply.code, reply.message);
+    return answer(command, request.json, reply.answer);
 }
 
 } // namespace omaseed::ui

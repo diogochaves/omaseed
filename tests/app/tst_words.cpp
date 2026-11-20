@@ -13,6 +13,8 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -145,6 +147,16 @@ private slots:
     void aFileNamedStatusOpensAsDotSlash();
     void statusFromARunningOmaseed();
 
+    // The skins' words (DECISIONS C37 U3, U6; #223).
+    void aFileNamedCheckOpensAsDotSlash();
+    void skinListWithNoDisplayOrBus();
+    void skinCloneThenList();
+    void skinUseWithNoneRunningSavesTheChoice();
+    void skinUseNeverWritesABrokenState();
+    void skinUseOnARunningOmaseed();
+    void skinUseOnAnOldOneIs3();
+    void skinUseOddNames();
+
 private:
     /// The environment of every run: its own homes and runtime directory, no display, and
     /// `bus` as the session bus ("" none at all: no address, no socket in the runtime dir).
@@ -158,6 +170,10 @@ private:
     bool ownAsOld(const QString &bus);
     /// The single JSON object on stdout.
     QJsonObject json() const;
+    /// The test's state.json: its path, its bytes ("" when there is none), written.
+    QString statePath() const;
+    QByteArray state() const;
+    void writeState(const QByteArray &bytes);
 
     std::unique_ptr<QTemporaryDir> m_home;
     std::unique_ptr<QProcess> m_bus;
@@ -280,6 +296,25 @@ QJsonObject TestWords::json() const
     return document.object();
 }
 
+QString TestWords::statePath() const
+{
+    return m_home->filePath(QStringLiteral("config/omaseed/state.json"));
+}
+
+QByteArray TestWords::state() const
+{
+    QFile file(statePath());
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
+void TestWords::writeState(const QByteArray &bytes)
+{
+    QVERIFY(QDir().mkpath(QFileInfo(statePath()).absolutePath()));
+    QFile file(statePath());
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(bytes);
+}
+
 void TestWords::helpListsTheWords()
 {
     QVERIFY(run({QStringLiteral("help")}, QString()));
@@ -290,8 +325,10 @@ void TestWords::helpListsTheWords()
         page.startsWith(QLatin1String("Usage: omaseed [options] [magnet: links or .torrent "
                                       "files...]\n       omaseed <word> [arguments] [--json]\n")),
         qPrintable(page));
-    for (const char *word : {"status", "errors", "log", "moves"})
+    for (const char *word :
+         {"status", "errors", "log", "moves", "skin list", "skin clone", "check", "skin use"})
         QVERIFY(page.contains(QStringLiteral("\n  %1 ").arg(QString::fromLatin1(word))));
+    QVERIFY(page.contains(QLatin1String("\nYour skins, in ~/.config/omaseed/skins/:\n")));
     QVERIFY(page.contains(QLatin1String("Options:")));
     QVERIFY(page.contains(QLatin1String("--quit")));
     // `help` and `--help` are one page.
@@ -303,7 +340,7 @@ void TestWords::helpListsTheWords()
 void TestWords::helpWordAndWordHelpMatch_data()
 {
     QTest::addColumn<QString>("word");
-    for (const char *word : {"status", "errors", "log", "moves", "help"})
+    for (const char *word : {"status", "errors", "log", "moves", "help", "check", "skin"})
         QTest::newRow(word) << QString::fromLatin1(word);
 }
 
@@ -345,9 +382,9 @@ void TestWords::usageExits2WithJsonOnStdout()
     QVERIFY2(m_err.contains(QLatin1String("log doesn't take \"--lines=0\"")), qPrintable(m_err));
 
     // A reserved word answers usage too.
-    QVERIFY(run({QStringLiteral("skin"), QStringLiteral("list")}, QString()));
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("pause")}, QString()));
     QCOMPARE(m_exitCode, 2);
-    QVERIFY2(m_err.contains(QLatin1String("skin isn't in this omaseed yet")), qPrintable(m_err));
+    QVERIFY2(m_err.contains(QLatin1String("do isn't in this omaseed yet")), qPrintable(m_err));
 }
 
 void TestWords::notRunningExits3()
@@ -517,6 +554,279 @@ void TestWords::statusFromARunningOmaseed()
              qPrintable(m_out));
     QVERIFY(m_out.contains(QStringLiteral("\n  1 torrent: 1 giving back\n")));
     QVERIFY(!m_out.contains(QLatin1Char('\x1b')));
+}
+
+void TestWords::aFileNamedCheckOpensAsDotSlash()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    QVERIFY(ownAsOld(bus));
+    // C37 U10: check is a word now, and ./check is still a file to open.
+    QVERIFY(run({QStringLiteral("./check")}, bus, true));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_old->opened.size(), 1);
+    QVERIFY2(m_old->opened.first().endsWith(QLatin1String("/check")),
+             qPrintable(m_old->opened.first()));
+}
+
+void TestWords::skinListWithNoDisplayOrBus()
+{
+    // C37 U3: the CLI answers itself: no display, no bus, nothing running.
+    QVERIFY(
+        run({QStringLiteral("skin"), QStringLiteral("list"), QStringLiteral("--json")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out.count(QLatin1Char('\n')), 1);
+    const QJsonObject object = json();
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("skin list"));
+    QVERIFY(!object.value(QLatin1String("omaseed")).toString().isEmpty());
+    QCOMPARE(object.value(QLatin1String("choice")).toString(), QStringLiteral("omarchy"));
+    const QJsonArray skins = object.value(QLatin1String("skins")).toArray();
+    QCOMPARE(skins.size(), 2);
+    QCOMPARE(skins.at(0).toObject().value(QLatin1String("name")).toString(),
+             QStringLiteral("omarchy"));
+    QCOMPARE(skins.at(1).toObject().value(QLatin1String("name")).toString(),
+             QStringLiteral("console"));
+    // Nothing written: no skins folder made, no state.json.
+    QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral("config/omaseed"))));
+}
+
+void TestWords::skinCloneThenList()
+{
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("clone"),
+                 QStringLiteral("console"),
+                 QStringLiteral("warm")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out,
+             QStringLiteral("warm: a copy of console in ~/config/omaseed/skins/warm/skin.json. "
+                            "omaseed check warm draws it.\n"));
+    QVERIFY(
+        QFileInfo::exists(m_home->filePath(QStringLiteral("config/omaseed/skins/warm/skin.json"))));
+
+    // Again: the name is taken, the folder untouched.
+    QFile file(m_home->filePath(QStringLiteral("config/omaseed/skins/warm/skin.json")));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray before = file.readAll();
+    file.close();
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("clone"),
+                 QStringLiteral("omarchy"),
+                 QStringLiteral("warm"),
+                 QStringLiteral("--json")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QCOMPARE(
+        json().value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
+        QStringLiteral("skin-exists"));
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), before);
+    file.close();
+
+    QVERIFY(run({QStringLiteral("skin"), QStringLiteral("list")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out,
+             QStringLiteral("* omarchy   built in\n"
+                            "  console   built in\n"
+                            "  warm      ~/config/omaseed/skins/warm\n"));
+}
+
+void TestWords::skinUseWithNoneRunningSavesTheChoice()
+{
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("clone"),
+                 QStringLiteral("console"),
+                 QStringLiteral("warm")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    writeState(R"({"version": 1, "notifications": {"finished": false},
+                   "appearance": {"baseSize": 15, "skin": "console"}})");
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    // Nobody owns the name on this bus (not-running), then no bus at all (#283: the same).
+    for (const QString &on : {bus, QString()}) {
+        QVERIFY(run({QStringLiteral("skin"),
+                     QStringLiteral("use"),
+                     QStringLiteral("warm"),
+                     QStringLiteral("--json")},
+                    on));
+        QVERIFY2(m_exitCode == 0, qPrintable(m_out + m_err));
+        const QJsonObject object = json();
+        QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("skin use"));
+        QCOMPARE(object.value(QLatin1String("live")).toBool(true), false);
+        QCOMPARE(
+            object.value(QLatin1String("skin")).toObject().value(QLatin1String("name")).toString(),
+            QStringLiteral("warm"));
+        const QJsonObject saved = QJsonDocument::fromJson(state()).object();
+        QCOMPARE(saved.value(QLatin1String("appearance")).toObject(),
+                 (QJsonObject{{QStringLiteral("baseSize"), 15},
+                              {QStringLiteral("skin"), QStringLiteral("warm")}}));
+        QCOMPARE(saved.value(QLatin1String("notifications")).toObject(),
+                 (QJsonObject{{QStringLiteral("finished"), false}}));
+        QCOMPARE(saved.value(QLatin1String("version")).toInt(), 1);
+    }
+    QVERIFY(
+        run({QStringLiteral("skin"), QStringLiteral("use"), QStringLiteral("omarchy")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out, QStringLiteral("omarchy is saved: omaseed draws it when it next starts.\n"));
+}
+
+void TestWords::skinUseNeverWritesABrokenState()
+{
+    const QByteArray broken = "{ \"version\": 1, \"appearance\": ";
+    writeState(broken);
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("use"),
+                 QStringLiteral("console"),
+                 QStringLiteral("--json")},
+                QString()));
+    QCOMPARE(m_exitCode, 5);
+    const QJsonObject error = json().value(QLatin1String("error")).toObject();
+    QCOMPARE(error.value(QLatin1String("code")).toString(), QStringLiteral("not-written"));
+    QCOMPARE(error.value(QLatin1String("message")).toString(),
+             QStringLiteral("state.json doesn't parse, so the choice isn't saved: omaseed would "
+                            "write over it. Open omaseed and pick the skin in Settings."));
+    QCOMPARE(state(), broken);
+}
+
+void TestWords::skinUseOnARunningOmaseed()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("clone"),
+                 QStringLiteral("console"),
+                 QStringLiteral("warm")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    SeedServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+
+    QProcess app;
+    QProcessEnvironment env = environment(bus);
+    env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    env.insert(QStringLiteral("OMASEED_SERVER_URL"),
+               QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()));
+    app.setProcessEnvironment(env);
+    app.setProcessChannelMode(QProcess::MergedChannels);
+    app.start(QStringLiteral(OMASEED_BINARY), QStringList());
+    QVERIFY(app.waitForStarted(5000));
+    struct Stop
+    {
+        QProcess &app;
+        ~Stop()
+        {
+            app.terminate();
+            if (!app.waitForFinished(10000))
+                app.kill();
+            app.waitForFinished(2000);
+        }
+    } stop{app};
+
+    // Asked until its name is taken (status answers).
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 30000) {
+        QVERIFY(run({QStringLiteral("status"), QStringLiteral("--json")}, bus));
+        if (m_exitCode == 0)
+            break;
+        QTest::qWait(300);
+    }
+    QVERIFY2(m_exitCode == 0, qPrintable(m_out + m_err));
+
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("use"),
+                 QStringLiteral("warm"),
+                 QStringLiteral("--json")},
+                bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_out + m_err));
+    const QJsonObject object = json();
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("skin use"));
+    QCOMPARE(object.value(QLatin1String("live")).toBool(), true);
+    const QJsonObject skin = object.value(QLatin1String("skin")).toObject();
+    QCOMPARE(skin.value(QLatin1String("name")).toString(), QStringLiteral("warm"));
+    QCOMPARE(skin.value(QLatin1String("drawn")).toBool(), true);
+    QCOMPARE(skin.value(QLatin1String("dropped")).toInt(), 0);
+    // The app saved it (App::setSkinChoice), and repainted: its log line names the skin.
+    QCOMPARE(QJsonDocument::fromJson(state())
+                 .object()
+                 .value(QLatin1String("appearance"))
+                 .toObject()
+                 .value(QLatin1String("skin"))
+                 .toString(),
+             QStringLiteral("warm"));
+    QString log;
+    timer.restart();
+    while (!log.contains(QLatin1String("skin: warm")) && timer.elapsed() < 5000) {
+        QTest::qWait(100);
+        log += QString::fromUtf8(app.readAll());
+    }
+    QVERIFY2(log.contains(QLatin1String("skin: warm")), qPrintable(log.right(2000)));
+
+    // One the app can't draw is refused, and nothing changes.
+    QVERIFY(QDir().mkpath(m_home->filePath(QStringLiteral("config/omaseed/skins/paper"))));
+    QVERIFY(run({QStringLiteral("skin"), QStringLiteral("use"), QStringLiteral("paper")}, bus));
+    QCOMPARE(m_exitCode, 1);
+    QVERIFY2(m_err.startsWith(QLatin1String("paper doesn't read (missing)")), qPrintable(m_err));
+}
+
+void TestWords::skinUseOnAnOldOneIs3()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    QVERIFY(ownAsOld(bus));
+    // C37 U6: a running omaseed that can't draw it would write over a saved choice, so
+    // nothing is written.
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("use"),
+                 QStringLiteral("console"),
+                 QStringLiteral("--json")},
+                bus));
+    QCOMPARE(m_exitCode, 3);
+    QCOMPARE(
+        json().value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
+        QStringLiteral("too-old"));
+    QVERIFY(!QFileInfo::exists(statePath()));
+}
+
+void TestWords::skinUseOddNames()
+{
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("clone"),
+                 QStringLiteral("omarchy"),
+                 QStringLiteral("warm.v2")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY(
+        run({QStringLiteral("skin"), QStringLiteral("use"), QStringLiteral("warm.v2")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(QJsonDocument::fromJson(state())
+                 .object()
+                 .value(QLatin1String("appearance"))
+                 .toObject()
+                 .value(QLatin1String("skin"))
+                 .toString(),
+             QStringLiteral("warm.v2"));
+    const QByteArray before = state();
+    // A refused name and an unknown one: usage's exit, nothing saved.
+    QVERIFY(
+        run({QStringLiteral("skin"), QStringLiteral("use"), QStringLiteral(".warm")}, QString()));
+    QCOMPARE(m_exitCode, 2);
+    QCOMPARE(m_err.trimmed(), QStringLiteral(".warm can't be a skin's name: hidden."));
+    QVERIFY(run({QStringLiteral("skin"),
+                 QStringLiteral("use"),
+                 QStringLiteral("neon"),
+                 QStringLiteral("--json")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QCOMPARE(
+        json().value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
+        QStringLiteral("unknown-skin"));
+    QCOMPARE(state(), before);
 }
 
 QTEST_GUILESS_MAIN(TestWords)

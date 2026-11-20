@@ -34,6 +34,9 @@ public:
     /// C45 V11: the server omaseed is on, or any saved one by `--server` (its history and
     /// journal as kept, no move back).
     void moves(const QString &options, Reply reply) override;
+    /// C37 U6: a built-in or a listed user skin that reads is drawn (App::setSkinChoice,
+    /// which saves it); a bad name, an unknown skin or one that doesn't read changes nothing.
+    void useSkin(const QString &options, Reply reply) override;
 
     /// How long errors waits for the log before it answers with what is held (design 12).
     static constexpr int kErrorsWaitMs = 5000;

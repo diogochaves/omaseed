@@ -8,6 +8,7 @@
 //   Errors(s options) → s      every torrent that needs you, why, and its fix (C45 V9)
 //   Log(s options) → s         qBittorrent's log, warnings and worse by default (C45 V10)
 //   Moves(s options) → s       the move running now and the last that landed (C45 V11)
+//   UseSkin(s options) → s     draw the skin {"name": NAME} and keep it (DECISIONS C37 U6)
 //
 // Do comes with the actions.
 // It lives on the app's object path beside org.freedesktop.Application and Status (StatusBus),
@@ -40,6 +41,9 @@ public:
     virtual void log(const QString &options, Reply reply) = 0;
     /// C45 V11: any server's, from what omaseed keeps for it.
     virtual void moves(const QString &options, Reply reply) = 0;
+    /// C37 U6: `options` is {"name": NAME}; a skin that reads is drawn and saved as the
+    /// choice, anything else is a failure and changes nothing.
+    virtual void useSkin(const QString &options, Reply reply) = 0;
 };
 
 namespace AgentBus {

@@ -10,24 +10,42 @@ namespace omaseed::core::AgentWords {
 
 namespace {
 
-/// The reads and the help (C45 V1, V2).
+/// The reads, the help (C45 V1, V2) and the skins' words (C37 U3, U5, U6).
 const QStringList &builtWords()
 {
     static const QStringList words{QStringLiteral("help"),
                                    QStringLiteral("status"),
                                    QStringLiteral("errors"),
                                    QStringLiteral("log"),
-                                   QStringLiteral("moves")};
+                                   QStringLiteral("moves"),
+                                   QStringLiteral("check"),
+                                   QStringLiteral("skin")};
     return words;
 }
 
-/// C37 U10's and C45 V14's words, taken by the table before they are built, so a file named
-/// like one already opens as ./do (C45 V2).
+/// C45 V14's word, taken by the table before it is built, so a file named like it already
+/// opens as ./do (C45 V2).
 const QStringList &reservedWords()
 {
-    static const QStringList words{
-        QStringLiteral("do"), QStringLiteral("check"), QStringLiteral("skin")};
+    static const QStringList words{QStringLiteral("do")};
     return words;
+}
+
+/// skin's subwords and how many positionals each takes after it (C37 U3, U6).
+int positionalsOf(const QString &subword)
+{
+    if (subword == QLatin1String("list"))
+        return 0;
+    if (subword == QLatin1String("clone"))
+        return 2;
+    if (subword == QLatin1String("use"))
+        return 1;
+    return -1;
+}
+
+QString skinTakes()
+{
+    return QStringLiteral("omaseed: skin takes list, clone or use. omaseed help skin says how.");
 }
 
 /// The options each read takes besides --json and --help (C45 design 3). status takes no
@@ -127,6 +145,8 @@ QStringList optionsOf(const QString &word)
                 QStringLiteral("server")};
     if (word == QLatin1String("moves"))
         return {QStringLiteral("landed"), QStringLiteral("server")};
+    if (word == QLatin1String("check"))
+        return {QStringLiteral("theme")};
     return {};
 }
 
@@ -175,12 +195,19 @@ Request parse(const QStringList &arguments)
     if (rest.contains(QLatin1String("--help")) || rest.contains(QLatin1String("-h")))
         return page(word, json, word);
 
+    // C37 U3, U5, U6: check and skin take positionals; any other word, none.
+    const bool takesPositionals = word == QLatin1String("check") || word == QLatin1String("skin");
     const QStringList takes = optionsOf(word);
     QJsonObject options;
+    QStringList positionals;
     for (qsizetype i = 0; i < rest.size(); ++i) {
         const QString argument = rest.at(i);
         if (argument == QLatin1String("--json"))
             continue;
+        if (takesPositionals && !argument.isEmpty() && !argument.startsWith(QLatin1Char('-'))) {
+            positionals << argument;
+            continue;
+        }
         if (!argument.startsWith(QLatin1String("--")) || argument.size() < 3)
             return usage(word, json, doesNotTake(word, argument));
         const qsizetype equals = argument.indexOf(QLatin1Char('='));
@@ -206,11 +233,45 @@ Request parse(const QStringList &arguments)
     request.word = word;
     request.json = json;
     request.options = options;
+    if (word == QLatin1String("check")) {
+        if (positionals.isEmpty())
+            return usage(word,
+                         json,
+                         QStringLiteral("omaseed: check takes a skin's name: omaseed check warm. "
+                                        "omaseed help check says how."));
+        if (positionals.size() > 1)
+            return usage(word, json, doesNotTake(word, positionals.at(1)));
+        request.kind = Request::Kind::Local;
+        request.positionals = positionals;
+    } else if (word == QLatin1String("skin")) {
+        const QString subword = positionals.value(0);
+        const int count = positionalsOf(subword);
+        if (count < 0)
+            return usage(word, json, skinTakes());
+        request.subword = subword;
+        request.positionals = positionals.mid(1);
+        if (request.positionals.size() < count)
+            return usage(request.command(), json, skinTakes());
+        if (request.positionals.size() > count)
+            return usage(request.command(),
+                         json,
+                         QStringLiteral("omaseed: %1 doesn't take \"%2\". omaseed help skin says "
+                                        "what it takes.")
+                             .arg(request.command(), request.positionals.at(count)));
+        if (subword == QLatin1String("use")) {
+            // C37 U6: the running omaseed draws it; Words saves it when none is running.
+            request.options.insert(QStringLiteral("name"), request.positionals.first());
+        } else {
+            request.kind = Request::Kind::Local;
+        }
+    }
     return request;
 }
 
 QString method(const QString &word)
 {
+    if (word == QLatin1String("skin use"))
+        return QStringLiteral("UseSkin");
     if (word == QLatin1String("status"))
         return QStringLiteral("Status");
     if (word == QLatin1String("errors"))
@@ -235,14 +296,20 @@ QString helpPage(const QString &qtHelp)
         QStringLiteral("       omaseed <word> [arguments] [--json]"),
     };
     page << head;
-    // C45 V2 (docs/62 §2): the words, above Qt's options. The do lines and the Skins block
-    // join here when their words exist (#223, #224, then the actions patch, V20).
+    // C45 V2 (docs/62 §2): the words, above Qt's options; the skins' after the library's
+    // (C37 U3, U5, U6). The do lines join here with the actions patch (V20).
     page << QString() << QStringLiteral("Your library, from the running omaseed:")
          << QStringLiteral("  status     the server, what it is doing, how many need you")
          << QStringLiteral("  errors     every torrent that needs you, why, and its fix")
          << QStringLiteral("  log        qBittorrent's log: warnings and worse, the last 50 lines")
          << QStringLiteral("  moves      moves running now, and the last ones that landed")
-         << QString() << QStringLiteral("Every word takes --json. omaseed help <word> says more.")
+         << QString() << QStringLiteral("Your skins, in ~/.config/omaseed/skins/:")
+         << QStringLiteral("  skin list    every skin, where it lives, whether it reads")
+         << QStringLiteral("  skin clone   start one from a copy: omaseed skin clone console warm")
+         << QStringLiteral("  check        what a skin reads and drops, and a picture, with no "
+                           "display")
+         << QStringLiteral("  skin use     draw it in the open window, and keep it") << QString()
+         << QStringLiteral("Every word takes --json. omaseed help <word> says more.")
          << QStringLiteral("Coding agents: omaseed --skill prints your guide.") << QString();
     if (options >= 0)
         page << lines.mid(options);
@@ -320,6 +387,38 @@ QString wordPage(const QString &word)
                QStringLiteral("Exit: 0 answered · 2 usage · 3 omaseed isn't running · 4 that "
                               "server can't\n"
                               "      answer now\n");
+    if (word == QLatin1String("check"))
+        return QStringLiteral(
+                   "Usage: omaseed check <skin> [--theme NAME] [--json]\n"
+                   "What a skin reads and what it drops, and why; the fonts it lacks; where "
+                   "text\n"
+                   "had to be lifted to stay readable; and a picture of it under the person's "
+                   "theme,\n"
+                   "in ~/.cache/omaseed/check/. No display, no running omaseed: it draws "
+                   "offscreen.\n"
+                   "  --theme NAME    an installed Omarchy theme instead of the current one\n") +
+               json +
+               QStringLiteral("Exit: 0 drawn · 1 drawn whole as Omarchy's (it doesn't read) · "
+                              "2 usage\n");
+    if (word == QLatin1String("skin"))
+        return QStringLiteral(
+                   "Usage: omaseed skin list [--json]\n"
+                   "       omaseed skin clone <from> <name> [--json]\n"
+                   "       omaseed skin use <name> [--json]\n"
+                   "The person's skins, one folder each in ~/.config/omaseed/skins/.\n"
+                   "  list            every skin, built in first: where it lives, whether it "
+                   "reads\n"
+                   "  clone           a new skin, <name>, from a copy of <from> with every "
+                   "token\n"
+                   "                  written out; never over a folder that is there\n"
+                   "  use             the open omaseed draws it and keeps it; with none "
+                   "running, it\n"
+                   "                  is saved for the next start\n") +
+               json +
+               QStringLiteral("Exit: 0 done · 1 the skin doesn't read · 2 usage, no such skin, "
+                              "a bad name or\n"
+                              "      one taken · 3 an omaseed that can't answer · 5 not "
+                              "written\n");
     return QString();
 }
 
@@ -362,8 +461,17 @@ int exitFor(const QString &code)
                                      QStringLiteral("never"),
                                      QStringLiteral("refused"),
                                      QStringLiteral("no-answer")};
-    if (usage.contains(code))
+    // C37 U3, U5, U6: the skins' words.
+    static const QStringList skinUsage{QStringLiteral("unknown-skin"),
+                                       QStringLiteral("bad-name"),
+                                       QStringLiteral("skin-exists"),
+                                       QStringLiteral("no-theme")};
+    if (usage.contains(code) || skinUsage.contains(code))
         return 2;
+    if (code == QLatin1String("not-written"))
+        return 5;
+    if (code == QLatin1String("unreadable"))
+        return 1;
     if (unreached.contains(code))
         return 3;
     if (cannotNow.contains(code))

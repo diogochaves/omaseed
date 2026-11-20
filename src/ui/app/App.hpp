@@ -638,6 +638,8 @@ public:
     QVariantList userSkins() const;
     /// Makes the skins folder and opens it in the file manager (the Skin row's open folder).
     Q_INVOKABLE void openSkinsFolder() const;
+    /// The person's skins folder: the theme reader's, else the environment's (C37 U1).
+    QString skinsDir() const;
 
     /// Off pins the bundled Tokyo Night instead of following `omarchy-theme-set`.
     Q_PROPERTY(bool followOmarchyTheme READ followOmarchyTheme WRITE setFollowOmarchyTheme NOTIFY
