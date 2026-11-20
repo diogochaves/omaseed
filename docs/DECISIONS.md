@@ -2756,3 +2756,63 @@ Console keeps painting rows, table and space. What the station showed is already
 the specials are the rows display's questions (C24 H3), a category's torrents are the rail's
 filter, and its bands by category are board 46's shelves, which C32 D12 dropped. G2–G8 (a
 cards display) are not ruled; a later board may pick them up if the question comes back.
+
+## C47 — The add window: the files, and the room (board 64, ruled 2026-11-19)
+
+Board [64](64-the-files-and-the-room.html), #172, I1–I15 all as recommended. The add window
+opens in two columns and its file list becomes the details tab's; the free line follows a
+torrent through the server's temp folder. **Amends** C24 H7 (the sheet's body splits; head and
+foot unchanged) and board 25's free line (D7, D8: two stages). D10 (board 44) holds: omaseed
+never suggests a temp folder, it shows one the server has.
+
+Board 59 is **not** ruled by this. I5's chips take only 59 A1's kind table (video, audio,
+subtitles, images, books, archives, disc images, extras, other) with programs left among the
+extras as `TorrentExtras` counts them today; 59's program check, guessed category and magnet
+checklist wait for 59's own ruling, and until then the magnet's right side holds today's fetch
+line (C5).
+
+- **I1 a.** Two columns for every add when the screen holds them: the form on the left (today's
+  rows and order, about 440 px at base 14), the torrent on the right (its files at full height,
+  then About, I15); the window about 1120 px. A single file gets a one-row Files list (its own
+  name, kind and size, and a rename; no tick, no toolbar). A magnet on its way fills the right
+  side with its wait.
+- **I2 a.** Where the monitor's work area can't hold two columns, one column: the file pane
+  under the form, with its toolbar.
+- **I3 a.** One file pane and one model for the add sheet and details › Files: the add sheet's
+  tick, priority, rename and skip-at-least join `TorrentFilesModel`'s sort, filter, fold and
+  hide skipped.
+- **I4 a.** The toolbar: filter (`/`), sort ▾ (name, size, kind; folders first, on by default in
+  the tree), tree · flat, fold all / unfold all, hide skipped. Column headers sort as in details.
+- **I5 a.** The kinds line is chips: a kind's word shows only that kind (again: all), its box
+  ticks or skips every file of that kind. A box never moves on its own (C28).
+- **I6 a.** Tree · flat: flat lists every file once, its folder dim after the name, sorted
+  across the torrent. The view is kept per window (add, details).
+- **I7 a.** The pane's head: chips left, count right; while filtered `showing N of M` with
+  `× show all`. C28's extras line under the list.
+- **I8 a.** With a temp folder, two lines under Save to, each its own meter and colour:
+  `downloads first to FOLDER · needs X · Y free on DRIVE` and `then moves to PATH · needs X ·
+  Z free on DRIVE`. On one drive the second is dim: `then moved to PATH on the same drive: a
+  rename, no second room`. With none, today's line.
+- **I9 a.** The first line's switch, on by default from the server's setting; off, this torrent
+  downloads straight to Save to (qBittorrent `useDownloadPath`/`downloadPath`, Deluge
+  `download_location`/`move_completed`). A red temp drive offers it as a link. Transmission's
+  folder is session-wide: its line has no switch and says so. The server's setting never
+  changes.
+- **I10 a.** Room promised to downloads in progress on the same drive (downloading and queued,
+  their `amount_left`): said (`N of it still coming for K downloads`) and taken from free for
+  the colour. Nothing when the server pre-allocates, or where omaseed can't tell the drive.
+- **I11 a.** The save path's drive too small for the move: the second line red, with #117's
+  fact in one dim line. The add still works (board 25 D7).
+- **I12 a.** A qBittorrent category with its own incomplete folder moves the first line to it
+  when picked, as Save to follows a pick; a typed path keeps today's rule.
+- **I13 b.** Set location keeps one stage; a later issue.
+- **I14 a.** **Appearance › Add window: two columns · one column**, two by default; I2's
+  fallback still applies. No control in the window.
+- **I15 a.** **About this torrent**, read-only, under the files: trackers (count, hosts),
+  private (no DHT, no peer exchange), created (date, program), comment, pieces (count × size),
+  hash (v1, v2 or hybrid). A magnet: its link's trackers and hash until the list arrives.
+
+Still to check in the build (the board's step 1, on the playground): `torrents/add`'s
+`useDownloadPath`/`downloadPath`, a category's `download_path` in `torrents/categories`, which
+path `free_space_on_disk` reports with a temp folder on, and Deluge's per-torrent
+`download_location` with `move_completed`.
