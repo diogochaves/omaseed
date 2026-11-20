@@ -28,7 +28,21 @@ QJsonObject StateFile::read()
     return doc.object();
 }
 
-void StateFile::write(const QJsonObject &state)
+std::optional<QJsonObject> StateFile::readStrict()
+{
+    QFile file(path());
+    if (!file.exists())
+        return QJsonObject{{QStringLiteral("version"), 1}};
+    if (!file.open(QIODevice::ReadOnly))
+        return std::nullopt;
+    QJsonParseError error{};
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &error);
+    if (error.error != QJsonParseError::NoError || !doc.isObject())
+        return std::nullopt;
+    return doc.object();
+}
+
+bool StateFile::write(const QJsonObject &state)
 {
     const QString filePath = path();
     QDir().mkpath(QFileInfo(filePath).absolutePath());
@@ -37,9 +51,9 @@ void StateFile::write(const QJsonObject &state)
     // file whole instead of a truncated one that read() would turn into an empty state.
     QSaveFile file(filePath);
     if (!file.open(QIODevice::WriteOnly))
-        return;
+        return false;
     file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
-    file.commit();
+    return file.commit();
 }
 
 QJsonObject StateFile::readSection(const QString &key)

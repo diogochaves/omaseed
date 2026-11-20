@@ -47,6 +47,12 @@ omaseed_add_test(tst_skintokens
     DEFINES OMASEED_SOURCE_QML_DIR="${PROJECT_SOURCE_DIR}/src/ui/qml"
 )
 
+# #223 (DECISIONS C37 U3, U6): skin list and skin clone's answers, and the file a clone writes.
+omaseed_add_test(tst_skinwords
+    SOURCES tst_skinwords.cpp
+    LIBRARIES omaseed::integration
+)
+
 # #171 step 2: Follow the desktop's rule and watcher, and the reader's skin choice.
 omaseed_add_test(tst_desktopskin
     SOURCES tst_desktopskin.cpp

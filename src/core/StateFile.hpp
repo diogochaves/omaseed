@@ -10,6 +10,8 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <optional>
+
 namespace omaseed::core {
 
 class StateFile
@@ -21,8 +23,13 @@ public:
 
     /// The whole file, or `{"version": 1}` when it does not exist or does not parse.
     static QJsonObject read();
-    /// Writes `state` verbatim, creating the parent directory if needed.
-    static void write(const QJsonObject &state);
+    /// The whole file for a writer that must never replace what it can't read (`skin use`
+    /// with no omaseed running, DECISIONS C37 U6): `{"version": 1}` when it does not exist,
+    /// nothing when it exists and can't be read or does not parse to an object.
+    static std::optional<QJsonObject> readStrict();
+    /// Writes `state` verbatim, creating the parent directory if needed; false when it
+    /// couldn't be written (the old file, if any, is left whole).
+    static bool write(const QJsonObject &state);
 
     /// One top-level key, e.g. "notifications"; an empty object when absent.
     static QJsonObject readSection(const QString &key);
