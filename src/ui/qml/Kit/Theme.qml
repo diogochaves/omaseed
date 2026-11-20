@@ -215,13 +215,16 @@ ThemeBase {
     readonly property real dayTodayEdge: 1.5
 
     // ---- the skin's seams (design note "Seams": Plate, SelectionMark, Meter, Lamp) ---------
-    /// The face a seam draws through: the skin's own file in its `faces/` when its `faces`
-    /// names one, else Omarchy's. Faces are compiled into this module under `skins/`, so the
-    /// URL resolves beside this file. Read through `skinTokens`, so a switch reloads them.
+    /// The face a seam draws through: the built-in skin its `faces` names, whose face for that
+    /// seam is drawn (docs/DECISIONS.md C37 U2: a face names a built-in, never a file), else
+    /// Omarchy's. Faces are compiled into this module under `skins/`, so the URL resolves
+    /// beside this file. Read through `skinTokens`, so a switch reloads them.
     function face(seam: string): url {
         const faces = skinTokens.faces;
-        const file = faces !== undefined ? faces[seam] : undefined;
-        return file !== undefined ? Qt.resolvedUrl("skins/" + skin.name + "/faces/" + file) : defaultFace(seam);
+        const builtIn = faces !== undefined ? faces[seam] : undefined;
+        if (builtIn === undefined)
+            return defaultFace(seam);
+        return Qt.resolvedUrl("skins/" + builtIn + "/faces/" + seam + ".qml");
     }
     /// Omarchy's face for a seam: today's drawing, and what any face that fails falls back to.
     function defaultFace(seam: string): url {

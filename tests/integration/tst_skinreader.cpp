@@ -1,9 +1,12 @@
 #include "integration/SkinReader.hpp"
 
+#include <QFileInfo>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QTest>
 
 using omaseed::integration::Skin;
+using omaseed::integration::SkinDrop;
 using omaseed::integration::SkinGround;
 using omaseed::integration::SkinReader;
 using omaseed::integration::ThemeSkin;
@@ -32,6 +35,13 @@ private slots:
     void shellMeansTheShellsAlpha();
     void aGroundOverItselfIsOmarchys();
     void groundsResolveAfterWhatTheyArePaintedOver();
+
+    void dropsCarryValueAndWhy();
+    void descriptionAndClonedFromAreRead();
+    void schemaKeyIsIgnored();
+    void facesNameABuiltIn();
+    void aFacePathIsDropped();
+    void consoleFacesStillLoadConsoles();
 
     void themeSkinLooksTokensUp();
     void themeSkinSignalsOnlyOnAChange();
@@ -293,7 +303,7 @@ void TestSkinReader::wellFormedTokensAreKept()
         "density": {"titleBarHeight": 54.5},
         "glyphs": {"add": "+", "help": "icon:help", "search": "ms:search"},
         "labels": {"library": "ライブラリ"},
-        "faces": {"Plate": "Plate.qml", "SelectionMark": "Brackets.qml"}
+        "faces": {"Plate": "console", "SelectionMark": "omarchy"}
     })");
     QVERIFY2(skin.dropped.isEmpty(), qPrintable(skin.dropped.join(QStringLiteral(", "))));
     QCOMPARE(skin.roles.value(QStringLiteral("signal")), QStringLiteral("blue"));
@@ -396,6 +406,121 @@ void TestSkinReader::groundsResolveAfterWhatTheyArePaintedOver()
         const QString over = all.value(name).over;
         if (over != QLatin1String("window"))
             QVERIFY2(order.indexOf(over) < order.indexOf(name), qPrintable(name));
+    }
+}
+
+/// C37 U5: every drop carries the file's value and a short why, in step with `dropped`.
+void TestSkinReader::dropsCarryValueAndWhy()
+{
+    const Skin skin = SkinReader::parse(R"({"version": 1,
+        "grounds": {"hover": {"tint": "foreground", "alpha": 1.4},
+                    "panel": {"tint": "foreground", "alpha": 0.1, "over": "panel"}},
+        "line": {"hair": 12, "thick": 1},
+        "label": {"case": "title"},
+        "glow": "neon",
+        "halo": 3
+    })");
+    QVERIFY(skin.drawn());
+    QCOMPARE(skin.drops.size(), skin.dropped.size());
+    for (int i = 0; i < skin.drops.size(); ++i)
+        QCOMPARE(skin.drops.at(i).token, skin.dropped.at(i));
+    const auto dropOf = [&](const char *token) {
+        for (const SkinDrop &drop : skin.drops)
+            if (drop.token == QLatin1String(token))
+                return drop;
+        return SkinDrop{};
+    };
+    QCOMPARE(dropOf("grounds.hover").value.toObject().value(QLatin1String("alpha")).toDouble(),
+             1.4);
+    QCOMPARE(dropOf("grounds.hover").why,
+             QStringLiteral("its alpha is not between 0 and 1, nor shell"));
+    QCOMPARE(dropOf("grounds.panel").why, QStringLiteral("a ground painted over itself"));
+    QCOMPARE(dropOf("line.hair").value, QJsonValue(12));
+    QCOMPARE(dropOf("line.hair").why, QStringLiteral("not a whole number from 0 to 8"));
+    QCOMPARE(dropOf("line.thick").why, QStringLiteral("not a token omaseed knows"));
+    QCOMPARE(dropOf("label.case").value, QJsonValue(QStringLiteral("title")));
+    QCOMPARE(dropOf("label.case").why, QStringLiteral("not none or upper"));
+    QCOMPARE(dropOf("glow").why, QStringLiteral("held at clean (C24 H12)"));
+    QCOMPARE(dropOf("halo").value, QJsonValue(3));
+    QCOMPARE(dropOf("halo").why, QStringLiteral("not a token omaseed knows"));
+    QCOMPARE(skin.drops.size(), 7);
+    // Every drop of the malformed cases says why.
+    for (const SkinDrop &drop : skin.drops)
+        QVERIFY2(!drop.why.isEmpty(), qPrintable(drop.token));
+}
+
+/// C37 U1, U3: a user skin's caption and its origin are read, not dropped.
+void TestSkinReader::descriptionAndClonedFromAreRead()
+{
+    const Skin skin = SkinReader::parse(R"({"version": 1,
+        "description": "Warmer and rounder.",
+        "cloned_from": {"skin": "console", "version": 1}})");
+    QVERIFY(skin.dropped.isEmpty());
+    QCOMPARE(skin.description, QStringLiteral("Warmer and rounder."));
+    QCOMPARE(skin.clonedFrom.skin, QStringLiteral("console"));
+    QCOMPARE(skin.clonedFrom.version, 1);
+    QVERIFY(!skin.tokens.contains(QStringLiteral("description")));
+
+    const Skin bad = SkinReader::parse(R"({"version": 1,
+        "description": "",
+        "cloned_from": {"skin": "console"}})");
+    QCOMPARE(bad.dropped,
+             (QStringList{QStringLiteral("cloned_from"), QStringLiteral("description")}));
+    QVERIFY(bad.description.isEmpty());
+    QVERIFY(bad.clonedFrom.skin.isEmpty());
+    const Skin longer =
+        SkinReader::parse(R"({"version": 1, "description": ")" + QByteArray(121, 'a') + R"("})");
+    QCOMPARE(longer.dropped, QStringList{QStringLiteral("description")});
+}
+
+/// `$schema` is for an editor: read by nobody, dropped never.
+void TestSkinReader::schemaKeyIsIgnored()
+{
+    const Skin skin =
+        SkinReader::parse(R"({"$schema": "../../skin.schema.json", "version": 1, "radius": 4})");
+    QVERIFY(skin.drawn());
+    QVERIFY(skin.dropped.isEmpty());
+    QVERIFY(!skin.tokens.contains(QStringLiteral("$schema")));
+    QCOMPARE(skin.tokens.value(QStringLiteral("radius")).toInt(), 4);
+}
+
+/// C37 U2: a face names a built-in skin, whose face for that seam is drawn.
+void TestSkinReader::facesNameABuiltIn()
+{
+    const Skin skin =
+        SkinReader::parse(R"({"version": 1, "faces": {"Plate": "console", "Lamp": "omarchy"}})");
+    QVERIFY(skin.dropped.isEmpty());
+    const QVariantMap faces = skin.tokens.value(QStringLiteral("faces")).toMap();
+    QCOMPARE(faces.value(QStringLiteral("Plate")).toString(), QStringLiteral("console"));
+    QCOMPARE(faces.value(QStringLiteral("Lamp")).toString(), QStringLiteral("omarchy"));
+}
+
+/// C37 U2: a file name or a path is never a face; nothing a skin carries is loaded.
+void TestSkinReader::aFacePathIsDropped()
+{
+    for (const char *face : {"Plate.qml", "../x", "faces/Plate.qml", "Console", "warm"}) {
+        const Skin skin = SkinReader::parse(R"({"version": 1, "faces": {"Plate": ")" +
+                                            QByteArray(face) + R"("}})");
+        QCOMPARE(skin.dropped, QStringList{QStringLiteral("faces.Plate")});
+        QCOMPARE(skin.drops.first().why,
+                 QStringLiteral("names a built-in skin (omarchy, console), never a file"));
+        QVERIFY(!skin.tokens.contains(QStringLiteral("faces")));
+    }
+}
+
+/// Console's faces name console, and Theme.face() finds console's file for every seam, so
+/// nothing is drawn differently under the built-ins.
+void TestSkinReader::consoleFacesStillLoadConsoles()
+{
+    const Skin skin = SkinReader::builtIn(QStringLiteral("console"));
+    const QVariantMap faces = skin.tokens.value(QStringLiteral("faces")).toMap();
+    QCOMPARE(faces.size(), SkinReader::seams().size());
+    for (const QString &seam : SkinReader::seams()) {
+        QCOMPARE(faces.value(seam).toString(), QStringLiteral("console"));
+        const QString file = QStringLiteral(OMASEED_TEST_BUILD_DIR) +
+                             QStringLiteral("/qml/Omaseed/Kit/skins/console/faces/") + seam +
+                             QStringLiteral(".qml");
+        QVERIFY2(QFileInfo::exists(file), qPrintable(file));
     }
 }
 

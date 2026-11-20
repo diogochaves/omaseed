@@ -136,9 +136,9 @@
   },
   "glow": "clean",
   "faces": {
-    "Plate": "Plate.qml",
-    "SelectionMark": "SelectionMark.qml",
-    "Meter": "Meter.qml",
-    "Lamp": "Lamp.qml"
+    "Plate": "console",
+    "SelectionMark": "console",
+    "Meter": "console",
+    "Lamp": "console"
   }
 }

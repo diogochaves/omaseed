@@ -2,6 +2,8 @@
 
 #include <QByteArray>
 #include <QHash>
+#include <QJsonValue>
+#include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -24,6 +26,27 @@ struct SkinGround
     bool operator==(const SkinGround &) const = default;
 };
 
+/// A token the reader left at Omarchy's, and why (docs/DECISIONS.md C37 U5): its path
+/// (`grounds.hover.alpha` is `grounds.hover`; a whole group is its name; a user skin's
+/// `faces/` folder is `faces/`), the value the file gave (null when there is none), and a
+/// short English reason, one per kind of token.
+struct SkinDrop
+{
+    QString token;
+    QJsonValue value;
+    QString why;
+    bool operator==(const SkinDrop &) const = default;
+};
+
+/// The skin a user skin was cloned from (`"cloned_from": {"skin": NAME, "version": N}`,
+/// DECISIONS C37 U3); an empty name when the file says nothing.
+struct SkinOrigin
+{
+    QString skin;
+    int version = 0;
+    bool operator==(const SkinOrigin &) const = default;
+};
+
 /// A skin's tokens, read and checked (the console skin's design note, "The shape"). Only
 /// what the file set, in the right shape, is here: a token left out or malformed is
 /// Omarchy's, which every reader of a token passes as its default (`Theme.skin.n(name,
@@ -38,8 +61,15 @@ struct Skin
     /// "unparseable", "no version", "newer", "unknown skin".
     QString reason;
     /// The token paths that were in the file but malformed, and so are Omarchy's
-    /// ("line.hair", "grounds.panel", "glow"…). For a log line and the tests.
+    /// ("line.hair", "grounds.panel", "glow"…). For a log line and the tests: `drops`' tokens,
+    /// in the same order.
     QStringList dropped;
+    /// Each of those with the value it had and why it was dropped (C37 U5), in the order met.
+    QList<SkinDrop> drops;
+    /// The file's `description` (1 to 120 characters): the Skin row's caption (C37 U1).
+    QString description;
+    /// The file's `cloned_from` (C37 U3).
+    SkinOrigin clonedFrom;
 
     /// Which theme role plays each of the skin's roles: accent, signal, alert, warn. Always
     /// all four (Omarchy's when the file says nothing).
@@ -88,8 +118,19 @@ public:
     static const QStringList &themeRoles();
     /// The skin's own roles, and the theme role each is in Omarchy's skin.
     static const QHash<QString, QString> &omarchyRoles();
-    /// The seams a skin may give a face (the design note's "Seams").
+    /// The seams a skin may give a face (the design note's "Seams"). A face names a built-in
+    /// skin whose face that seam draws (DECISIONS C37 U2), never a file.
     static const QStringList &seams();
+
+    /// Omarchy's value of every key of the fixed groups (line, cut, tint, font, label, meter,
+    /// plates, select) and of every density name, by group as Skin::tokens holds them: the
+    /// QML fallbacks, written out once for `skin clone` and the schema (C37 U3). The tokens
+    /// in contextualTokens() are left out. tests/integration/tst_skintokens.cpp keeps it in
+    /// step with the QML.
+    static const QVariantMap &omarchyTokens();
+    /// The token paths (`label.track`) whose Omarchy value depends on where it is drawn (an
+    /// expression for a fallback, or two different fallbacks), so no one value is Omarchy's.
+    static const QStringList &contextualTokens();
 
     /// Every ground's recipe under `skin`: Omarchy's, with the skin's laid over it. A skin
     /// recipe that would paint a ground over itself, through any chain of `over`, is
