@@ -291,6 +291,16 @@ QList<CategoryPatch> categories(const QJsonObject &map)
         // A partial update carries only the keys that changed (e.g. just `download_path`).
         if (object.contains(key("savePath")))
             category.savePath = object.value(key("savePath")).toString();
+        // #271 (2): a path (its own), false (none) or null (the session's rule).
+        if (object.contains(key("download_path"))) {
+            const QJsonValue path = object.value(key("download_path"));
+            if (path.isString())
+                category.downloadPath = QVariant(path.toString());
+            else if (path.isBool() && !path.toBool())
+                category.downloadPath = QVariant(false);
+            else
+                category.downloadPath = QVariant();
+        }
         list.append(category);
     }
     return list;
@@ -643,7 +653,8 @@ EngineFeatures features(const QString &apiVersion)
     f.engineLog = true;
     f.addOptions = true;
     f.addContentLayout = true;
-    f.v2Only = true; // libtorrent 2: a v2 hash or a v2-only .torrent (#147)
+    f.tempFolderPerAdd = true; // useDownloadPath, downloadPath (#271 (1), C47 I9)
+    f.v2Only = true;           // libtorrent 2: a v2 hash or a v2-only .torrent (#147)
     f.peerControl = true;
     f.peerBan = true;
     f.webSeeds = true;

@@ -141,6 +141,7 @@ private Q_SLOTS:
     void sentinelsBecomeExplicitValues();
     void syncDeltaCarriesTheEnvelope();
     void categoriesKeepAMissingSavePathMissing();
+    void aCategorysDownloadPathThreeWays();
     void serverStateTakesOnlyWhatCame();
     void filePrioritiesAreNamed();
     void filesKeepWhatTheyLack();
@@ -350,6 +351,24 @@ void TestQbtTranslate::categoriesKeepAMissingSavePathMissing()
     // No name in the object: the key is the name. No savePath: absent, not empty.
     QCOMPARE(categories.at(1).name, QStringLiteral("tv"));
     QVERIFY(!categories.at(1).savePath);
+}
+
+// #271 (2), DECISIONS C47 I12: torrents/categories (and maindata) say a category's temp folder
+// three ways; a poll that leaves the key out says nothing.
+void TestQbtTranslate::aCategorysDownloadPathThreeWays()
+{
+    const QList<CategoryPatch> categories = QbtTranslate::categories(QJsonObject{
+        {QStringLiteral("a-own"), one("download_path", QStringLiteral("/fast/films"))},
+        {QStringLiteral("b-none"), one("download_path", false)},
+        {QStringLiteral("c-session"), one("download_path", QJsonValue::Null)},
+        {QStringLiteral("d-unsaid"), one("savePath", QStringLiteral("/m"))},
+    });
+    QCOMPARE(categories.size(), 4);
+    QCOMPARE(categories.at(0).downloadPath, std::optional<QVariant>(QStringLiteral("/fast/films")));
+    QCOMPARE(categories.at(1).downloadPath, std::optional<QVariant>(false));
+    QVERIFY(categories.at(2).downloadPath.has_value());
+    QVERIFY(categories.at(2).downloadPath->isNull());
+    QVERIFY(!categories.at(3).downloadPath);
 }
 
 void TestQbtTranslate::serverStateTakesOnlyWhatCame()

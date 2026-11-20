@@ -22,7 +22,8 @@ bool nameLessThan(const Category &a, const Category &b)
 
 Category categoryFrom(const CategoryPatch &patch)
 {
-    return Category{patch.name, patch.savePath.value_or(QString())};
+    return Category{
+        patch.name, patch.savePath.value_or(QString()), patch.downloadPath.value_or(QVariant())};
 }
 
 } // namespace
@@ -75,6 +76,26 @@ QString CategoryModel::savePathOf(const QString &name) const
     return {};
 }
 
+QVariantMap CategoryModel::tempFolderOf(const QString &name) const
+{
+    // #271 (2), DECISIONS C47 I12: a path is its own, false none, null (or nothing said) the
+    // session's rule, which an add with autoTMM makes `temp_path/<category>`.
+    for (const Category &category : m_categories) {
+        if (category.name != name)
+            continue;
+        const QVariant &path = category.downloadPath;
+        if (path.typeId() == QMetaType::QString && !path.toString().isEmpty())
+            return {{QStringLiteral("rule"), QStringLiteral("own")},
+                    {QStringLiteral("path"), path.toString()}};
+        if (path.typeId() == QMetaType::Bool && !path.toBool())
+            return {{QStringLiteral("rule"), QStringLiteral("none")},
+                    {QStringLiteral("path"), QString()}};
+        break;
+    }
+    return {{QStringLiteral("rule"), QStringLiteral("session")},
+            {QStringLiteral("path"), QString()}};
+}
+
 void CategoryModel::applyFullUpdate(const QList<CategoryPatch> &categories)
 {
     QList<Category> next;
@@ -106,6 +127,8 @@ void CategoryModel::applyPartial(const QList<CategoryPatch> &changed, const QStr
         // value rather than falling back to empty.
         if (patch.savePath)
             found->savePath = *patch.savePath;
+        if (patch.downloadPath)
+            found->downloadPath = *patch.downloadPath;
     }
     setCategories(std::move(next));
 }
@@ -124,16 +147,18 @@ void CategoryModel::setCategories(QList<Category> next)
     const bool sameSize = next.size() == m_categories.size();
     if (sameSize) {
         // Only save paths moved: keep the rows and tell the views which ones changed.
+        // Or only temp folders (no role: tempFolderOf() reads them when asked).
         QList<int> rows;
+        bool sameNames = true;
         for (int row = 0; row < next.size(); ++row) {
             if (next.at(row).name != m_categories.at(row).name) {
-                rows.clear();
+                sameNames = false;
                 break;
             }
             if (next.at(row).savePath != m_categories.at(row).savePath)
                 rows.append(row);
         }
-        if (!rows.isEmpty()) {
+        if (sameNames) {
             m_categories = std::move(next);
             for (const int touched : rows)
                 Q_EMIT dataChanged(index(touched), index(touched), {SavePathRole});

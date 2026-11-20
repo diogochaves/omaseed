@@ -13,6 +13,7 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <QVariant>
 
 #include <optional>
 
@@ -23,6 +24,10 @@ struct CategoryPatch
 {
     QString name;
     std::optional<QString> savePath;
+    /// qBittorrent's `download_path` (#271 (2), DECISIONS C47 I12): a string, the category's
+    /// own temp folder; `false`, none; a null QVariant, the session's rule
+    /// (`temp_path/<category>`). Absent when the poll did not carry it.
+    std::optional<QVariant> downloadPath = std::nullopt;
 
     bool operator==(const CategoryPatch &other) const = default;
 };

@@ -31,6 +31,7 @@ private slots:
     void partialSavePathChangeKeepsTheRows();
     void partialWithoutSavePathKeepsIt();
     void clearEmptiesIt();
+    void tempFolderOfOwnNoneSession();
 };
 
 void TestCategoryModel::fullUpdateSortsByName()
@@ -149,6 +150,50 @@ void TestCategoryModel::clearEmptiesIt()
     model.clear();
     QCOMPARE(model.count(), 0);
     QCOMPARE(model.names(), QStringList());
+}
+
+// #271 (2), DECISIONS C47 I12: a category's own temp folder, none, or the session's rule, kept
+// through a partial that leaves it out and changed by one that carries it.
+void TestCategoryModel::tempFolderOfOwnNoneSession()
+{
+    CategoryModel model;
+    QJsonObject own = category(QStringLiteral("films"), QStringLiteral("/data/films"));
+    own.insert(QStringLiteral("download_path"), QStringLiteral("/fast/films"));
+    QJsonObject none = category(QStringLiteral("music"), QStringLiteral("/data/music"));
+    none.insert(QStringLiteral("download_path"), false);
+    QJsonObject session = category(QStringLiteral("tv"), QStringLiteral("/data/tv"));
+    session.insert(QStringLiteral("download_path"), QJsonValue::Null);
+    qbtfeed::full(model,
+                  QJsonObject{{QStringLiteral("films"), own},
+                              {QStringLiteral("music"), none},
+                              {QStringLiteral("tv"), session},
+                              {QStringLiteral("old"),
+                               category(QStringLiteral("old"), QStringLiteral("/data/old"))}});
+
+    const auto ruleOf = [&model](const QString &name) {
+        return model.tempFolderOf(name).value(QStringLiteral("rule")).toString();
+    };
+    QCOMPARE(ruleOf(QStringLiteral("films")), QStringLiteral("own"));
+    QCOMPARE(model.tempFolderOf(QStringLiteral("films")).value(QStringLiteral("path")).toString(),
+             QStringLiteral("/fast/films"));
+    QCOMPARE(ruleOf(QStringLiteral("music")), QStringLiteral("none"));
+    QCOMPARE(ruleOf(QStringLiteral("tv")), QStringLiteral("session"));
+    QCOMPARE(ruleOf(QStringLiteral("old")), QStringLiteral("session")); // nothing said
+    QCOMPARE(ruleOf(QStringLiteral("nobody")), QStringLiteral("session"));
+
+    // A partial with only the save path keeps the temp folder; one with it changes it, quietly.
+    QSignalSpy reset(&model, &QAbstractItemModel::modelReset);
+    qbtfeed::partial(
+        model,
+        QJsonObject{{QStringLiteral("films"),
+                     QJsonObject{{QStringLiteral("savePath"), QStringLiteral("/data/f2")}}},
+                    {QStringLiteral("tv"),
+                     QJsonObject{{QStringLiteral("download_path"), QStringLiteral("/fast/tv")}}}},
+        QJsonArray());
+    QCOMPARE(ruleOf(QStringLiteral("films")), QStringLiteral("own"));
+    QCOMPARE(model.tempFolderOf(QStringLiteral("tv")).value(QStringLiteral("path")).toString(),
+             QStringLiteral("/fast/tv"));
+    QCOMPARE(reset.count(), 0);
 }
 
 QTEST_MAIN(TestCategoryModel)
