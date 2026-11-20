@@ -42,6 +42,15 @@ omaseed_add_test(tst_printonly
 )
 add_dependencies(tst_printonly omaseed)
 
+# DECISIONS C45 V2, V4, V5, V13 (#163): `omaseed WORD`, the real binary with no display, on a
+# private bus or none: pages, usage, not running, no bus, too old, a file named like a word.
+omaseed_add_test(tst_words
+    SOURCES tst_words.cpp
+    LIBRARIES Qt6::DBus
+    DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
+)
+add_dependencies(tst_words omaseed)
+
 # docs/DECISIONS.md C30 F7: every text role on every ground, in every theme of
 # tests/fixtures/themes and every built-in skin (#171), as the built omaseed resolves them
 # (`--theme-roles --skin`, offscreen, no window). A pair under 4.5:1 fails here, and so does

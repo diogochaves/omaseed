@@ -1,3 +1,4 @@
+#include "core/AgentWords.hpp"
 #include "core/ApiError.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
@@ -21,6 +22,7 @@
 #include "integration/Tray.hpp"
 #include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
+#include "ui/Words.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/StatusService.hpp"
 #include "ui/i18n/Translations.hpp"
@@ -466,7 +468,7 @@ struct CommandLine
             {demo, rows, headless, hidden, open, themeRoles, skin, installBarWidget, quit});
         parser.addPositionalArgument(QStringLiteral("uris"),
                                      QStringLiteral("magnet: links or .torrent files to add."),
-                                     QStringLiteral("[uris...]"));
+                                     QStringLiteral("[magnet: links or .torrent files...]"));
     }
 };
 
@@ -531,7 +533,14 @@ int runPrintOnly(int argc, char *argv[])
     if (prints) {
         QCoreApplication app(argc, argv);
         setApplicationNames();
-        // --help and --version print and end the process here, as they always have.
+        // DECISIONS C45 V2: --help (-h, -?) is the help page, the words above Qt's options.
+        // --version wins over it, as in Qt's own process(); --help-all stays Qt's.
+        if (parser.isSet(QStringLiteral("help")) && !parser.isSet(QStringLiteral("version")) &&
+            !parser.isSet(QStringLiteral("help-all"))) {
+            QTextStream(stdout) << omaseed::core::AgentWords::helpPage(parser.helpText());
+            return 0;
+        }
+        // --help-all and --version print and end the process here, as they always have.
         parser.process(app);
     }
     // Theme reads fontconfig's monospace through QFont, which wants a QGuiApplication: the
@@ -546,6 +555,16 @@ int runPrintOnly(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+    // DECISIONS C45 V2, C37 U10: a first argument that is a word (status, errors, log, moves,
+    // help) is a command, before Qt's parser and any display. Only the first counts: a file
+    // named like a word opens as ./status, and links and options never match.
+    if (argc > 1 && omaseed::core::AgentWords::isWord(QString::fromLocal8Bit(argv[1])))
+        return omaseed::ui::runWord(argc, argv, []() {
+            setApplicationNames();
+            QCommandLineParser parser;
+            CommandLine().addTo(parser);
+            return parser.helpText();
+        });
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--install-bar-widget") == 0)
             return runInstallBarWidget(argc, argv);

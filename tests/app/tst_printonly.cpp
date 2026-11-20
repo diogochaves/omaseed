@@ -90,6 +90,18 @@ void TestPrintOnly::help()
     QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));
     QVERIFY2(m_out.contains(QLatin1String("Usage:")), qPrintable(m_out + m_err));
+    // DECISIONS C45 V2: --help is the help page, the words above Qt's options; --help-all
+    // stays Qt's own, whose usage line names the binary.
+    QVERIFY(m_out.contains(QLatin1String(" [options] [magnet: links or .torrent files...]\n")));
+    if (flag != QLatin1String("--help-all")) {
+        QVERIFY2(m_out.startsWith(
+                     QLatin1String("Usage: omaseed [options] [magnet: links or .torrent files...]\n"
+                                   "       omaseed <word> [arguments] [--json]\n")),
+                 qPrintable(m_out));
+        QVERIFY(m_out.contains(QLatin1String("Your library, from the running omaseed:")));
+        QVERIFY(m_out.indexOf(QLatin1String("\n  errors ")) <
+                m_out.indexOf(QLatin1String("Options:")));
+    }
     QVERIFY(m_out.contains(QLatin1String("--theme-roles")));
     QVERIFY(m_out.contains(QLatin1String("--quit")));
     QVERIFY(m_out.contains(QLatin1String("--open <page>")));

@@ -2,6 +2,8 @@
 # library whose plugin is linked here, so the types are registered from the resources.
 qt_add_executable(omaseed
     main.cpp
+    Words.cpp
+    Words.hpp
 )
 
 add_subdirectory(app)
