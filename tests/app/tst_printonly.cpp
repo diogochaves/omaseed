@@ -155,9 +155,13 @@ void TestPrintOnly::skillPrintsWithNoDisplay()
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));
     QVERIFY2(m_out.startsWith(QLatin1String("## Your library\n")), qPrintable(m_out + m_err));
     QVERIFY(m_out.contains(QLatin1String("  omaseed errors --json ")));
-    QVERIFY(m_out.endsWith(QLatin1String("fields are only added within it.\n")));
-    // Printing is not a start: no AGENTS.md appears.
+    QVERIFY(m_out.contains(QLatin1String("fields are only added within it.\n\n## Your skins\n")));
+    QVERIFY(m_out.contains(QLatin1String("  omaseed skin list --json ")));
+    QVERIFY(m_out.endsWith(QLatin1String("never read that folder.\n")));
+    // Printing is not a start: no AGENTS.md or schema appears.
     QVERIFY(!QFile::exists(m_dir.filePath(QStringLiteral("XDG_CONFIG_HOME/omaseed/AGENTS.md"))));
+    QVERIFY(
+        !QFile::exists(m_dir.filePath(QStringLiteral("XDG_CONFIG_HOME/omaseed/skin.schema.json"))));
 }
 
 void TestPrintOnly::themeRoles()

@@ -893,6 +893,378 @@ const QStringList &SkinReader::contextualTokens()
     return paths;
 }
 
+namespace {
+
+/// A string with no control characters, as hasControl() reads them (C0, DEL and C1).
+const QString kNoControl = QStringLiteral("^[^\\u0000-\\u001f\\u007f-\\u009f]*$");
+
+QJsonObject integerIn(int low, int high)
+{
+    return {{QStringLiteral("type"), QStringLiteral("integer")},
+            {QStringLiteral("minimum"), low},
+            {QStringLiteral("maximum"), high}};
+}
+
+QJsonObject numberIn(double low, double high)
+{
+    return {{QStringLiteral("type"), QStringLiteral("number")},
+            {QStringLiteral("minimum"), low},
+            {QStringLiteral("maximum"), high}};
+}
+
+QJsonObject oneOfNames(const QStringList &names)
+{
+    return {{QStringLiteral("type"), QStringLiteral("string")},
+            {QStringLiteral("enum"), QJsonArray::fromStringList(names)}};
+}
+
+/// What a ground or a line may be tinted with: the theme roles, then the skin's own roles,
+/// in a fixed order (omarchyRoles() is a hash), so the schema's bytes are the same each start.
+QStringList tintNames()
+{
+    QStringList names = SkinReader::themeRoles();
+    for (const QString &role : {QStringLiteral("accent"),
+                                QStringLiteral("signal"),
+                                QStringLiteral("alert"),
+                                QStringLiteral("warn")})
+        if (!names.contains(role))
+            names << role;
+    return names;
+}
+
+QJsonObject withDescription(QJsonObject schema, const QString &description)
+{
+    schema.insert(QStringLiteral("description"), description);
+    return schema;
+}
+
+/// The schema of a token of `kind`: what check() takes, and its why as the description.
+QJsonObject kindSchema(Kind kind)
+{
+    QJsonObject schema;
+    switch (kind) {
+    case Kind::Width:
+        schema = integerIn(0, 8);
+        break;
+    case Kind::Px:
+        schema = integerIn(0, 64);
+        break;
+    case Kind::Count:
+        schema = integerIn(0, 256);
+        break;
+    case Kind::Spec:
+        schema = numberIn(0, 4000);
+        break;
+    case Kind::Alpha:
+    case Kind::Em:
+        schema = numberIn(0, 1);
+        break;
+    case Kind::Weight:
+        schema = integerIn(100, 900);
+        break;
+    case Kind::Bool:
+        schema = {{QStringLiteral("type"), QStringLiteral("boolean")}};
+        break;
+    case Kind::LineRole:
+        schema = oneOfNames(tintNames() << QStringLiteral("hair") << QStringLiteral("faint"));
+        break;
+    case Kind::Family:
+        schema = {{QStringLiteral("type"), QStringLiteral("string")},
+                  {QStringLiteral("maxLength"), 128},
+                  {QStringLiteral("pattern"), kNoControl}};
+        break;
+    case Kind::Case:
+        schema = oneOfNames({QStringLiteral("none"), QStringLiteral("upper")});
+        break;
+    case Kind::Step:
+        schema = oneOfNames({QStringLiteral("caption"),
+                             QStringLiteral("small"),
+                             QStringLiteral("body"),
+                             QStringLiteral("heading")});
+        break;
+    case Kind::Glyph:
+        // ms:<ligature>, icon:<name>, or a character; never a bare "icon:".
+        schema = {
+            {QStringLiteral("type"), QStringLiteral("string")},
+            {QStringLiteral("minLength"), 1},
+            {QStringLiteral("maxLength"), 64},
+            {QStringLiteral("pattern"), kNoControl},
+            {QStringLiteral("anyOf"),
+             QJsonArray{QJsonObject{{QStringLiteral("pattern"), QStringLiteral("^ms:[a-z0-9_]+$")}},
+                        QJsonObject{{QStringLiteral("not"),
+                                     QJsonObject{{QStringLiteral("pattern"),
+                                                  QStringLiteral("^ms:|^icon:$")}}}}}}};
+        break;
+    case Kind::Word:
+        schema = {{QStringLiteral("type"), QStringLiteral("string")},
+                  {QStringLiteral("minLength"), 1},
+                  {QStringLiteral("maxLength"), 32},
+                  {QStringLiteral("pattern"), kNoControl}};
+        break;
+    case Kind::Face:
+        schema = oneOfNames(SkinReader::builtInNames());
+        break;
+    }
+    return withDescription(schema, QStringLiteral("Dropped when ") + whyNot(kind) + u'.');
+}
+
+/// Each kind's name under the schema's `$defs`.
+const QList<std::pair<Kind, QString>> &kindNames()
+{
+    static const QList<std::pair<Kind, QString>> names{
+        {Kind::Width, QStringLiteral("width")},
+        {Kind::Px, QStringLiteral("px")},
+        {Kind::Count, QStringLiteral("count")},
+        {Kind::Spec, QStringLiteral("spec")},
+        {Kind::Alpha, QStringLiteral("alpha")},
+        {Kind::Em, QStringLiteral("em")},
+        {Kind::Weight, QStringLiteral("weight")},
+        {Kind::Bool, QStringLiteral("bool")},
+        {Kind::LineRole, QStringLiteral("lineRole")},
+        {Kind::Family, QStringLiteral("family")},
+        {Kind::Case, QStringLiteral("case")},
+        {Kind::Step, QStringLiteral("step")},
+        {Kind::Glyph, QStringLiteral("glyph")},
+        {Kind::Word, QStringLiteral("word")},
+        {Kind::Face, QStringLiteral("face")},
+    };
+    return names;
+}
+
+/// A token that is one of `$defs`' kinds: the schema stays short, one definition per kind.
+QJsonObject ref(const QString &def)
+{
+    return {{QStringLiteral("$ref"), QStringLiteral("#/$defs/") + def}};
+}
+
+QJsonObject refTo(Kind kind)
+{
+    for (const auto &[k, name] : kindNames())
+        if (k == kind)
+            return ref(name);
+    return {};
+}
+
+/// A group whose keys are `properties`, and no other.
+QJsonObject closedGroup(const QJsonObject &properties, const QString &description)
+{
+    return {{QStringLiteral("type"), QStringLiteral("object")},
+            {QStringLiteral("description"), description},
+            {QStringLiteral("properties"), properties},
+            {QStringLiteral("additionalProperties"), false}};
+}
+
+/// A group keyed by any token name (isName), each value of `kind`.
+QJsonObject openGroup(Kind kind, const QJsonObject &properties, const QString &description)
+{
+    QJsonObject group{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("description"), description},
+        {QStringLiteral("propertyNames"),
+         QJsonObject{{QStringLiteral("pattern"), QStringLiteral("^[A-Za-z][A-Za-z0-9_]{0,63}$")}}},
+        {QStringLiteral("additionalProperties"), refTo(kind)}};
+    if (!properties.isEmpty())
+        group.insert(QStringLiteral("properties"), properties);
+    return group;
+}
+
+} // namespace
+
+QJsonObject SkinReader::schema()
+{
+    const QVariantMap &omarchy = omarchyTokens();
+    const QString contextual =
+        QStringLiteral("Omarchy's value depends on where it is drawn, so it has no one default "
+                       "and a clone leaves it out.");
+
+    QJsonObject properties{
+        {QStringLiteral("$schema"),
+         QJsonObject{{QStringLiteral("type"), QStringLiteral("string")},
+                     {QStringLiteral("description"),
+                      QStringLiteral("This schema's path, for an editor. omaseed ignores it.")}}},
+        {QStringLiteral("skin"),
+         QJsonObject{{QStringLiteral("type"), QStringLiteral("string")},
+                     {QStringLiteral("description"),
+                      QStringLiteral("A built-in skin's name. A skin of yours is named by its "
+                                     "folder, and this is ignored.")}}},
+        {QStringLiteral("version"),
+         QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")},
+                     {QStringLiteral("minimum"), 1},
+                     {QStringLiteral("maximum"), kVersion},
+                     {QStringLiteral("description"),
+                      QStringLiteral("The token set's version. Without one, or newer than this "
+                                     "omaseed, the whole skin is drawn as Omarchy's.")}}},
+        {QStringLiteral("description"),
+         QJsonObject{{QStringLiteral("type"), QStringLiteral("string")},
+                     {QStringLiteral("minLength"), 1},
+                     {QStringLiteral("maxLength"), 120},
+                     {QStringLiteral("pattern"), kNoControl},
+                     {QStringLiteral("description"),
+                      QStringLiteral("The caption under the Skin row in Settings.")}}},
+        {QStringLiteral("cloned_from"),
+         QJsonObject{
+             {QStringLiteral("type"), QStringLiteral("object")},
+             {QStringLiteral("description"), QStringLiteral("The skin this one was cloned from.")},
+             {QStringLiteral("properties"),
+              QJsonObject{{QStringLiteral("skin"),
+                           QJsonObject{{QStringLiteral("type"), QStringLiteral("string")},
+                                       {QStringLiteral("minLength"), 1}}},
+                          {QStringLiteral("version"),
+                           QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")},
+                                       {QStringLiteral("minimum"), 1}}}}},
+             {QStringLiteral("required"),
+              QJsonArray{QStringLiteral("skin"), QStringLiteral("version")}},
+             {QStringLiteral("additionalProperties"), false}}},
+        {QStringLiteral("radius"),
+         QJsonObject{
+             {QStringLiteral("description"),
+              QStringLiteral("Corner rounding in spec px, or hyprland: Hyprland's own.")},
+             {QStringLiteral("anyOf"),
+              QJsonArray{integerIn(0, 64),
+                         QJsonObject{{QStringLiteral("const"), QStringLiteral("hyprland")}}}}}},
+        {QStringLiteral("numerals"),
+         QJsonObject{
+             {QStringLiteral("type"), QStringLiteral("string")},
+             {QStringLiteral("enum"), QJsonArray{QStringLiteral("pad"), QStringLiteral("plain")}},
+             {QStringLiteral("default"), QStringLiteral("plain")},
+             {QStringLiteral("description"),
+              QStringLiteral("pad: figures in fixed columns; plain: as the font draws "
+                             "them.")}}},
+        {QStringLiteral("glow"),
+         QJsonObject{{QStringLiteral("const"), QStringLiteral("clean")},
+                     {QStringLiteral("default"), QStringLiteral("clean")},
+                     {QStringLiteral("description"),
+                      QStringLiteral("Held at clean (DECISIONS C24 H12).")}}},
+    };
+
+    // The skin's roles: each a theme role.
+    QJsonObject roles;
+    for (auto it = omarchyRoles().constBegin(); it != omarchyRoles().constEnd(); ++it) {
+        QJsonObject role = ref(QStringLiteral("themeRole"));
+        role.insert(QStringLiteral("default"), it.value());
+        roles.insert(it.key(), role);
+    }
+    properties.insert(QStringLiteral("roles"),
+                      closedGroup(roles,
+                                  QStringLiteral("Which theme role plays each of the skin's "
+                                                 "roles.")));
+
+    // Each ground's recipe: a tint at an alpha over another ground (C30). A ground is never
+    // painted over itself; a longer loop is dropped too, which a schema can't say.
+    QJsonObject grounds;
+    for (const QString &name : groundNames()) {
+        QJsonObject over = ref(QStringLiteral("over"));
+        over.insert(QStringLiteral("not"), QJsonObject{{QStringLiteral("const"), name}});
+        const SkinGround ours = omarchyGrounds().value(name);
+        grounds.insert(
+            name,
+            QJsonObject{{QStringLiteral("type"), QStringLiteral("object")},
+                        {QStringLiteral("properties"),
+                         QJsonObject{{QStringLiteral("tint"), ref(QStringLiteral("tint"))},
+                                     {QStringLiteral("alpha"), ref(QStringLiteral("groundAlpha"))},
+                                     {QStringLiteral("over"), over}}},
+                        {QStringLiteral("required"),
+                         QJsonArray{QStringLiteral("tint"), QStringLiteral("alpha")}},
+                        {QStringLiteral("additionalProperties"), false},
+                        {QStringLiteral("default"),
+                         QJsonObject{{QStringLiteral("tint"), ours.tint},
+                                     {QStringLiteral("alpha"), QStringLiteral("shell")},
+                                     {QStringLiteral("over"), ours.over}}}});
+    }
+    properties.insert(QStringLiteral("grounds"),
+                      closedGroup(grounds,
+                                  QStringLiteral("Each ground: tint (a theme role or a skin "
+                                                 "role) at alpha (0 to 1, or shell: the "
+                                                 "shell's) over another ground or the "
+                                                 "window.")));
+
+    // C37 U2: a face names a built-in skin, never a file.
+    QJsonObject faces;
+    for (const QString &seam : seams()) {
+        QJsonObject face = refTo(Kind::Face);
+        face.insert(QStringLiteral("default"), QStringLiteral("omarchy"));
+        faces.insert(seam, face);
+    }
+    properties.insert(QStringLiteral("faces"),
+                      closedGroup(faces,
+                                  QStringLiteral("The built-in skin whose face each seam "
+                                                 "draws.")));
+
+    for (auto group = fixedGroups().constBegin(); group != fixedGroups().constEnd(); ++group) {
+        const QVariantMap defaults = omarchy.value(group.key()).toMap();
+        QJsonObject keys;
+        for (auto key = group->constBegin(); key != group->constEnd(); ++key) {
+            QJsonObject token = refTo(key.value());
+            const QString path = group.key() + u'.' + key.key();
+            if (contextualTokens().contains(path))
+                token.insert(QStringLiteral("description"), contextual);
+            else if (defaults.contains(key.key()))
+                token.insert(QStringLiteral("default"),
+                             QJsonValue::fromVariant(defaults.value(key.key())));
+            keys.insert(key.key(), token);
+        }
+        properties.insert(group.key(),
+                          closedGroup(keys, QStringLiteral("Omarchy's value is each default.")));
+    }
+
+    QJsonObject density;
+    const QVariantMap densities = omarchy.value(QStringLiteral("density")).toMap();
+    for (auto it = densities.constBegin(); it != densities.constEnd(); ++it) {
+        QJsonObject size = refTo(Kind::Spec);
+        size.insert(QStringLiteral("default"), QJsonValue::fromVariant(it.value()));
+        density.insert(it.key(), size);
+    }
+    properties.insert(QStringLiteral("density"),
+                      openGroup(Kind::Spec,
+                                density,
+                                QStringLiteral("Named sizes in spec px, scaled by the base "
+                                               "size. A name not listed here is read but "
+                                               "nothing draws it.")));
+    properties.insert(QStringLiteral("glyphs"),
+                      openGroup(Kind::Glyph,
+                                {},
+                                QStringLiteral("A glyph by name: ms:<Material Symbols "
+                                               "ligature>, icon:<name>, or a character. None "
+                                               "by default.")));
+    properties.insert(
+        QStringLiteral("labels"),
+        openGroup(Kind::Word, {}, QStringLiteral("A label's word by its id. None by default.")));
+
+    QJsonObject defs;
+    for (const auto &[kind, name] : kindNames())
+        defs.insert(name, kindSchema(kind));
+    defs.insert(QStringLiteral("themeRole"),
+                withDescription(oneOfNames(themeRoles()), QStringLiteral("A theme role.")));
+    defs.insert(QStringLiteral("tint"),
+                withDescription(oneOfNames(tintNames()),
+                                QStringLiteral("A theme role, or one of the skin's roles.")));
+    defs.insert(
+        QStringLiteral("groundAlpha"),
+        QJsonObject{{QStringLiteral("description"),
+                     QStringLiteral("0 to 1, or shell: the alpha Omarchy's skin gives "
+                                    "that ground.")},
+                    {QStringLiteral("anyOf"),
+                     QJsonArray{numberIn(0, 1),
+                                QJsonObject{{QStringLiteral("const"), QStringLiteral("shell")}}}}});
+    defs.insert(QStringLiteral("over"),
+                withDescription(oneOfNames(QStringList{QStringLiteral("window")} + groundNames()),
+                                QStringLiteral("The window, or another ground. Never the ground "
+                                               "itself, nor a loop back to it.")));
+
+    return {
+        {QStringLiteral("$schema"), QStringLiteral("https://json-schema.org/draft/2020-12/schema")},
+        {QStringLiteral("$defs"), defs},
+        {QStringLiteral("title"), QStringLiteral("An omaseed skin (skin.json)")},
+        {QStringLiteral("description"),
+         QStringLiteral("The form of omaseed's window; the colours are the theme's. A token "
+                        "outside this schema is left at Omarchy's value and named by "
+                        "omaseed check.")},
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("required"), QJsonArray{QStringLiteral("version")}},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}
+
 QHash<QString, SkinGround> SkinReader::groundsOf(const Skin &skin)
 {
     QHash<QString, SkinGround> grounds = omarchyGrounds();

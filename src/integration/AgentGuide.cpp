@@ -1,8 +1,13 @@
 #include "integration/AgentGuide.hpp"
 
+#include "integration/SkinReader.hpp"
+
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLoggingCategory>
+#include <QRegularExpression>
 #include <QSaveFile>
 
 namespace {
@@ -31,6 +36,23 @@ bool save(const QString &path, const QByteArray &bytes)
     return true;
 }
 
+QString resource(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QString();
+    return QString::fromUtf8(file.readAll());
+}
+
+/// Whether `bytes` is a schema omaseed wrote: its first key is `$comment`, saying header().
+bool isOurSchema(const QByteArray &bytes, const QString &header)
+{
+    static const QRegularExpression first(
+        QStringLiteral("^\\s*\\{\\s*\"\\$comment\"\\s*:\\s*\"([^\"]*)\""));
+    const QRegularExpressionMatch match = first.match(QString::fromUtf8(bytes.left(512)));
+    return match.hasMatch() && match.captured(1) == header;
+}
+
 } // namespace
 
 namespace omaseed::integration::AgentGuide {
@@ -40,12 +62,27 @@ QString header()
     return QStringLiteral("Written by omaseed on every start. Edits here are overwritten.");
 }
 
+QString libraryPart()
+{
+    return resource(QStringLiteral(":/omaseed/agents/library.md"));
+}
+
+QString skinsPart()
+{
+    return resource(QStringLiteral(":/omaseed/agents/skins.md"));
+}
+
 QString text()
 {
-    QFile file(QStringLiteral(":/omaseed/agents/library.md"));
-    if (!file.open(QIODevice::ReadOnly))
-        return QString();
-    return QString::fromUtf8(file.readAll());
+    return libraryPart() + QLatin1Char('\n') + skinsPart();
+}
+
+QByteArray schemaBytes()
+{
+    // QJsonObject sorts its keys, and "$comment" sorts first, so the header leads the file.
+    QJsonObject schema = SkinReader::schema();
+    schema.insert(QStringLiteral("$comment"), header());
+    return QJsonDocument(schema).toJson(QJsonDocument::Indented);
 }
 
 WriteResult writeInto(const QString &dir)
@@ -85,6 +122,23 @@ WriteResult writeInto(const QString &dir)
             << QStringLiteral("left %1 alone: it says more than @AGENTS.md").arg(claudePath);
         result.claude = Wrote::LeftAlone;
     }
+
+    // C37 U4: the schema a clone's `$schema` names, beside this guide.
+    const QString schemaPath = QDir(dir).filePath(QStringLiteral("skin.schema.json"));
+    const QByteArray schema = schemaBytes();
+    const QByteArray schemaHad = readAll(schemaPath, &exists);
+    if (!exists)
+        result.schema = save(schemaPath, schema) ? Wrote::Written : Wrote::Failed;
+    else if (schemaHad == schema)
+        result.schema = Wrote::Same;
+    else if (!isOurSchema(schemaHad, header())) {
+        qCInfo(lcAgentGuide).noquote()
+            << QStringLiteral("left %1 alone: its $comment isn't omaseed's line, so it is "
+                              "someone else's")
+                   .arg(schemaPath);
+        result.schema = Wrote::LeftAlone;
+    } else
+        result.schema = save(schemaPath, schema) ? Wrote::Written : Wrote::Failed;
     return result;
 }
 

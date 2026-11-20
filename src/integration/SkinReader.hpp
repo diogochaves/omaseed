@@ -2,6 +2,7 @@
 
 #include <QByteArray>
 #include <QHash>
+#include <QJsonObject>
 #include <QJsonValue>
 #include <QList>
 #include <QObject>
@@ -134,6 +135,13 @@ public:
     /// The token paths (`label.track`) whose Omarchy value depends on where it is drawn (an
     /// expression for a fallback, or two different fallbacks), so no one value is Omarchy's.
     static const QStringList &contextualTokens();
+
+    /// skin.schema.json (DECISIONS C37 U4): JSON Schema 2020-12 for what parse() reads, made
+    /// from the same tables, so a new token never needs prose. Every group and key with its
+    /// type and range or names, Omarchy's value as its `default` (a contextual token has none,
+    /// and its description says why). AgentGuide::writeInto adds its `$comment` and writes it
+    /// beside AGENTS.md; a clone points at it with `$schema`.
+    static QJsonObject schema();
 
     /// Every ground's recipe under `skin`: Omarchy's, with the skin's laid over it. A skin
     /// recipe that would paint a ground over itself, through any chain of `over`, is

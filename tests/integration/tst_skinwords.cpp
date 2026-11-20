@@ -1,6 +1,8 @@
 // DECISIONS C37 U1, U3, U6: `skin list` and `skin clone`'s answers and the file a clone
 // writes. Every folder is the test's own; the skins are invented.
 
+#include "SchemaCheck.hpp"
+#include "integration/AgentGuide.hpp"
 #include "integration/SkinReader.hpp"
 #include "integration/SkinWords.hpp"
 #include "integration/UserSkins.hpp"
@@ -31,6 +33,7 @@ private slots:
     void listShape();
     void cloneWritesEveryToken();
     void aCloneReadsBackAsItsSource();
+    void aCloneValidatesAgainstTheSchema();
     void aCloneOfOmarchyReadsAsOmarchy();
     void aCloneOfAUserSkinKeepsItsOwn();
     void cloneRefusesAnExistingName();
@@ -226,6 +229,35 @@ void TestSkinWords::aCloneReadsBackAsItsSource()
     QCOMPARE(SkinReader::groundsOf(copy), SkinReader::groundsOf(source));
     QCOMPARE(copy.tokens, expected(source));
     QCOMPARE(SkinReader::fontFamilies(copy), SkinReader::fontFamilies(source));
+}
+
+void TestSkinWords::aCloneValidatesAgainstTheSchema()
+{
+    // C37 U4: a clone's every key is in skin.schema.json, which its $schema finds beside the
+    // guide (the skins folder's parent is omaseed's config folder).
+    const QString config = m_tmp->path();
+    QCOMPARE(omaseed::integration::AgentGuide::writeInto(config).schema,
+             omaseed::integration::AgentGuide::Wrote::Written);
+    put(QStringLiteral("paper"),
+        "{\"version\": 1, \"description\": \"Paper.\", \"radius\": 4, \"glyphs\": {\"up\": "
+        "\"icon:arrow\"}, \"labels\": {\"library\": \"Shelf\"}, \"label\": {\"track\": 0.1}}");
+    for (const QString &from :
+         {QStringLiteral("omarchy"), QStringLiteral("console"), QStringLiteral("paper")}) {
+        const QString name = QStringLiteral("from-") + from;
+        const SkinWords::Outcome outcome = SkinWords::clone(m_dir, from, name, m_at, QString());
+        QVERIFY2(outcome.code.isEmpty(), qPrintable(outcome.message));
+        const QJsonObject root = QJsonDocument::fromJson(file(name)).object();
+        const QString schemaPath =
+            QDir::cleanPath(QDir(m_dir + QLatin1Char('/') + name)
+                                .filePath(root.value(QLatin1String("$schema")).toString()));
+        QCOMPARE(schemaPath, QDir(config).filePath(QStringLiteral("skin.schema.json")));
+        QFile schemaFile(schemaPath);
+        QVERIFY(schemaFile.open(QIODevice::ReadOnly));
+        const QJsonObject schema = QJsonDocument::fromJson(schemaFile.readAll()).object();
+        const QStringList problems = omaseed::tests::schemaProblems(root, schema);
+        QVERIFY2(problems.isEmpty(),
+                 qPrintable(from + QLatin1Char('\n') + problems.join(QLatin1Char('\n'))));
+    }
 }
 
 void TestSkinWords::aCloneOfOmarchyReadsAsOmarchy()

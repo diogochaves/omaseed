@@ -60,11 +60,12 @@ qt_add_resources(omaseed-integration "omaseed-theme-fallback"
     FILES resources/theme/tokyo-night/colors.toml
 )
 
-# The guide for coding agents (DECISIONS C45 V19): its library part, for --skill and AGENTS.md.
+# The guide for coding agents (DECISIONS C45 V19, C37 U4): its library and skins parts, for
+# --skill and AGENTS.md.
 qt_add_resources(omaseed-integration "omaseed-agent-guide"
     PREFIX "/omaseed"
     BASE resources
-    FILES resources/agents/library.md
+    FILES resources/agents/library.md resources/agents/skins.md
 )
 
 # The built-in skins (#171): Omarchy's, with no overrides, and Console's. They live with the
