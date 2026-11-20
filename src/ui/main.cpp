@@ -8,6 +8,7 @@
 #include "core/TrackerModel.hpp"
 #include "core/Version.hpp"
 #include "core/engines/qbt/QbtEngine.hpp"
+#include "integration/AgentBus.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/BarWidgetInstaller.hpp"
@@ -23,6 +24,7 @@
 #include "integration/WidgetHeartbeat.hpp"
 #include "integration/Xdg.hpp"
 #include "ui/Words.hpp"
+#include "ui/app/AgentService.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/StatusService.hpp"
 #include "ui/i18n/Translations.hpp"
@@ -912,10 +914,22 @@ int main(int argc, char *argv[])
     // While its heartbeat is fresh, the tray icon mode "auto" hides the tray icon
     // (WidgetHeartbeat). A demo owns no bus name and leaves the runtime directory alone.
     omaseed::app::StatusService statusService(&omaseedApp);
+    omaseed::app::AgentService agentService(&omaseedApp);
     std::unique_ptr<omaseed::integration::WidgetHeartbeat> heartbeat;
     if (demo.isEmpty()) {
         omaseed::integration::StatusBus::exportOn(
             singleInstance, singleInstance->connection(), &statusService);
+        // DECISIONS C45 V3: the words' interface beside it, on the same object; never in a
+        // demo, whose library is fictional.
+        omaseed::integration::AgentBus::exportOn(
+            singleInstance, singleInstance->connection(), &agentService);
+        if (rootWindow) {
+            agentService.setWindowShown(rootWindow->isVisible());
+            QObject::connect(rootWindow,
+                             &QWindow::visibleChanged,
+                             &agentService,
+                             &omaseed::app::AgentService::setWindowShown);
+        }
         heartbeat = std::make_unique<omaseed::integration::WidgetHeartbeat>();
         omaseedApp.attachWidgetHeartbeat(heartbeat.get());
     }

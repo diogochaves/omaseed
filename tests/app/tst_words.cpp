@@ -8,6 +8,8 @@
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <QDBusPendingCall>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -15,6 +17,8 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -24,6 +28,60 @@ namespace {
 
 const QString kService = QStringLiteral("io.github.diogochaves.omaseed");
 const QString kPath = QStringLiteral("/io/github/diogochaves/omaseed");
+
+/// tst_quit's kind of qBittorrent: one seeding torrent, every poll a full update.
+class SeedServer : public QTcpServer
+{
+protected:
+    void incomingConnection(qintptr descriptor) override
+    {
+        auto *socket = new QTcpSocket(this);
+        socket->setSocketDescriptor(descriptor);
+        connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        auto buffer = std::make_shared<QByteArray>();
+        connect(socket, &QTcpSocket::readyRead, socket, [socket, buffer]() {
+            buffer->append(socket->readAll());
+            const qsizetype headerEnd = buffer->indexOf("\r\n\r\n");
+            if (headerEnd < 0)
+                return;
+            qsizetype length = 0;
+            for (const QByteArray &line : buffer->left(headerEnd).split('\n'))
+                if (line.toLower().startsWith("content-length:"))
+                    length = line.mid(15).trimmed().toLongLong();
+            if (buffer->size() < headerEnd + 4 + length)
+                return;
+            const QByteArray target = buffer->left(buffer->indexOf('\n')).split(' ').value(1);
+            buffer->clear();
+
+            QByteArray body = "{}";
+            if (target.startsWith("/api/v2/app/version")) {
+                body = "v5.2.4";
+            } else if (target.startsWith("/api/v2/app/webapiVersion")) {
+                body = "2.15.1";
+            } else if (target.startsWith("/api/v2/log/")) {
+                body = "[]";
+            } else if (target.startsWith("/api/v2/sync/maindata")) {
+                const QJsonObject torrent{{QStringLiteral("name"), QStringLiteral("t")},
+                                          {QStringLiteral("state"), QStringLiteral("uploading")},
+                                          {QStringLiteral("progress"), 1.0},
+                                          {QStringLiteral("added_on"), 1700000000}};
+                const QJsonObject data{
+                    {QStringLiteral("rid"), 1},
+                    {QStringLiteral("full_update"), true},
+                    {QStringLiteral("torrents"),
+                     QJsonObject{
+                         {QStringLiteral("cccccccccccccccccccccccccccccccccccccccc"), torrent}}},
+                    {QStringLiteral("server_state"),
+                     QJsonObject{
+                         {QStringLiteral("connection_status"), QStringLiteral("connected")}}}};
+                body = QJsonDocument(data).toJson(QJsonDocument::Compact);
+            }
+            socket->write("HTTP/1.1 200 OK\r\nContent-Length: " + QByteArray::number(body.size()) +
+                          "\r\nConnection: close\r\n\r\n" + body);
+            socket->disconnectFromHost();
+        });
+    }
+};
 
 } // namespace
 
@@ -85,6 +143,7 @@ private slots:
     void noBusExits3();
     void tooOldExits3();
     void aFileNamedStatusOpensAsDotSlash();
+    void statusFromARunningOmaseed();
 
 private:
     /// The environment of every run: its own homes and runtime directory, no display, and
@@ -366,6 +425,98 @@ void TestWords::aFileNamedStatusOpensAsDotSlash()
     QCOMPARE(m_old->opened.size(), 1);
     QVERIFY2(m_old->opened.first().endsWith(QLatin1String("status")),
              qPrintable(m_old->opened.first()));
+}
+
+void TestWords::statusFromARunningOmaseed()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    SeedServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    const QString address = QStringLiteral("127.0.0.1:%1").arg(server.serverPort());
+
+    // The real app, offscreen, on the private bus, on the stand-in qBittorrent.
+    QProcess app;
+    QProcessEnvironment env = environment(bus);
+    env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    env.insert(QStringLiteral("OMASEED_SERVER_URL"), QStringLiteral("http://") + address);
+    app.setProcessEnvironment(env);
+    app.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    app.start(QStringLiteral(OMASEED_BINARY), QStringList());
+    QVERIFY(app.waitForStarted(5000));
+    struct Stop
+    {
+        QProcess &app;
+        ~Stop()
+        {
+            app.terminate();
+            if (!app.waitForFinished(10000))
+                app.kill();
+            app.waitForFinished(2000);
+        }
+    } stop{app};
+
+    // Asked until it answers with the server reached (its name taken, its first sync done).
+    QJsonObject object;
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 30000) {
+        QVERIFY(run({QStringLiteral("status"), QStringLiteral("--json")}, bus));
+        object = json();
+        if (m_exitCode == 0 &&
+            object.value(QLatin1String("server"))
+                .toObject()
+                .value(QLatin1String("reachable"))
+                .toBool() &&
+            object.value(QLatin1String("questions"))
+                    .toObject()
+                    .value(QLatin1String("all"))
+                    .toInt() == 1)
+            break;
+        QTest::qWait(300);
+    }
+    QVERIFY2(m_exitCode == 0, qPrintable(m_out + m_err));
+    QCOMPARE(m_out.count(QLatin1Char('\n')), 1);
+    QCOMPARE(object.value(QLatin1String("v")).toInt(), 1);
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("status"));
+    QVERIFY(!object.value(QLatin1String("omaseed")).toString().isEmpty());
+    QCOMPARE(object.value(QLatin1String("window")).toString(), QStringLiteral("shown"));
+    const QJsonObject s = object.value(QLatin1String("server")).toObject();
+    QCOMPARE(s.value(QLatin1String("address")).toString(), address);
+    QCOMPARE(s.value(QLatin1String("version")).toString(), QStringLiteral("5.2.4"));
+    QCOMPARE(s.value(QLatin1String("engine")).toString(), QStringLiteral("qbittorrent"));
+    QCOMPARE(s.value(QLatin1String("connection")).toString(), QStringLiteral("connected"));
+    QCOMPARE(
+        object.value(QLatin1String("questions")).toObject().value(QLatin1String("all")).toInt(), 1);
+    QVERIFY(object.value(QLatin1String("servers")).isArray());
+
+    // The interface by hand (busctl's call) says the same bytes, but for the time.
+    QDBusConnection caller = QDBusConnection::connectToBus(bus, QStringLiteral("tst-words-busctl"));
+    QVERIFY(caller.isConnected());
+    QDBusMessage call =
+        QDBusMessage::createMethodCall(kService,
+                                       kPath,
+                                       QStringLiteral("io.github.diogochaves.omaseed.Agent"),
+                                       QStringLiteral("Status"));
+    call.setArguments({QStringLiteral("{}")});
+    const QDBusMessage reply = caller.call(call, QDBus::Block, 10000);
+    QDBusConnection::disconnectFromBus(QStringLiteral("tst-words-busctl"));
+    QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
+    QJsonObject byHand =
+        QJsonDocument::fromJson(reply.arguments().value(0).toString().toUtf8()).object();
+    QJsonObject byWord = object;
+    byHand.remove(QStringLiteral("at"));
+    byWord.remove(QStringLiteral("at"));
+    QCOMPARE(byHand, byWord);
+
+    // Without --json: the lines, made from that JSON, and no colour when piped.
+    QVERIFY(run({QStringLiteral("status")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.contains(QStringLiteral(" · qBittorrent 5.2.4 · connected\n")),
+             qPrintable(m_out));
+    QVERIFY(m_out.contains(QStringLiteral("\n  1 torrent: 1 giving back\n")));
+    QVERIFY(!m_out.contains(QLatin1Char('\x1b')));
 }
 
 QTEST_GUILESS_MAIN(TestWords)

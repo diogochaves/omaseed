@@ -43,10 +43,11 @@ omaseed_add_test(tst_printonly
 add_dependencies(tst_printonly omaseed)
 
 # DECISIONS C45 V2, V4, V5, V13 (#163): `omaseed WORD`, the real binary with no display, on a
-# private bus or none: pages, usage, not running, no bus, too old, a file named like a word.
+# private bus or none: pages, usage, not running, no bus, too old, a file named like a word,
+# and status from a running omaseed on a stand-in qBittorrent.
 omaseed_add_test(tst_words
     SOURCES tst_words.cpp
-    LIBRARIES Qt6::DBus
+    LIBRARIES Qt6::DBus Qt6::Network
     DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
 )
 add_dependencies(tst_words omaseed)

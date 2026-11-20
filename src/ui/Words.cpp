@@ -1,5 +1,6 @@
 #include "ui/Words.hpp"
 
+#include "core/AgentText.hpp"
 #include "core/AgentWords.hpp"
 #include "core/Version.hpp"
 #include "integration/AgentClient.hpp"
@@ -12,11 +13,36 @@
 
 #include <cstdio>
 
+#include <sys/ioctl.h>
+#include <unistd.h>
+
 namespace omaseed::ui {
 
 namespace {
 
 namespace AgentWords = core::AgentWords;
+namespace AgentText = core::AgentText;
+
+/// C45 V12: colour only on a terminal and without NO_COLOR; the terminal's width, else 80.
+AgentText::TextStyle styleFor(int fd)
+{
+    AgentText::TextStyle style;
+    const bool tty = ::isatty(fd) == 1;
+    style.colour = tty && qEnvironmentVariableIsEmpty("NO_COLOR");
+    winsize size{};
+    if (tty && ::ioctl(fd, TIOCGWINSZ, &size) == 0 && size.ws_col > 0)
+        style.width = size.ws_col;
+    return style;
+}
+
+/// A failure's words for stderr: wrapped on a terminal, one line as they are when piped (an
+/// agent reads them whole).
+QByteArray failureWords(const QString &message)
+{
+    if (::isatty(STDERR_FILENO) != 1)
+        return message.toUtf8();
+    return AgentText::failure(message, styleFor(STDERR_FILENO)).toUtf8();
+}
 
 void write(std::FILE *stream, const QByteArray &bytes)
 {
@@ -33,7 +59,7 @@ int fail(const QString &command, bool json, const QString &code, const QString &
     if (json)
         write(stdout, AgentWords::failure(command, code, message, QDateTime::currentDateTimeUtc()));
     else
-        write(stderr, message.toUtf8());
+        write(stderr, failureWords(message));
     return AgentWords::exitFor(code);
 }
 
@@ -55,12 +81,17 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
         if (json)
             write(stdout, bytes);
         else
-            write(stderr, failure.value(QStringLiteral("message")).toString().toUtf8());
+            write(stderr, failureWords(failure.value(QStringLiteral("message")).toString()));
         return AgentWords::exitFor(code.isEmpty() ? QStringLiteral("failed") : code);
     }
-    // C45 V12's human lines are AgentText's, which the reads bring with them (steps B–D of
-    // #163); until a word has its lines, its JSON stands in.
-    write(stdout, bytes);
+    if (json) {
+        write(stdout, bytes);
+        return 0;
+    }
+    // C45 V12: the lines are made from the same JSON --json prints. A word whose lines aren't
+    // in this omaseed yet (#163 steps C, D) prints its JSON.
+    const QString lines = AgentText::lines(object, styleFor(STDOUT_FILENO));
+    write(stdout, lines.isEmpty() ? bytes : lines.toUtf8());
     return 0;
 }
 
