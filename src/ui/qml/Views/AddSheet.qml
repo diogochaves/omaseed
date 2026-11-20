@@ -321,7 +321,20 @@ Sheet {
     /// this binding cannot loop.
     readonly property real _treeRoom: sheet.bodyRoom - sheet._besideTree
     /// The body's rows but the tree, with the gaps between them.
-    readonly property real _besideTree: {
+    readonly property real _besideTree: sheet._besideTreeAndAbout
+                                        + (aboutBlock.visible ? sheet._aboutHeight : 0)
+    /// The tree's floor: its header and four rows; below that the whole body would scroll.
+    readonly property real _treeFloor: 5 * Theme.railRowHeight + 2
+    /// About this torrent's height with its gap, shown or not.
+    readonly property real _aboutHeight: aboutBlock.rows.length > 0
+                                         ? aboutBlock.implicitHeight + aboutBlock.Layout.topMargin + filesSection.spacing
+                                         : 0
+    /// C47 I15 in one column: About goes under the files only while the tree keeps its floor,
+    /// so a short window still scrolls the tree alone (step E's right column has the room).
+    readonly property bool _aboutFits: !sheet.showFiles
+                                       || sheet.bodyRoom - sheet._besideTreeAndAbout - sheet._treeFloor >= sheet._aboutHeight
+    /// The body's rows but the tree and About.
+    readonly property real _besideTreeAndAbout: {
         let used = filesHead.height + filesSection.spacing
                 + (filesToolbar.visible ? filesToolbar.height + filesSection.spacing : 0)
                 + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
@@ -341,7 +354,8 @@ Sheet {
     /// that (`_treeRoom`), so it adds the tree's full height to the other rows instead of
     /// the panel's own height, which holds the tree as the room left it.
     readonly property real naturalHeight: sheet.showFiles
-                                          ? sheet.chromeHeight + sheet._besideTree + filesTree.contentHeight
+                                          ? sheet.chromeHeight + sheet._besideTreeAndAbout + sheet._aboutHeight
+                                            + filesTree.contentHeight
                                           : sheet.panel.implicitHeight
 
     /// A few words in the foot's note for five seconds, as the main window's footer says them
@@ -2299,7 +2313,7 @@ Sheet {
                             visible: sheet.showFiles
                             Layout.preferredHeight: implicitHeight
                             // The header and four rows at least: below that the whole body scrolls.
-                            maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
+                            maximumHeight: Math.max(sheet._treeFloor, sheet._treeRoom)
                             model: App.addFiles
 
                             onToolbarKey: action => filesToolbar.run(action)
@@ -2334,6 +2348,19 @@ Sheet {
                             size: "caption"
                             text: qsTr("nothing ticked: added stopped · choose its files later in the Files tab")
                             visible: sheet._nothingTicked
+                        }
+
+                        // Board 64 (C47 I15): About this torrent, under the files; a magnet's
+                        // says its link's trackers and hash until the list arrives. Step E
+                        // moves it to the right column with the files.
+                        AddAboutBlock {
+                            id: aboutBlock
+
+                            Layout.fillWidth: true
+                            Layout.topMargin: Theme.space(6)
+                            about: sheet.addable && !sheet.batchMode ? sheet.addable.about || null : null
+                            objectName: "addAboutBlock"
+                            visible: aboutBlock.rows.length > 0 && sheet._aboutFits
                         }
                     }
                 }

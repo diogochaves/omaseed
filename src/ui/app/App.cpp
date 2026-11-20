@@ -2063,6 +2063,48 @@ ContentLayout contentLayoutFrom(const QString &name)
 
 } // namespace
 
+namespace {
+
+/// DECISIONS C47 I15: the facts About this torrent shows that every source knows: the trackers
+/// (their count, and each host once, in order) and the hash (its kind, and the one shown: v1,
+/// else v2). `hasV1` says whether the torrent has v1 metadata, which a v2-only one lacks even
+/// with an SHA-1 of its info bytes.
+QVariantMap aboutBasics(const QStringList &trackers,
+                        const QString &infoHashV1,
+                        const QString &infoHashV2,
+                        bool hasV1)
+{
+    QStringList hosts;
+    for (const QString &tracker : trackers) {
+        const QString host = QUrl(tracker).host();
+        const QString shown = host.isEmpty() ? tracker : host;
+        if (!shown.isEmpty() && !hosts.contains(shown))
+            hosts.append(shown);
+    }
+    const bool hasV2 = !infoHashV2.isEmpty();
+    const QString kind = !hasV2  ? QStringLiteral("v1")
+                         : hasV1 ? QStringLiteral("hybrid")
+                                 : QStringLiteral("v2");
+    return QVariantMap{
+        {QStringLiteral("trackers"), hosts},
+        {QStringLiteral("trackerCount"), int(trackers.size())},
+        {QStringLiteral("hashKind"), kind},
+        {QStringLiteral("infoHash"), hasV1 || !hasV2 ? infoHashV1 : infoHashV2},
+    };
+}
+
+/// The pieces row's facts: "1 624 × 8 MiB" (Format::pieceLayout, as details says it).
+void addAboutPieces(QVariantMap &about, qint64 pieceCount, qint64 pieceLength)
+{
+    if (pieceCount <= 0 || pieceLength <= 0)
+        return;
+    about[QStringLiteral("pieceCount")] = pieceCount;
+    about[QStringLiteral("pieceLength")] = pieceLength;
+    about[QStringLiteral("piecesText")] = Format::pieceLayout(int(pieceCount), pieceLength);
+}
+
+} // namespace
+
 QVariantMap App::parseAddable(const QString &textIn)
 {
     const QString text = textIn.trimmed();
@@ -2111,6 +2153,10 @@ QVariantMap App::parseAddable(const QString &textIn)
         }
         map[QStringLiteral("trackers")] = link.trackers;
         map[QStringLiteral("isPrivate")] = false;
+        // DECISIONS C47 I15: a magnet's About is its link's trackers and hash until the list
+        // arrives; whether it is private is not known yet, so that row is left out.
+        map[QStringLiteral("about")] = aboutBasics(
+            link.trackers, link.infoHashV1, link.infoHashV2, !link.infoHashV1.isEmpty());
         return map;
     }
     case integration::Addable::Kind::HttpUrl:
@@ -2174,6 +2220,22 @@ QVariantMap App::torrentFileMap(const QString &token,
     map[QStringLiteral("infoHashV1")] = parsed.infoHashV1;
     map[QStringLiteral("infoHashV2")] = parsed.infoHashV2;
     map[QStringLiteral("fileCount")] = int(parsed.files.size());
+
+    // DECISIONS C47 I15: everything a .torrent says about itself. A fact it leaves out has no
+    // key (its row is left out); the comment is always there, empty for "none".
+    QVariantMap about =
+        aboutBasics(parsed.trackers(), parsed.infoHashV1, parsed.infoHashV2, parsed.hasV1());
+    about[QStringLiteral("isPrivate")] = parsed.isPrivate;
+    if (!parsed.createdBy.isEmpty())
+        about[QStringLiteral("createdBy")] = parsed.createdBy;
+    if (parsed.creationDate > 0) {
+        about[QStringLiteral("creationDate")] = parsed.creationDate;
+        about[QStringLiteral("createdOn")] =
+            Format::relativeTime(QDateTime::fromSecsSinceEpoch(parsed.creationDate));
+    }
+    about[QStringLiteral("comment")] = parsed.comment;
+    addAboutPieces(about, parsed.pieceCount, parsed.pieceLength);
+    map[QStringLiteral("about")] = about;
     return map;
 }
 
@@ -3214,6 +3276,20 @@ void App::takeFetchedMetadata()
     // A link names no tracker until its .torrent is read; a magnet keeps its own `tr=`.
     if (map.value(QStringLiteral("trackers")).toStringList().isEmpty())
         map[QStringLiteral("trackers")] = metadata.trackers;
+    // DECISIONS C47 I15: About again, from the metadata. The info dict says whether it is
+    // private and its pieces; who made it, when and the comment sit outside it, so they stay
+    // left out.
+    const QString aboutV1 = map.value(QStringLiteral("infoHashV1")).toString();
+    QVariantMap about = aboutBasics(map.value(QStringLiteral("trackers")).toStringList(),
+                                    aboutV1,
+                                    map.value(QStringLiteral("infoHashV2")).toString(),
+                                    !aboutV1.isEmpty());
+    about[QStringLiteral("isPrivate")] = metadata.isPrivate;
+    if (metadata.pieceLength > 0)
+        addAboutPieces(about,
+                       (metadata.totalSize + metadata.pieceLength - 1) / metadata.pieceLength,
+                       metadata.pieceLength);
+    map[QStringLiteral("about")] = about;
     // #194: a search result's link has no hash until now; its row learns it, so one you
     // already have says "in your library" rather than "likely on disk".
     if (map.value(QStringLiteral("kind")).toString() == QLatin1String("url") && m_searchModel)

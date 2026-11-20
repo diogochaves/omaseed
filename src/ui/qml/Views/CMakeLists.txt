@@ -13,6 +13,7 @@ qt_add_qml_module(omaseed-views
         AddBatchList.qml
         AddDriverLine.qml
         AddDownloadsList.qml
+        AddAboutBlock.qml
         AddFetchLine.qml
         AddFlow.qml
         AddWindow.qml

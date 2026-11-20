@@ -32,6 +32,16 @@ TestCase {
         }
     }
 
+    // A tall window: room for the tree's rows and About this torrent under them (C47 I15).
+    Component {
+        id: tallSheetComponent
+
+        AddSheet {
+            height: 1400
+            width: 1100
+        }
+    }
+
     // A short window (docs/11 D1): the sheet must still fit, and only the tree scrolls.
     Component {
         id: shortSheetComponent
@@ -1831,6 +1841,22 @@ TestCase {
         compare(testCase.rowItem(sheet, "bbb.en.srt").wanted, 0);
         App.addFiles.setAllWanted(true);
         testCase.resetFilesView();
+    }
+
+    // Board 64 (C47 I15): About this torrent under the files, from the parsed .torrent; in a
+    // short window it gives its place up rather than push the tree under its floor.
+    function test_about_sits_under_the_files() {
+        const sheet = testCase.openTorrent(tallSheetComponent);
+        const about = findChild(sheet, "addAboutBlock");
+        verify(about !== null);
+        tryVerify(() => about.visible);
+        compare(about.rows.map(row => row[0]).slice(-2), ["pieces", "hash"]);
+        verify(about.y > sheet.filesTree.y);
+
+        const short = testCase.openTorrent(shortSheetComponent);
+        const shortAbout = findChild(short, "addAboutBlock");
+        verify(shortAbout.rows.length > 0);
+        compare(shortAbout.visible, false);
     }
 
     function test_the_tree_scrolls_in_a_short_window() {

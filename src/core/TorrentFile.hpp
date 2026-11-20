@@ -62,6 +62,10 @@ public:
     /// add takes: see `torrentIdFor`.
     QString torrentId() const;
 
+    /// The info dict carries v1 "pieces": v1-only or hybrid. A v2-only torrent still has an
+    /// `infoHashV1` (the SHA-1 of its info bytes) but no v1 metadata.
+    bool hasV1() const { return m_hasV1; }
+
     /// The id qBittorrent (libtorrent 2's `info_hash_t::get_best()`) keys a torrent by in
     /// maindata: its v2 infohash cut to its first 40 hex digits (BEP-52's truncated form)
     /// whenever it has one, hybrid and v2-only alike, else its v1 infohash. Lower case.

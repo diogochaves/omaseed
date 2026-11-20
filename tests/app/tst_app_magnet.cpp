@@ -191,6 +191,7 @@ private slots:
     void anAddBeforeTheListWaitsForIt();     // #193
     void aClosedSheetsWaitingAddStillGoes(); // #193
     void aWaitingAddGoesAtTheMinute();       // #193
+    void aboutAfterTheLookupHasPieces();     // C47 I15
 
 private:
     bool startOn(App &app, MagnetServer &server);
@@ -271,6 +272,34 @@ void TestAppMagnet::aMagnetsFilesArriveAsATorrentsWould()
     QVERIFY(again.wait(2000));
     QCOMPARE(again.first().first().toMap().value(QStringLiteral("token")).toString(), token);
     QCOMPARE(server.count("torrents/fetchMetadata"), 3);
+    app.engine()->stop();
+}
+
+// Board 64 (DECISIONS C47 I15): once the list is in, About says what the metadata does too:
+// whether it is private and its pieces. Who made it and the comment sit outside the info
+// dict, so they stay left out.
+void TestAppMagnet::aboutAfterTheLookupHasPieces()
+{
+    MagnetServer server;
+    App app;
+    QVERIFY(startOn(app, server));
+    const QVariantMap before = app.parseAddable(samplerMagnet());
+    QVERIFY(!before.value(QStringLiteral("about")).toMap().contains(QStringLiteral("isPrivate")));
+    const QVariantMap map = fetched(app);
+    QVERIFY(!map.isEmpty());
+    const QVariantMap about = map.value(QStringLiteral("about")).toMap();
+    QCOMPARE(about.value(QStringLiteral("isPrivate")).toBool(), false);
+    QVERIFY(about.contains(QStringLiteral("isPrivate")));
+    QCOMPARE(about.value(QStringLiteral("pieceLength")).toLongLong(), 65536);
+    QCOMPARE(about.value(QStringLiteral("pieceCount")).toLongLong(), 385); // 25209644 / 64 KiB
+    QCOMPARE(about.value(QStringLiteral("piecesText")).toString(), QStringLiteral("385 × 64 KiB"));
+    QCOMPARE(about.value(QStringLiteral("trackers")).toStringList(),
+             QStringList{QStringLiteral("127.0.0.1")});
+    QCOMPARE(about.value(QStringLiteral("trackerCount")).toInt(), 1);
+    QCOMPARE(about.value(QStringLiteral("hashKind")).toString(), QStringLiteral("v1"));
+    QCOMPARE(about.value(QStringLiteral("infoHash")).toString(), QString::fromLatin1(kV1));
+    QVERIFY(!about.contains(QStringLiteral("createdBy")));
+    QVERIFY(!about.contains(QStringLiteral("comment")));
     app.engine()->stop();
 }
 

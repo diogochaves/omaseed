@@ -2,6 +2,8 @@
 // and the other small App behaviours the 2026-09 review found broken.
 
 #include "QbtFeed.hpp"
+#include "core/Bencode.hpp"
+#include "core/Format.hpp"
 #include "core/MoveJob.hpp"
 #include "core/Server.hpp"
 #include "core/ServerListModel.hpp"
@@ -51,6 +53,8 @@ private slots:
     // APP-5
     void aTorrentFileIsReadAndHashedOffTheGuiThread();
     void anUnreadableTorrentFileAnswersWithItsError();
+    void aboutCarriesTheTorrentsFacts();
+    void aMagnetsAboutHasTrackersAndHash();
 
     // APP-6
     void torrentIdIsTheTruncatedV2HashWhenThereIsOne();
@@ -211,6 +215,116 @@ const QString kV1 = QStringLiteral("fdc2dabac7590000000000000000000000000001");
 const QString kV2 =
     QStringLiteral("81f2da56846c00000000000000000000000000000000000000000000000000ff");
 } // namespace
+
+// Board 64 (DECISIONS C47 I15): About this torrent, from a .torrent with every fact: a
+// hybrid (v1 pieces and meta version 2), private, two trackers on one host and one on
+// another, made by a program on a date, with a comment.
+void TestAppGlue::aboutCarriesTheTorrentsFacts()
+{
+    namespace bencode = omaseed::core::bencode;
+    const QByteArray piece(16384, 'x');
+    const bencode::Dict info{
+        {"file tree",
+         bencode::Dict{{"Hybrid.bin",
+                        bencode::Dict{{"",
+                                       bencode::Dict{{"length", qint64(16384)},
+                                                     {"pieces root", QByteArray(32, 'r')}}}}}}},
+        {"length", qint64(16384)},
+        {"meta version", qint64(2)},
+        {"name", QByteArray("Hybrid.bin")},
+        {"piece length", qint64(16384)},
+        {"pieces", QByteArray(20, 'p')},
+        {"private", qint64(1)},
+    };
+    const bencode::Dict torrent{
+        {"announce", QByteArray("udp://tracker.example.org:1337/announce")},
+        {"announce-list",
+         bencode::List{bencode::List{QByteArray("udp://tracker.example.org:1337/announce"),
+                                     QByteArray("http://tracker.example.org/announce")},
+                       bencode::List{QByteArray("http://open.example.net/announce")}}},
+        {"comment", QByteArray("Remux of the festival cut.")},
+        {"created by", QByteArray("qBittorrent v5.0.1")},
+        {"creation date", qint64(1730505600)},
+        {"info", info},
+    };
+    QTemporaryDir dir;
+    const QString path = dir.path() + QStringLiteral("/hybrid.torrent");
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(bencode::encode(torrent));
+    file.close();
+
+    App app;
+    QSignalSpy parsed(&app, &App::addableParsed);
+    app.parseAddable(path);
+    QVERIFY(parsed.wait(5000));
+    const QVariantMap map = parsed.constFirst().constFirst().toMap();
+    QVERIFY2(map.value(QStringLiteral("valid")).toBool(),
+             qPrintable(map.value(QStringLiteral("error")).toString()));
+    const QVariantMap about = map.value(QStringLiteral("about")).toMap();
+    QCOMPARE(about.value(QStringLiteral("trackerCount")).toInt(), 3);
+    QCOMPARE(
+        about.value(QStringLiteral("trackers")).toStringList(),
+        QStringList({QStringLiteral("tracker.example.org"), QStringLiteral("open.example.net")}));
+    QCOMPARE(about.value(QStringLiteral("isPrivate")).toBool(), true);
+    QCOMPARE(about.value(QStringLiteral("createdBy")).toString(),
+             QStringLiteral("qBittorrent v5.0.1"));
+    QCOMPARE(about.value(QStringLiteral("creationDate")).toLongLong(), 1730505600);
+    QCOMPARE(about.value(QStringLiteral("createdOn")).toString(),
+             omaseed::core::Format::relativeTime(QDateTime::fromSecsSinceEpoch(1730505600)));
+    QCOMPARE(about.value(QStringLiteral("comment")).toString(),
+             QStringLiteral("Remux of the festival cut."));
+    QCOMPARE(about.value(QStringLiteral("pieceCount")).toLongLong(), 1);
+    QCOMPARE(about.value(QStringLiteral("pieceLength")).toLongLong(), 16384);
+    QCOMPARE(about.value(QStringLiteral("piecesText")).toString(), QStringLiteral("1 × 16 KiB"));
+    QCOMPARE(about.value(QStringLiteral("hashKind")).toString(), QStringLiteral("hybrid"));
+    QCOMPARE(about.value(QStringLiteral("infoHash")).toString(),
+             map.value(QStringLiteral("infoHashV1")).toString());
+
+    // The v2-only stub, with no creator and no comment: its v2 hash is the one shown, the
+    // creator's key is missing and the comment empty ("none").
+    QSignalSpy plain(&app, &App::addableParsed);
+    app.parseAddable(QStringLiteral(OMASEED_FIXTURES_DIR "/v2_stub.torrent"));
+    QVERIFY(plain.wait(5000));
+    const QVariantMap v2 = plain.constFirst().constFirst().toMap();
+    const QVariantMap v2About = v2.value(QStringLiteral("about")).toMap();
+    QCOMPARE(v2About.value(QStringLiteral("hashKind")).toString(), QStringLiteral("v2"));
+    QCOMPARE(v2About.value(QStringLiteral("infoHash")).toString(),
+             v2.value(QStringLiteral("infoHashV2")).toString());
+    QVERIFY(!v2About.contains(QStringLiteral("createdBy")));
+    QVERIFY(v2About.contains(QStringLiteral("comment")));
+    QVERIFY(v2About.value(QStringLiteral("comment")).toString().isEmpty());
+    QCOMPARE(v2About.value(QStringLiteral("isPrivate")).toBool(), false);
+}
+
+// C47 I15: a magnet's About is its link's trackers and hash; private is not known yet.
+void TestAppGlue::aMagnetsAboutHasTrackersAndHash()
+{
+    App app;
+    const QString v1 = QStringLiteral("9a4f6c1e2b3d4f50617283940a1b2c3d4e5f6071");
+    const QString v2 =
+        QStringLiteral("0703e91a4e92560200a851c3f8e8283077f2333510bd3723bbaa367577fff0af");
+    // Joined, not arg()ed: the trackers' %2F would take the hash's place.
+    const QVariantMap map = app.parseAddable(
+        QStringLiteral("magnet:?xt=urn:btih:") + v1 + QStringLiteral("&xt=urn:btmh:1220") + v2 +
+        QStringLiteral("&dn=Hybrid&tr=udp%3A%2F%2Ftracker.example.org%3A1337%2Fannounce"
+                       "&tr=http%3A%2F%2Fopen.example.net%2Fannounce"));
+    const QVariantMap about = map.value(QStringLiteral("about")).toMap();
+    QCOMPARE(about.value(QStringLiteral("trackerCount")).toInt(), 2);
+    QCOMPARE(
+        about.value(QStringLiteral("trackers")).toStringList(),
+        QStringList({QStringLiteral("tracker.example.org"), QStringLiteral("open.example.net")}));
+    QCOMPARE(about.value(QStringLiteral("hashKind")).toString(), QStringLiteral("hybrid"));
+    QCOMPARE(about.value(QStringLiteral("infoHash")).toString(), v1);
+    QVERIFY(!about.contains(QStringLiteral("isPrivate")));
+    QVERIFY(!about.contains(QStringLiteral("comment")));
+    QVERIFY(!about.contains(QStringLiteral("piecesText")));
+
+    // A bare v1 hash: no tracker, v1.
+    const QVariantMap bare = app.parseAddable(v1).value(QStringLiteral("about")).toMap();
+    QCOMPARE(bare.value(QStringLiteral("trackerCount")).toInt(), 0);
+    QCOMPARE(bare.value(QStringLiteral("hashKind")).toString(), QStringLiteral("v1"));
+}
 
 void TestAppGlue::torrentIdIsTheTruncatedV2HashWhenThereIsOne()
 {
