@@ -226,6 +226,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
 .tg.on::after { left:auto; right:1px; background:var(--bg); }
 .sh .chk { margin-top:2px; }
 .wait { display:grid; gap:7px; padding:8px 10px; background:var(--f4); }
+.abt { display:grid; grid-template-columns:auto minmax(0,1fr); gap:2px 14px; margin:0; font-size:11px; border-top:1px solid var(--hairline); padding-top:6px; }
+.abt dt { color:var(--fg-dark); }
+.abt dd { margin:0; color:var(--fg); overflow-wrap:anywhere; }
 </style>
 </head>
 <body>
@@ -234,7 +237,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
     <div class="eyebrow">omaseed · board 64 · 2026-11-19 · a proposal · #172 · sits on board 59</div>
     <h1>The add sheet: the files, and the room</h1>
     <p class="lead">Board 59 gave the add sheet four new lines. Two things it doesn't give are what Diogo found missing. First, the <b>file list</b>: in the add sheet it sorts only by name, can't be filtered, can't fold or unfold everything, and lives in a 600 px column under a form. A pack of 28 files ends up as a long, narrow scroll. Second, <b>the room</b>: the free line checks only the folder a torrent ends in. When the server first downloads into a temporary folder on another drive, the sheet says "fits" while that other drive fills up. This board proposes a <b>two-column add window</b> whose right side is the whole file list, with the details tab's tools and one of its own. It also proposes a <b>free line in two stages</b>: where the torrent downloads first, and where it moves when done.</p>
-    <div class="flags"><span class="flag hot">a proposal · not ruled</span><span class="flag">the add window · two columns</span><span class="flag">one file list for add and details</span><span class="flag">the free line · two stages</span><span class="flag ok">no new setting</span><span class="flag ok">D10 holds: no folder suggested</span></div>
+    <div class="flags"><span class="flag hot">a proposal · not ruled</span><span class="flag">the add window · two columns</span><span class="flag">one file list for add and details</span><span class="flag">the free line · two stages</span><span class="flag">one new setting · Appearance › Add window (I14)</span><span class="flag ok">D10 holds: no folder suggested</span></div>
   </header>
 
   <!-- 1 -->
@@ -267,14 +270,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
 
   <!-- 3 -->
   <section id="layout">
-    <div class="sec-head"><div class="eyebrow">3 · I1 and I2 · the window</div><h2>Two columns when there is a list to read</h2></div>
+    <div class="sec-head"><div class="eyebrow">3 · I1, I2, I14, I15 · the window</div><h2>Two columns, whatever you add</h2></div>
     <div class="item"><h3><span class="id">I1</span>The layout <span class="rec-tag">recommended a</span></h3>
-      <p><b>a:</b> <b>two columns when the source has a list of more than one file</b>. The form keeps today's rows and order on the left (about 440 px at base 14). The right side is the file list at the window's full height, and the window grows to about 1120 px. A single file keeps one column, but <b>gets a Files row</b> (new; today and board 59 show none): one line with the file's own name, kind and size, which often differ from the torrent's name, and a rename. It has no tick, because skipping the only file adds nothing, and no toolbar. A magnet on its way opens in two columns, and the right side holds board 59's checklist (A10) until the list arrives. Then the tree takes its place and nothing on the left moves. <b>b:</b> one column as today, but wider (900 px) with a taller tree. Simpler, but the tree is still under the form and every row you fill pushes it down. <b>c:</b> files as a second step, "next: files". That's two screens for every add, including the ones where you don't care.</p>
+      <p><b>a:</b> <b>two columns for every add, whenever the screen holds them</b>, so the window looks the same whatever you open. The form keeps today's rows and order on the left (about 440 px at base 14). The right side is <b>the torrent</b>: its files at the window's full height, then <i>About this torrent</i> (I15). The window grows to about 1120 px. A single file gets a one-row Files list (new: today and board 59 show none) with the file's own name, kind and size, which often differ from the torrent's name, and a rename. It has no tick, because skipping the only file adds nothing, and no toolbar. Its right side is mostly the About block, which is what it has to say. A magnet on its way holds board 59's checklist (A10) there until the list arrives. Then the tree takes its place and nothing on the left moves. <b>b:</b> one column as today, but wider (900 px) with a taller tree. Simpler, but the tree is still under the form and every row you fill pushes it down. <b>c:</b> files as a second step, "next: files". That's two screens for every add, including the ones where you don't care.</p>
     </div>
     <div class="item"><h3><span class="id">I2</span>A screen too narrow for it <span class="rec-tag">recommended a</span></h3>
       <p><b>a:</b> when the monitor's work area can't hold the two columns (under about 1200 px of logical width, a portrait screen, or scale 2 on a 1080p screen), the window keeps one column and the file pane goes under the form, <b>with its toolbar</b>. Pick <i>narrow</i> in §2's switches to see it. <b>b:</b> always two columns, with the window scrolling sideways.</p>
     </div>
     <p class="dim">The add window is its own window since board 54 (C35), a Hyprland float, so a wider one is a size, not a new frame. Board 46's sheet frame (C24 H7) still holds: the head, the hairlines, the foot's three buttons. Only the body splits.</p>
+    <div class="item"><h3><span class="id">I14</span>Who picks one or two columns <span class="rec-tag">recommended a</span></h3>
+      <p><b>a:</b> <b>a setting, Appearance › Add window: two columns · one column</b>, two columns by default. The screen still has the last word (I2): two columns on a screen that can't hold them fall back to one. It's a taste you set once, next to Skin and the display, and the add window carries no extra control. <b>b:</b> a button in the window's head (⊟ ⊞, and a key), remembered for the next add. You find it where you use it, but the window resizes under your cursor, and it's one more control on a sheet you see on every add. <b>c:</b> both: the setting, and the button flips it for this window only. <b>d:</b> none: the screen decides. Pick <i>layout</i> in §2's switches to see both.</p>
+    </div>
+    <div class="item"><h3><span class="id">I15</span>About this torrent <span class="rec-tag">recommended a</span></h3>
+      <p>omaseed already parses a .torrent's own facts (<code>core/TorrentFile</code>), and the sheet shows none of them. <b>a:</b> a short block under the files: <b>trackers</b> (count and hosts), <b>private</b> (and what that means: no DHT, no peer exchange), <b>created</b> (date and program), <b>comment</b>, <b>pieces</b> (count × size), <b>hash</b> (v1, v2 or hybrid; the last bears on Transmission, #257). A magnet has only its link's trackers and hash until the list arrives. It is read-only: board 25's tracker merge stays where it is. <b>b:</b> only for a single file, where the right side is otherwise empty. <b>c:</b> none.</p>
+    </div>
   </section>
 
   <!-- 4 -->
@@ -347,7 +356,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px 
 
   <!-- 7 -->
   <section id="decisions">
-    <div class="sec-head"><div class="eyebrow">7 · your calls</div><h2>I1 to I13</h2></div>
+    <div class="sec-head"><div class="eyebrow">7 · your calls</div><h2>I1 to I15</h2></div>
     <p>Recommended options are preselected. Change what you disagree with and paste the block back into a session, or answer "all as recommended".</p>
     <div class="dec" id="dec"></div>
     <div class="out">
@@ -580,6 +589,20 @@ function room() {
   return `<div class="room">${line1}${line2}</div>`;
 }
 
+/* ---------- I15: about this torrent (core/TorrentFile, already parsed) ---------- */
+function about() {
+  const film = S.src === "film";
+  const rows = [
+    ["trackers", "3 · tracker.example.org, open.example.net, udp://announce.example.com"],
+    ["private", film ? "yes: no DHT, no peer exchange, its tracker only" : "no"],
+    ["created", film ? "2024-11-02 by qBittorrent v5.0.1" : "2024-03-02 by mktorrent 1.1"],
+    ["comment", film ? "Remux of the festival cut." : "<span class=\"dim\">none</span>"],
+    ["pieces", film ? "296 × 8 MB" : "1,624 × 8 MB"],
+    ["hash", film ? "v1 + v2 (hybrid) · 9f2c…41ab" : "v1 · 5c1e…07d2"],
+  ];
+  return `<span class="lab" style="margin-top:6px">About this torrent${NEW}</span><dl class="abt">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+}
+
 /* ---------- the sheet ---------- */
 const lab = t => `<span class="lab">${esc(t)}</span>`;
 function chk(g, glyph, b, small) {
@@ -588,7 +611,7 @@ function chk(g, glyph, b, small) {
 function sheet() {
   const con = S.skin === "con";
   const pack = S.src === "pack", mag = S.src === "mag", film = S.src === "film";
-  const two = (pack || mag);
+  const two = true; // I1: every source, when the screen holds two columns (I2, I14)
   const name = film ? "Harbour Lights (2024) 1080p" : ROOT;
   const total = FILES.reduce((a, f) => a + f.s, 0);
   const sub = mag ? `${name} · from magnet link` : `${name} · ${film ? "2.31 GB" : sz(total)} · from file`;
@@ -601,10 +624,10 @@ function sheet() {
     ? `<div class="row">${lab(cat)}<div class="chips"><span class="chip on">tv</span><span class="chip">…</span></div></div>`
     : `<div class="two"><div class="row">${lab(cat)}<div class="chips"><span class="chip on">tv</span><span class="chip">…</span></div></div><div class="row">${lab("Tags")}<div class="chips"><span class="chip">…</span></div></div></div>`;
   L += `<div class="row">${lab("Save to")}<div class="fld"><span>/srv/media/tv</span><span class="u">browse</span></div>${room()}</div>`;
-  if (film) L += `<div class="row"><span class="lab">Files${NEW}</span><div class="fhd"><div class="kcs"><span class="kc"><span class="kw">1 video<small>2.31 GB</small></span></span></div><span class="cnt">1 file · 2.31 GB</span></div><div class="ftree"><div class="r"><span class="nm"><span class="t">Harbour.Lights.2024.1080p.mkv</span></span><span class="k">video</span><span class="sz">2.31 GB</span></div></div><span class="ln">The file's own name, kind and size; F2 or a double click renames it. No tick: skipping the only file adds nothing. No toolbar: there is nothing to sort.</span></div>`;
   L += `<div class="rest">layout · limits · options: unchanged</div>`;
   let R = "";
-  if (pack) R = filePane(con);
+  if (pack) R = filePane(con) + about();
+  else if (film) R = `<span class="lab">Files${NEW}</span><div class="fhd"><div class="kcs"><span class="kc"><span class="kw">1 video<small>2.31 GB</small></span></span></div><span class="cnt">1 file · 2.31 GB</span></div><div class="ftree"><div class="r hdr"><span class="nm">name</span><span class="k">kind</span><span class="sz">size</span></div><div class="r"><span class="nm"><span class="t">Harbour.Lights.2024.1080p.mkv</span></span><span class="k">video</span><span class="sz">2.31 GB</span></div></div><span class="ln">The file's own name, often not the torrent's; F2 or a double click renames it. No tick (skipping the only file adds nothing) and no toolbar (nothing to sort).</span>` + about();
   else if (mag) {
     const e = { qbt: "qBittorrent", tr: "Transmission", de: "Deluge" }[S.eng];
     R = `<span class="lab">Files</span><div class="wait">
@@ -627,7 +650,7 @@ const CTL = [
   ["src", "source", [["pack", "a season (28 files)"], ["film", "one file"], ["mag", "a magnet on its way"]]],
   ["eng", "engine", [["qbt", "qBittorrent"], ["tr", "Transmission"], ["de", "Deluge"]]],
   ["temp", "temp folder", [["none", "none"], ["other", "on another drive"], ["tight", "that drive is tight"], ["land", "save drive too small"], ["same", "same drive"]]],
-  ["width", "screen", [["wide", "wide"], ["narrow", "narrow (I2)"]]],
+  ["width", "layout", [["wide", "two columns"], ["narrow", "one column (a narrow screen, I2, or the setting, I14)"]]],
 ];
 function renderCtl() {
   $("#ctl").innerHTML = CTL.map(([k, l, opts]) => `<span class="grp"><span class="lab">${l}</span>${opts.map(([v, t]) => `<button type="button" data-k="${k}" data-v="${v}" aria-pressed="${S[k] === v}">${t}</button>`).join("")}</span>`).join("");
@@ -680,13 +703,22 @@ render();
 /* ---------- the decisions ---------- */
 const DEC = [
   { id: "I1", s: "§3", q: "The layout", opts: [
-    ["a", "Two columns when the source has a list of more than one file: form left (~440 px), files right at full height, window ~1120 px; one file keeps one column with a one-row Files list (its file name, kind, size, rename); a magnet's wait fills the right side", true],
-    ["a2", "As a, but one file keeps today's sheet with no Files row"],
+    ["a", "Two columns for every add when the screen holds them: form left (~440 px), the torrent right (files at full height, then About); one file gets a one-row Files list (its file name, kind, size, rename); a magnet's wait fills the right side", true],
+    ["a2", "Two columns only for a list of more than one file; one file keeps one column with the one-row Files list"],
     ["b", "One column, wider (900 px), a taller tree"],
     ["c", "Files as a second step"]] },
   { id: "I2", s: "§3", q: "A screen too narrow for two columns", opts: [
     ["a", "One column, the file pane under the form with its toolbar", true],
     ["b", "Always two columns, scrolling sideways"]] },
+  { id: "I14", s: "§3", q: "Who picks one or two columns", opts: [
+    ["a", "A setting: Appearance › Add window: two columns · one column (default two); the screen still has the last word", true],
+    ["b", "A button in the window's head, remembered"],
+    ["c", "Both: the setting, and the button flips it for this window"],
+    ["d", "None: the screen decides"]] },
+  { id: "I15", s: "§3", q: "About this torrent", opts: [
+    ["a", "A read-only block under the files: trackers, private, created, comment, pieces, hash (v1/v2/hybrid)", true],
+    ["b", "Only for a single file"],
+    ["c", "None"]] },
   { id: "I3", s: "§4", q: "One file list for add and details", opts: [
     ["a", "One component and one model: the add sheet's ticks, priority, rename, skip-at-least move into the shared model with sort, filter, fold, hide skipped", true],
     ["b", "Copy the details tab's tools into AddFilesTree"]] },
