@@ -190,6 +190,54 @@ FixDo fixDo(const QString &fixAction);
 /// The lower-case name of a phase: "errored", "stopped", "seeding"…
 QString phaseName(TorrentPhase phase);
 
+/// A torrent in the library, as a log line names it (C3 D13): its name and hash prefix.
+struct LogTorrent
+{
+    QString hash;
+    QString name;
+    QString prefix; ///< ProblemMatch::hashPrefix
+};
+
+/// `--torrent`'s match against the library (C45 V10): the whole hash, or a prefix of 8 or
+/// more that only one torrent's hash starts with.
+struct TorrentMatch
+{
+    LogTorrent torrent;
+    QString code; ///< "" matched; "ambiguous" or "unknown-torrent"
+    QString message;
+};
+
+/// None matching is `unknown-torrent` ("No torrent HASH on NAME."); a prefix shorter than 8,
+/// or one that more than one hash starts with, is `ambiguous` (docs/62's words).
+TorrentMatch
+matchTorrent(const QList<LogTorrent> &library, const QString &query, const QString &serverName);
+
+/// qBittorrent's level for its word (normal 1, info 2, warning 4, critical 8); 0 unknown.
+int levelOf(const QString &name);
+
+/// The torrent `message` names by C3 D13's rule, as the log face says it (ServerLog): the
+/// first quoted part that is a torrent's name, else the first that starts with one's hash
+/// prefix and a space; "" for none. With two of the same name, the first in `library`.
+QString torrentNamedIn(const QString &message, const QList<LogTorrent> &library);
+
+/// Everything log says (C45 V10, design 13).
+struct LogInput
+{
+    QDateTime at;
+    QString omaseed;
+    Server server;
+    Options options;                   ///< level, lines, since; `torrent` is the match below
+    std::optional<LogTorrent> torrent; ///< `--torrent`'s, matched
+    QList<LogLine> log;                ///< the one read, oldest first, as qBittorrent numbered it
+    QList<LogTorrent> library;         ///< for each line's `torrent`
+};
+
+/// log's one JSON object (design 13): the lines of the level and worse, about the torrent,
+/// from `since` on, the last `lines` of them. `restarted` when `since` is past the newest
+/// line + 1 (qBittorrent numbers from 0 again after a restart): the lines then come from its
+/// first. `next` is the newest id + 1, or `since` when the log is empty.
+QByteArray log(const LogInput &input);
+
 /// The envelope's first four fields (C45 V4), for an answer's own fields to follow.
 QList<std::pair<QString, QJsonValue>>
 envelope(const QString &command, const QDateTime &at, const QString &omaseed);

@@ -325,6 +325,74 @@ QString errors(const QJsonObject &answer, const TextStyle &style)
     return out;
 }
 
+QString log(const QJsonObject &answer, const TextStyle &style)
+{
+    const QJsonObject server = answer.value(QLatin1String("server")).toObject();
+    const QString name = server.value(QLatin1String("name")).toString();
+    const QString level = answer.value(QLatin1String("level")).toString();
+    const QJsonArray lines = answer.value(QLatin1String("lines")).toArray();
+    const qint64 matched = answer.value(QLatin1String("matched")).toInteger();
+
+    QString levels;
+    if (level == QLatin1String("normal"))
+        levels = QStringLiteral("every level");
+    else if (level == QLatin1String("critical"))
+        levels = QStringLiteral("critical");
+    else if (level == QLatin1String("info"))
+        levels = QStringLiteral("info and worse");
+    else
+        levels = QStringLiteral("warnings and worse");
+    QString which;
+    const qint64 next = answer.value(QLatin1String("next")).toInteger();
+    if (lines.isEmpty())
+        which = next > 0 ? QStringLiteral("nothing new since %1").arg(next)
+                         : QStringLiteral("no lines");
+    else if (lines.size() < matched)
+        which = QStringLiteral("the last %1 of %2").arg(lines.size()).arg(matched);
+    else
+        which = count(matched, QStringLiteral("line"), QStringLiteral("lines"));
+    QString out =
+        QStringList{paint(name.isEmpty() ? QStringLiteral("no server") : name, Colour::Bold, style),
+                    QStringLiteral("qBittorrent's log"),
+                    levels,
+                    which}
+            .join(QStringLiteral(" · ")) +
+        QLatin1Char('\n');
+
+    // C3 D15: where qBittorrent's memory of its log begins.
+    const QString oldest = when(answer.value(QLatin1String("oldest")), style);
+    if (!oldest.isEmpty())
+        out += answer.value(QLatin1String("fromStart")).toBool()
+                   ? QStringLiteral("qBittorrent's memory of its log begins at its start, %1.\n")
+                         .arg(oldest)
+                   : QStringLiteral("qBittorrent keeps its last 20 000 lines in memory; these "
+                                    "start %1.\n")
+                         .arg(oldest);
+
+    // The time, the level in its colour (C3's chips), the message wrapped under itself.
+    for (const QJsonValue &value : lines) {
+        const QJsonObject line = value.toObject();
+        const QDateTime at =
+            QDateTime::fromString(line.value(QLatin1String("at")).toString(), Qt::ISODate);
+        const QString lineLevel = line.value(QLatin1String("level")).toString();
+        const QString time = ServerLog::timeText(at.toSecsSinceEpoch(), nowOf(style));
+        const QString padded = lineLevel.leftJustified(8, QLatin1Char(' '));
+        const QString first = time + QLatin1Char(' ') + padded + QLatin1Char(' ');
+        QString block = wrap(line.value(QLatin1String("message")).toString(),
+                             style.width,
+                             first,
+                             QString(first.size(), QLatin1Char(' ')));
+        if (style.colour &&
+            (lineLevel == QLatin1String("critical") || lineLevel == QLatin1String("warning"))) {
+            const Colour colour =
+                lineLevel == QLatin1String("critical") ? Colour::Red : Colour::Yellow;
+            block.replace(time.size() + 1, padded.size(), paint(padded, colour, style));
+        }
+        out += block;
+    }
+    return out;
+}
+
 QString lines(const QJsonObject &answer, const TextStyle &style)
 {
     const QString command = answer.value(QLatin1String("command")).toString();
@@ -332,6 +400,8 @@ QString lines(const QJsonObject &answer, const TextStyle &style)
         return status(answer, style);
     if (command == QLatin1String("errors"))
         return errors(answer, style);
+    if (command == QLatin1String("log"))
+        return log(answer, style);
     return QString();
 }
 

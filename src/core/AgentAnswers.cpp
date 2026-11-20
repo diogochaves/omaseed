@@ -306,6 +306,117 @@ QString phaseName(TorrentPhase phase)
     return QStringLiteral("unknown");
 }
 
+TorrentMatch
+matchTorrent(const QList<LogTorrent> &library, const QString &query, const QString &serverName)
+{
+    const QString key = query.trimmed().toLower();
+    TorrentMatch match;
+    QList<LogTorrent> found;
+    for (const LogTorrent &torrent : library) {
+        if (torrent.hash.compare(key, Qt::CaseInsensitive) == 0) {
+            match.torrent = torrent;
+            return match;
+        }
+        if (!key.isEmpty() && torrent.hash.startsWith(key, Qt::CaseInsensitive))
+            found.append(torrent);
+    }
+    if (found.isEmpty()) {
+        match.code = QStringLiteral("unknown-torrent");
+        match.message = QStringLiteral("No torrent %1 on %2.").arg(query, serverName);
+        return match;
+    }
+    if (found.size() == 1 && key.size() >= 8) {
+        match.torrent = found.constFirst();
+        return match;
+    }
+    match.code = QStringLiteral("ambiguous");
+    match.message = QStringLiteral("%1 matches %2 on %3: give at least 8 characters of the hash.")
+                        .arg(query,
+                             found.size() == 1 ? QStringLiteral("1 torrent")
+                                               : QStringLiteral("%1 torrents").arg(found.size()),
+                             serverName);
+    return match;
+}
+
+int levelOf(const QString &name)
+{
+    for (const int level :
+         {ServerLog::Normal, ServerLog::Info, ServerLog::Warning, ServerLog::Critical}) {
+        if (ServerLog::levelName(level) == name)
+            return level;
+    }
+    return 0;
+}
+
+QString torrentNamedIn(const QString &message, const QList<LogTorrent> &library)
+{
+    // ServerLog::torrentNamed's rule (C3 D13), over plain rows instead of the library model.
+    const QStringList quoted = ProblemMatch::quotedSegments(message);
+    QString byPrefix;
+    for (const QString &part : quoted) {
+        for (const LogTorrent &torrent : library) {
+            if (part == torrent.name)
+                return torrent.hash;
+            if (byPrefix.isEmpty() && !torrent.prefix.isEmpty() && part.size() > 7 &&
+                part.at(6) == QLatin1Char(' ') && part.startsWith(torrent.prefix))
+                byPrefix = torrent.hash;
+        }
+    }
+    return byPrefix;
+}
+
+QByteArray log(const LogInput &input)
+{
+    const Options &options = input.options;
+    const int least = std::max(1, levelOf(options.level));
+    const qint64 newest = input.log.isEmpty() ? -1 : input.log.constLast().id;
+    // qBittorrent numbers its log from 0 again after a restart (docs/62 V10).
+    // An empty log keeps `since` as it is: nothing says it was restarted.
+    const bool restarted = !input.log.isEmpty() && options.since > newest + 1;
+    const qint64 since = restarted ? -1 : options.since;
+
+    QList<const LogLine *> matched;
+    for (const LogLine &line : input.log) {
+        if (line.level < least)
+            continue;
+        if (since >= 0 && line.id < since)
+            continue;
+        if (input.torrent &&
+            !ServerLog::names(line.message, input.torrent->name, input.torrent->prefix))
+            continue;
+        matched.append(&line);
+    }
+    const qsizetype from = std::max<qsizetype>(0, matched.size() - std::max(1, options.lines));
+    QJsonArray lines;
+    for (qsizetype i = from; i < matched.size(); ++i) {
+        const LogLine &line = *matched.at(i);
+        const QString about =
+            input.torrent ? input.torrent->hash : torrentNamedIn(line.message, input.library);
+        lines.append(QJsonObject{
+            {QStringLiteral("id"), line.id},
+            {QStringLiteral("at"), isoUtc(line.at)},
+            {QStringLiteral("level"), ServerLog::levelName(line.level)},
+            {QStringLiteral("message"), maskText(line.message)},
+            {QStringLiteral("torrent"), about.isEmpty() ? QJsonValue() : QJsonValue(about)},
+        });
+    }
+
+    QList<std::pair<QString, QJsonValue>> fields =
+        envelope(QStringLiteral("log"), input.at, input.omaseed);
+    fields.append({
+        {QStringLiteral("server"), serverJson(input.server)},
+        {QStringLiteral("level"), ServerLog::levelName(least)},
+        {QStringLiteral("fromStart"), !input.log.isEmpty() && input.log.constFirst().id == 0},
+        {QStringLiteral("oldest"),
+         input.log.isEmpty() ? QJsonValue() : isoUtc(input.log.constFirst().at)},
+        {QStringLiteral("matched"), qint64(matched.size())},
+        {QStringLiteral("lines"), lines},
+        {QStringLiteral("next"), newest >= 0 ? newest + 1 : std::max<qint64>(0, options.since)},
+        {QStringLiteral("restarted"), restarted},
+    });
+    return AgentWords::orderedJson(fields);
+}
+
 QByteArray errors(const ErrorsInput &input)
 {
     // C45 V9: only qBittorrent keeps a log omaseed reads; the others' text is the sentence.

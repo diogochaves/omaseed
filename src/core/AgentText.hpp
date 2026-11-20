@@ -33,6 +33,10 @@ QString status(const QJsonObject &answer, const TextStyle &style);
 /// errors' lines (C45 V9, docs/62 V9's mock): the head, each torrent's block, the dismissed.
 QString errors(const QJsonObject &answer, const TextStyle &style);
 
+/// log's lines (C45 V10, docs/62 V10's mock): the head, where qBittorrent's memory begins, and
+/// each line's time, level and message, wrapped under the message.
+QString log(const QJsonObject &answer, const TextStyle &style);
+
 /// A failure's words for stderr, wrapped at the width.
 QString failure(const QString &message, const TextStyle &style);
 

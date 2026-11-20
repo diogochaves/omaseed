@@ -112,6 +112,42 @@ QString lines(const Answers::ErrorsInput &input, bool colour = false, int width 
     return Text::lines(answer, Text::TextStyle{colour, width, kNow});
 }
 
+/// docs/62 V10's mock: the last 3 of 61 warnings and worse, the log from its start.
+Answers::LogInput logBoard()
+{
+    Answers::LogInput input;
+    input.at = kNow;
+    input.omaseed = QStringLiteral("0.14.0");
+    input.server = attic().server;
+    input.options = Answers::parseOptions(QStringLiteral("log"), QString()).options;
+    input.options.lines = 3;
+    const QDateTime start(QDate(2026, 11, 11), QTime(9, 2, 13));
+    for (int id = 0; id < 58; ++id)
+        input.log.append({id, start.addSecs(60 * id), 4, QStringLiteral("Line %1").arg(id)});
+    input.log.append({4097,
+                      QDateTime(QDate(2026, 11, 12), QTime(13, 58, 40)),
+                      4,
+                      QStringLiteral("Failed to move torrent. Torrent: \"Arcade Set 01\". "
+                                     "Destination: \"/mnt/fast/games\". Reason: \"No space left "
+                                     "on device\"")});
+    input.log.append({4110,
+                      QDateTime(QDate(2026, 11, 12), QTime(14, 1, 2)),
+                      4,
+                      QStringLiteral("UPnP/NAT-PMP: Port mapping failure. Message: …")});
+    input.log.append({4120,
+                      QDateTime(QDate(2026, 11, 12), QTime(14, 3, 11)),
+                      8,
+                      QStringLiteral("File error alert. Torrent: \"Lantern Festival Field "
+                                     "Recordings\". … Reason: \"Permission denied\"")});
+    return input;
+}
+
+QString lines(const Answers::LogInput &input, bool colour = false, int width = 80)
+{
+    const QJsonObject answer = QJsonDocument::fromJson(Answers::log(input)).object();
+    return Text::lines(answer, Text::TextStyle{colour, width, kNow});
+}
+
 } // namespace
 
 class TestAgentText : public QObject
@@ -127,6 +163,7 @@ private slots:
     void errorsAsTheBoard();
     void nothingNeedsYou();
     void dismissedLine();
+    void logAsTheBoard();
 };
 
 void TestAgentText::statusLinesAsTheBoard()
@@ -303,6 +340,45 @@ void TestAgentText::dismissedLine()
     QVERIFY(text.endsWith(QStringLiteral("\n\n3 dismissed in the window are left out.\n")));
     input.dismissed = 0;
     QVERIFY(!lines(input).contains(QStringLiteral("dismissed")));
+}
+
+void TestAgentText::logAsTheBoard()
+{
+    // docs/62 V10: the time, the level padded to its column, the message wrapped under itself.
+    QCOMPARE(lines(logBoard(), false, 72),
+             QStringLiteral(
+                 "attic · qBittorrent's log · warnings and worse · the last 3 of 61\n"
+                 "qBittorrent's memory of its log begins at its start, yesterday 09:02.\n"
+                 "13:58:40 warning  Failed to move torrent. Torrent: \"Arcade Set 01\".\n"
+                 "                  Destination: \"/mnt/fast/games\". Reason: \"No space left\n"
+                 "                  on device\"\n"
+                 "14:01:02 warning  UPnP/NAT-PMP: Port mapping failure. Message: …\n"
+                 "14:03:11 critical File error alert. Torrent: \"Lantern Festival Field\n"
+                 "                  Recordings\". … Reason: \"Permission denied\"\n"));
+
+    // Colour: critical red, warning yellow, the name bold; nothing else painted.
+    const QString colour = lines(logBoard(), true, 72);
+    QVERIFY(colour.startsWith(QStringLiteral("\x1b[1mattic\x1b[0m · ")));
+    QVERIFY(colour.contains(QStringLiteral("13:58:40 \x1b[33mwarning \x1b[0m Failed")));
+    QVERIFY(colour.contains(QStringLiteral("14:03:11 \x1b[31mcritical\x1b[0m File")));
+
+    // Its memory not from the start, other levels, and nothing new.
+    Answers::LogInput input = logBoard();
+    input.log.remove(0, 10);
+    input.options.level = QStringLiteral("normal");
+    QString text = lines(input, false, 72);
+    QVERIFY(text.startsWith(QStringLiteral("attic · qBittorrent's log · every level · the last 3 "
+                                           "of 51\nqBittorrent keeps its last 20 000 lines in "
+                                           "memory; these start yesterday 09:12.\n")));
+    input.options.level = QStringLiteral("info");
+    QVERIFY(lines(input).contains(QStringLiteral(" · info and worse · ")));
+    input.options.level = QStringLiteral("critical");
+    QVERIFY(
+        lines(input).startsWith(QStringLiteral("attic · qBittorrent's log · critical · 1 line\n")));
+    input.options.level = QStringLiteral("warning");
+    input.options.since = 4121;
+    QVERIFY(lines(input).startsWith(QStringLiteral(
+        "attic · qBittorrent's log · warnings and worse · nothing new since 4121\n")));
 }
 
 QTEST_GUILESS_MAIN(TestAgentText)

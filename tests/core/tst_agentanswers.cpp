@@ -107,6 +107,45 @@ QJsonObject firstTorrent(const Answers::ErrorsInput &input)
         .toObject();
 }
 
+const QString kArcade = QStringLiteral("8be2d41700000000000000000000000000000000");
+const QString kLantern = QStringLiteral("3f9a1c0e00000000000000000000000000000000");
+
+/// A log of 100 lines, ids 0–99 a minute apart from 11 Nov 09:02:13: every fifth a warning,
+/// every 25th critical (0 too), the other even ones info, the odd ones normal. 20 warnings
+/// and worse, 60 info and worse, 4 critical. Line 45 names Arcade Set 01, line 50 Lantern by
+/// its hash prefix (libtorrent 2.1).
+Answers::LogInput logBoard()
+{
+    Answers::LogInput input;
+    input.at = kAt;
+    input.omaseed = QStringLiteral("0.14.0");
+    input.server = attic().server;
+    input.options = Answers::parseOptions(QStringLiteral("log"), QString()).options;
+    const QDateTime start(QDate(2026, 11, 11), QTime(9, 2, 13), QTimeZone::UTC);
+    for (int id = 0; id < 100; ++id) {
+        const int level = id % 25 == 0 ? 8 : id % 5 == 0 ? 4 : id % 2 == 0 ? 2 : 1;
+        QString message = QStringLiteral("UPnP/NAT-PMP: Port mapping failure. Line %1").arg(id);
+        if (id == 45)
+            message = QStringLiteral("Failed to move torrent. Torrent: \"Arcade Set 01\". "
+                                     "Reason: \"No space left on device\"");
+        if (id == 50)
+            message = QStringLiteral("File error alert. Torrent: \"3f9a1c Lantern\". Reason: "
+                                     "\"Permission denied\"");
+        input.log.append({id, start.addSecs(60 * id), level, message});
+    }
+    input.library = {{kArcade, QStringLiteral("Arcade Set 01"), QStringLiteral("8be2d4")},
+                     {kLantern, QStringLiteral("Lantern"), QStringLiteral("3f9a1c")}};
+    return input;
+}
+
+QList<int> idsOf(const QJsonObject &answer)
+{
+    QList<int> ids;
+    for (const QJsonValue &line : answer.value(QStringLiteral("lines")).toArray())
+        ids << line.toObject().value(QStringLiteral("id")).toInt();
+    return ids;
+}
+
 } // namespace
 
 class TestAgentAnswers : public QObject
@@ -131,6 +170,14 @@ private slots:
     void delugePaused();
     void fixDoMapping();
     void urlsMasked();
+
+    void logDefaultsWarningFifty();
+    void logLevelAndWorse();
+    void logSinceFromId();
+    void logSinceBeyondIsRestarted();
+    void logTorrentFilter();
+    void logNextAfterNewest();
+    void logFromStartAndOldest();
 };
 
 void TestAgentAnswers::envelopeFields()
@@ -496,6 +543,165 @@ void TestAgentAnswers::urlsMasked()
     const QByteArray bytes = Answers::errors(input);
     QVERIFY(!bytes.contains("s3cr3tk3y"));
     QVERIFY(bytes.contains("t.example:2710"));
+}
+
+// DECISIONS C45 V10 (design 13): warnings and worse, the last 50, oldest first.
+void TestAgentAnswers::logDefaultsWarningFifty()
+{
+    const QJsonObject answer = parse(Answers::log(logBoard()));
+    QCOMPARE(answer.value(QStringLiteral("command")).toString(), QStringLiteral("log"));
+    QCOMPARE(answer.value(QStringLiteral("level")).toString(), QStringLiteral("warning"));
+    QCOMPARE(answer.value(QStringLiteral("matched")).toInt(), 20);
+    const QList<int> ids = idsOf(answer);
+    QCOMPARE(ids.size(), 20);
+    QCOMPARE(ids.constFirst(), 0);
+    QCOMPARE(ids.constLast(), 95);
+    QVERIFY(!answer.value(QStringLiteral("restarted")).toBool());
+    QVERIFY(answer.value(QStringLiteral("server")).isObject());
+    const QJsonObject first = answer.value(QStringLiteral("lines")).toArray().at(0).toObject();
+    QCOMPARE(first.value(QStringLiteral("level")).toString(), QStringLiteral("critical"));
+    QCOMPARE(first.value(QStringLiteral("at")).toString(), QStringLiteral("2026-11-11T09:02:13Z"));
+    QVERIFY(first.value(QStringLiteral("torrent")).isNull());
+
+    // The last N of those.
+    Answers::LogInput three = logBoard();
+    three.options.lines = 3;
+    const QJsonObject last = parse(Answers::log(three));
+    QCOMPARE(idsOf(last), QList<int>({85, 90, 95}));
+    QCOMPARE(last.value(QStringLiteral("matched")).toInt(), 20);
+}
+
+void TestAgentAnswers::logLevelAndWorse()
+{
+    Answers::LogInput input = logBoard();
+    input.options.level = QStringLiteral("info");
+    QCOMPARE(parse(Answers::log(input)).value(QStringLiteral("matched")).toInt(), 60);
+    input.options.level = QStringLiteral("critical");
+    const QJsonObject critical = parse(Answers::log(input));
+    QCOMPARE(idsOf(critical), QList<int>({0, 25, 50, 75}));
+    for (const QJsonValue &line : critical.value(QStringLiteral("lines")).toArray())
+        QCOMPARE(line.toObject().value(QStringLiteral("level")).toString(),
+                 QStringLiteral("critical"));
+    input.options.level = QStringLiteral("normal");
+    const QJsonObject every = parse(Answers::log(input));
+    QCOMPARE(every.value(QStringLiteral("matched")).toInt(), 100);
+    QCOMPARE(idsOf(every).constFirst(), 50); // the last 50
+    QCOMPARE(every.value(QStringLiteral("level")).toString(), QStringLiteral("normal"));
+}
+
+void TestAgentAnswers::logSinceFromId()
+{
+    Answers::LogInput input = logBoard();
+    input.options.since = 50;
+    const QJsonObject answer = parse(Answers::log(input));
+    QCOMPARE(idsOf(answer), QList<int>({50, 55, 60, 65, 70, 75, 80, 85, 90, 95}));
+    QCOMPARE(answer.value(QStringLiteral("matched")).toInt(), 10);
+    QVERIFY(!answer.value(QStringLiteral("restarted")).toBool());
+    // The newest + 1 is nothing new, not a restart.
+    input.options.since = 100;
+    const QJsonObject none = parse(Answers::log(input));
+    QVERIFY(idsOf(none).isEmpty());
+    QVERIFY(!none.value(QStringLiteral("restarted")).toBool());
+    QCOMPARE(none.value(QStringLiteral("next")).toInt(), 100);
+}
+
+void TestAgentAnswers::logSinceBeyondIsRestarted()
+{
+    // qBittorrent numbers from 0 again after a restart: a since past its newest starts over.
+    Answers::LogInput input = logBoard();
+    input.options.since = 4121;
+    const QJsonObject answer = parse(Answers::log(input));
+    QVERIFY(answer.value(QStringLiteral("restarted")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("matched")).toInt(), 20);
+    QCOMPARE(idsOf(answer).constFirst(), 0);
+    QCOMPARE(answer.value(QStringLiteral("next")).toInt(), 100);
+}
+
+void TestAgentAnswers::logTorrentFilter()
+{
+    // C3 D13: each line's torrent, by its quoted name or its hash prefix.
+    Answers::LogInput input = logBoard();
+    const QJsonArray all = parse(Answers::log(input)).value(QStringLiteral("lines")).toArray();
+    const auto torrentOf = [&](int id) {
+        for (const QJsonValue &line : all)
+            if (line.toObject().value(QStringLiteral("id")).toInt() == id)
+                return line.toObject().value(QStringLiteral("torrent"));
+        return QJsonValue(QJsonValue::Undefined);
+    };
+    QCOMPARE(torrentOf(45).toString(), kArcade);
+    QCOMPARE(torrentOf(50).toString(), kLantern);
+    QVERIFY(torrentOf(55).isNull());
+
+    const Answers::TorrentMatch arcade =
+        Answers::matchTorrent(input.library, QStringLiteral("8BE2D417"), QStringLiteral("attic"));
+    QVERIFY(arcade.code.isEmpty());
+    QCOMPARE(arcade.torrent.hash, kArcade);
+    input.torrent = arcade.torrent;
+    QJsonObject answer = parse(Answers::log(input));
+    QCOMPARE(idsOf(answer), QList<int>({45}));
+    QCOMPARE(answer.value(QStringLiteral("matched")).toInt(), 1);
+    input.torrent = Answers::matchTorrent(input.library, kLantern, QStringLiteral("attic")).torrent;
+    answer = parse(Answers::log(input));
+    QCOMPARE(idsOf(answer), QList<int>({50}));
+    QCOMPARE(answer.value(QStringLiteral("lines"))
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value(QStringLiteral("torrent"))
+                 .toString(),
+             kLantern);
+
+    // Shorter than 8, or more than one, is ambiguous; none is unknown-torrent.
+    const Answers::TorrentMatch shortOne =
+        Answers::matchTorrent(input.library, QStringLiteral("8be2"), QStringLiteral("attic"));
+    QCOMPARE(shortOne.code, QStringLiteral("ambiguous"));
+    QCOMPARE(shortOne.message,
+             QStringLiteral("8be2 matches 1 torrent on attic: give at least 8 characters of the "
+                            "hash."));
+    QList<Answers::LogTorrent> twins = input.library;
+    twins.append({QStringLiteral("8be2d41799999999999999999999999999999999"),
+                  QStringLiteral("Arcade Set 02"),
+                  QStringLiteral("8be2d4")});
+    const Answers::TorrentMatch two =
+        Answers::matchTorrent(twins, QStringLiteral("8be2d417"), QStringLiteral("attic"));
+    QCOMPARE(two.code, QStringLiteral("ambiguous"));
+    QVERIFY(two.message.startsWith(QStringLiteral("8be2d417 matches 2 torrents on attic")));
+    const Answers::TorrentMatch none =
+        Answers::matchTorrent(input.library, QStringLiteral("deadbeef"), QStringLiteral("attic"));
+    QCOMPARE(none.code, QStringLiteral("unknown-torrent"));
+    QCOMPARE(none.message, QStringLiteral("No torrent deadbeef on attic."));
+}
+
+void TestAgentAnswers::logNextAfterNewest()
+{
+    QCOMPARE(parse(Answers::log(logBoard())).value(QStringLiteral("next")).toInt(), 100);
+    // An empty log: next is the since asked, or 0.
+    Answers::LogInput empty = logBoard();
+    empty.log.clear();
+    QJsonObject answer = parse(Answers::log(empty));
+    QCOMPARE(answer.value(QStringLiteral("next")).toInt(), 0);
+    QCOMPARE(answer.value(QStringLiteral("lines")).toArray().size(), 0);
+    QVERIFY(answer.value(QStringLiteral("oldest")).isNull());
+    QVERIFY(!answer.value(QStringLiteral("fromStart")).toBool());
+    empty.options.since = 30;
+    answer = parse(Answers::log(empty));
+    QCOMPARE(answer.value(QStringLiteral("next")).toInt(), 30);
+    QVERIFY(!answer.value(QStringLiteral("restarted")).toBool());
+}
+
+void TestAgentAnswers::logFromStartAndOldest()
+{
+    QJsonObject answer = parse(Answers::log(logBoard()));
+    QVERIFY(answer.value(QStringLiteral("fromStart")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("oldest")).toString(),
+             QStringLiteral("2026-11-11T09:02:13Z"));
+    // qBittorrent dropped its first lines: the memory starts at the oldest it keeps.
+    Answers::LogInput input = logBoard();
+    input.log.remove(0, 10);
+    answer = parse(Answers::log(input));
+    QVERIFY(!answer.value(QStringLiteral("fromStart")).toBool());
+    QCOMPARE(answer.value(QStringLiteral("oldest")).toString(),
+             QStringLiteral("2026-11-11T09:12:13Z"));
 }
 
 QTEST_GUILESS_MAIN(TestAgentAnswers)
