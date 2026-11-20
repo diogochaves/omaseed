@@ -748,7 +748,8 @@ void TestProblemLogFailures::standingRenamesAskForTheFiles()
 }
 
 // DECISIONS C45 V9 (#163): `omaseed errors` reads the log first. The callback comes once that
-// read is in, with what it brought; a second caller while it is on its way waits for it too.
+// read is in, with what it brought; a caller while it is on its way gets a read of its own, so
+// a line written after that read was sent is in what it hears.
 void TestProblemLogFailures::readNowCallsBackAfterTheRead()
 {
     LogServer server;
@@ -770,7 +771,8 @@ void TestProblemLogFailures::readNowCallsBackAfterTheRead()
     QCOMPARE(called, 0);
     QTRY_COMPARE(called, 2);
     QVERIFY(hadFailure);
-    QCOMPARE(server.askedFrom.size(), 1);
+    QCOMPARE(server.askedFrom.size(), 2);
+    QCOMPARE(server.askedFrom.at(1), 220); // the second from where the first ended
 
     // A read dropped by a reset (another server) still calls back.
     m_log->readNow(this, [&] { ++called; });

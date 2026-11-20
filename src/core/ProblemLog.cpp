@@ -274,6 +274,7 @@ void ProblemLog::read()
     if (m_reading || m_client.isNull() || !m_hasLog)
         return;
     m_reading = true;
+    m_readNowInFlight.append(std::exchange(m_readNow, {}));
     const quint64 serial = ++m_issued;
     const quint64 generation = m_generation;
     const bool fromStart = m_lastId < 0;
@@ -299,14 +300,15 @@ void ProblemLog::readNow(QObject *context, std::function<void()> done)
         return;
     }
     m_readNow.append({context, std::move(done)});
-    read();
+    if (!m_reading)
+        read();
 }
 
 void ProblemLog::callBackReadNow(bool queued)
 {
-    if (m_readNow.isEmpty())
-        return;
-    const QList<ReadNow> waiting = std::exchange(m_readNow, {});
+    QList<ReadNow> waiting = std::exchange(m_readNowInFlight, {});
+    if (queued) // a reset(): no read is on its way, nor will one start for them
+        waiting.append(std::exchange(m_readNow, {}));
     for (const ReadNow &call : waiting) {
         if (call.context.isNull() || !call.done)
             continue;
@@ -315,6 +317,9 @@ void ProblemLog::callBackReadNow(bool queued)
         else
             call.done();
     }
+    // Those who asked while that read was on its way get one of their own.
+    if (!queued && !m_readNow.isEmpty())
+        read();
 }
 
 QList<LogEntry> ProblemLog::linesNaming(const QString &name, const QString &prefix, int max) const

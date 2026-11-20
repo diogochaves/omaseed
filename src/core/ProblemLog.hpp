@@ -139,10 +139,11 @@ public:
     // ---- DECISIONS C45 V9 (#163): what `omaseed errors` reads ------------------------------
 
     /// Reads the log now (qBittorrent) and calls `done` once that read ends, whether it
-    /// worked, failed or was dropped by a reset(); a read already on its way is the one
-    /// waited for. At once when there is nothing to read (no client, an engine without a
-    /// log). `done` is skipped if `context` is gone by then. The read is one more of C2's:
-    /// the cadence onSynced() keeps is left as it is.
+    /// worked, failed or was dropped by a reset(). A read already on its way asked before
+    /// this call: the next one starts when it ends, and is the one waited for. At once when
+    /// there is nothing to read (no client, an engine without a log). `done` is skipped if
+    /// `context` is gone by then. The read is one more of C2's: the cadence onSynced() keeps is
+    /// left as it is.
     void readNow(QObject *context, std::function<void()> done);
     /// The lines held that name the torrent called `name`, whose hash starts `prefix`
     /// (ServerLog::names), the newest last, at most `max`. Only lines about a torrent's files
@@ -298,10 +299,11 @@ private:
         QPointer<QObject> context;
         std::function<void()> done;
     };
-    QList<ReadNow> m_readNow;
-    QSet<QString> m_settled;        ///< lineKey()s of failures seen fixed, this session
-    QSet<QString> m_candidates;     ///< hashes some failure line is about: their changes matter
-    QSet<QString> m_renameStanding; ///< hashes with a rename failure not yet seen fixed
+    QList<ReadNow> m_readNow;         ///< waiting for the next read to start
+    QList<ReadNow> m_readNowInFlight; ///< waiting for the read on its way
+    QSet<QString> m_settled;          ///< lineKey()s of failures seen fixed, this session
+    QSet<QString> m_candidates;       ///< hashes some failure line is about: their changes matter
+    QSet<QString> m_renameStanding;   ///< hashes with a rename failure not yet seen fixed
     QHash<QString, QStringList> m_files; ///< torrents/files paths, by hash
     QSet<QString> m_filesAsked;          ///< torrents/files on its way, by hash
     /// Hashes omaseed asked to rename this session, and the first read after it asked.
