@@ -182,15 +182,24 @@ in_tree() {
 import json, sys
 sys.exit(0 if any((n.get("name") or "").startswith(sys.argv[1]) for n in json.load(sys.stdin)) else 1)' "$1"
 }
-# click_text TEXT: click the first node of the tree whose name starts with TEXT.
+# click_text [--in-sheet] TEXT: a click on the middle of the first node whose name starts with
+# TEXT; --in-sheet: named TEXT itself, after the add sheet's title (the rail has a category's
+# name too).
 click_text() {
-    local at
+    local at in_sheet=0
+    [ "$1" = --in-sheet ] && { in_sheet=1; shift; }
     at="$(omabox tree -b "$BOX" --window "$APP_ID" --json 2>/dev/null | python3 -c '
 import json, sys
+text, in_sheet = sys.argv[1], sys.argv[2] == "1"
+seen = not in_sheet
 for node in json.load(sys.stdin):
-    if (node.get("name") or "").startswith(sys.argv[1]) and node.get("w", 0) > 0:
+    name = node.get("name") or ""
+    if not seen:
+        seen = name.startswith("Add torrent")
+        continue
+    if (name == text if in_sheet else name.startswith(text)) and node.get("w", 0) > 0:
         print(node["x"] + node["w"] // 2, node["y"] + node["h"] // 2)
-        break' "$1")"
+        break' "$1" "$in_sheet")"
     [ -n "$at" ] || return 1
     # shellcheck disable=SC2086 # "X Y"
     omabox click -b "$BOX" --window "$APP_ID" $at >/dev/null
@@ -235,7 +244,14 @@ import json, sys
 t = json.load(sys.stdin)
 print(str(t[0].get(sys.argv[1], "")).rstrip("/") if t else "<none>")' "$2"
 }
-is_field() { [ "$(tfield "$1" "$2")" = "$3" ]; }
+# is_field HASH FIELD VALUE: the torrent's FIELD is VALUE; when not, says what it is.
+is_field() {
+    local got
+    got="$(tfield "$1" "$2")"
+    [ "$got" = "$3" ] && return 0
+    echo "    $2 is \"$got\"" >&2
+    return 1
+}
 tkeys() { omabox keys -b "$BOX" --window "$APP_ID" --wait "$@" >/dev/null 2>&1 || true; }
 # open_add PATH: a, the add sheet, PATH typed into its first field, until it has read it.
 open_add() {
@@ -325,11 +341,9 @@ PY
     check "on: qBittorrent's download_path is the temp folder" wait_for "the small add" 20 is_field "$small" download_path "$BOX_TEMP"
 
     open_add room-walk-filed.bin
-    tkeys Tab space
-    # One category: the chip may be picked straight away, or the palette opens for it.
-    if wait_for "the category palette" 5 has_text "category for the new torrent"; then
-        tkeys -t "$CATEGORY" Return
-    fi
+    # The category's chip, clicked by its name: `tab space` from the source field picked
+    # nothing (the chips are not tab's next stop there).
+    click_text --in-sheet "$CATEGORY" || check "the $CATEGORY chip is in the tree" false
     check "the category's own incomplete folder moves the first line (C47 I12)" \
         wait_for "the first line" 10 has_text "downloads first to $save/$CATEGORY-incoming"
     check "…on the save drive: the second line is a rename (I8)" \
