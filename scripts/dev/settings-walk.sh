@@ -299,7 +299,9 @@ alt_mode() {
     omabox run -b "$BOX" -- curl -fsk "http://127.0.0.1:$QBT_PORT/api/v2/transfer/speedLimitsMode" 2>/dev/null || true
 }
 menu_before="$(menu_sum)"
-keys comma 5 l j j j j j j
+# Seven rows down from Skin: Follow, Base size, Window, Add window (board 64), In the bar,
+# Widget, then this one.
+keys comma 5 l j j j j j j j
 check "no block until asked" "$(menu_has_block)" 0
 step "In the Omarchy menu, off" "Appearance: In the Omarchy menu after Widget, its switch off, lit by the cursor; 'Trigger › Torrents: add, search, speeds, pause and resume, servers. Type torr in the menu, or bind omarchy menu summon torrents.'"
 keys Return
