@@ -111,8 +111,8 @@ public:
     void setHash(const QString &hash);
 
     bool rememberViewState() const { return m_rememberViewState; }
-    /// On: reads hideSkipped and this torrent's filter from state.json now, and keeps both
-    /// there from then on.
+    /// On: reads hideSkipped, this torrent's filter and the Files tab's tree · flat (C47 I6)
+    /// from state.json now, and keeps them there from then on.
     void setRememberViewState(bool remember);
     /// The Peers tab is the one on show, so sync/torrentPeers is worth asking for.
     void setPeersActive(bool active);

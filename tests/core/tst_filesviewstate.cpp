@@ -31,6 +31,11 @@ private Q_SLOTS:
     void the_last_filter_comes_first_and_the_list_is_capped();
     void a_write_that_changes_nothing_leaves_the_file_alone();
 
+    // DECISIONS C47 I6: tree · flat per window.
+    void viewIsPerScope();
+    void treeIsTheDefault();
+    void anUnknownViewReadsTree();
+
 private:
     std::unique_ptr<QTemporaryDir> m_dir;
     QByteArray m_previousConfigHome;
@@ -129,6 +134,46 @@ void TestFilesViewState::a_write_that_changes_nothing_leaves_the_file_alone()
     FilesViewState::setHideSkipped(true);
     FilesViewState::rememberFilter(QStringLiteral("zzzz"), QString());
     QCOMPARE(QFileInfo(StateFile::path()).lastModified(), written);
+}
+
+void TestFilesViewState::viewIsPerScope()
+{
+    FilesViewState::setHideSkipped(true);
+    FilesViewState::setView(QStringLiteral("add"), QStringLiteral("flat"));
+    QCOMPARE(FilesViewState::view(QStringLiteral("add")), QStringLiteral("flat"));
+    QCOMPARE(FilesViewState::view(QStringLiteral("details")), QStringLiteral("tree"));
+    FilesViewState::setView(QStringLiteral("details"), QStringLiteral("flat"));
+    FilesViewState::setView(QStringLiteral("add"), QStringLiteral("tree"));
+    QCOMPARE(FilesViewState::view(QStringLiteral("add")), QStringLiteral("tree"));
+    QCOMPARE(FilesViewState::view(QStringLiteral("details")), QStringLiteral("flat"));
+    // The rest of the section is kept.
+    QVERIFY(FilesViewState::hideSkipped());
+    const QJsonObject views =
+        StateFile::readSection(QStringLiteral("files")).value(QStringLiteral("views")).toObject();
+    QCOMPARE(views, (QJsonObject{{QStringLiteral("details"), QStringLiteral("flat")}}));
+}
+
+void TestFilesViewState::treeIsTheDefault()
+{
+    QCOMPARE(FilesViewState::view(QStringLiteral("add")), QStringLiteral("tree"));
+    // Going back to the tree drops the entry, and with it "views".
+    FilesViewState::setView(QStringLiteral("add"), QStringLiteral("flat"));
+    FilesViewState::setView(QStringLiteral("add"), QStringLiteral("tree"));
+    QVERIFY(!StateFile::readSection(QStringLiteral("files")).contains(QStringLiteral("views")));
+    // An empty scope is not written.
+    FilesViewState::setView(QString(), QStringLiteral("flat"));
+    QVERIFY(!StateFile::readSection(QStringLiteral("files")).contains(QStringLiteral("views")));
+}
+
+void TestFilesViewState::anUnknownViewReadsTree()
+{
+    StateFile::writeSection(
+        QStringLiteral("files"),
+        QJsonObject{{QStringLiteral("views"),
+                     QJsonObject{{QStringLiteral("add"), QStringLiteral("columns")},
+                                 {QStringLiteral("details"), 3}}}});
+    QCOMPARE(FilesViewState::view(QStringLiteral("add")), QStringLiteral("tree"));
+    QCOMPARE(FilesViewState::view(QStringLiteral("details")), QStringLiteral("tree"));
 }
 
 QTEST_GUILESS_MAIN(TestFilesViewState)

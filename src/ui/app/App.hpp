@@ -1228,6 +1228,9 @@ public:
     /// `addFiles` refuses a rename onto something already on disk there. Sees nothing unless
     /// this machine reads the server's disks (#29), as the library's renames (#64).
     Q_INVOKABLE void setAddFilesWhere(const QVariantMap &where);
+    /// DECISIONS C47 I6: tree · flat for one window's file pane, `scope` "add" (addFiles'
+    /// tree) or "details" (details' files). A real run (start()) keeps each in state.json.
+    Q_INVOKABLE void setFilesView(const QString &scope, bool flat);
 
     /// What one line of "magnet / http(s) URL / .torrent path / info hash" is, as the sheet
     /// draws it:

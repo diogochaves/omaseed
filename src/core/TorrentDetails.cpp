@@ -51,6 +51,13 @@ TorrentDetails::TorrentDetails(QObject *parent)
         if (m_rememberViewState)
             FilesViewState::setHideSkipped(m_files->hideSkipped());
     });
+    // DECISIONS C47 I6: tree · flat is kept per window; this one is "details".
+    connect(m_files, &TorrentFilesModel::flatChanged, this, [this]() {
+        if (m_rememberViewState)
+            FilesViewState::setView(QStringLiteral("details"),
+                                    m_files->flat() ? QStringLiteral("flat")
+                                                    : QStringLiteral("tree"));
+    });
 
     connect(m_trackers, &TorrentTrackersModel::countChanged, this, [this]() {
         const bool error = m_trackers->hasError();
@@ -77,6 +84,7 @@ void TorrentDetails::setRememberViewState(bool remember)
     m_rememberViewState = remember;
     if (remember) {
         m_files->setHideSkipped(FilesViewState::hideSkipped());
+        m_files->setFlat(FilesViewState::view(QStringLiteral("details")) == QLatin1String("flat"));
         m_switching = true;
         m_filterHash = m_hash;
         m_files->setFilterText(FilesViewState::filterFor(m_hash));

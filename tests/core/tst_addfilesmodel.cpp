@@ -89,6 +89,15 @@ private slots:
     void padFilesNeverShow();
     void filesTooBigForFat32AreNamedAndSkipped();
     void extrasAreSaidAndMarkedNeverUnticked();
+
+    // DECISIONS C47 I3–I6: the tree's view state, reached through the proxy.
+    void treeIsExposed();
+    void sortThroughTheProxyKeepsTicksAndRenames();
+    void flatThroughTheProxyTicksTheRightFile();
+    void toggleKindSkipsThenRestoresPriorities();
+    void aFilteredFolderTicksOnlyWhatItShows();
+    void loadKeepsSortFlatAndHideSkipped();
+    void loadDropsKindFilterAndFolds();
 };
 
 void TestAddFilesModel::filesTooBigForFat32AreNamedAndSkipped()
@@ -672,4 +681,154 @@ void TestAddFilesModel::padFilesNeverShow()
 
 QTEST_GUILESS_MAIN(TestAddFilesModel)
 
-#include "tst_addfilesmodel.moc"
+#include "tst_addfilesmodel.moc" // --- C47 ---------------------------------------------------------------------------------
+
+namespace {
+
+/// A show: two episodes, their subtitles, an NFO and a bonus video. Ids in this order.
+QList<TorrentFileEntry> showFiles()
+{
+    return {
+        {QStringLiteral("Show/ep1.mkv"), 900},
+        {QStringLiteral("Show/ep2.mkv"), 1000},
+        {QStringLiteral("Show/Subs/ep1.en.srt"), 10},
+        {QStringLiteral("Show/Subs/ep2.en.srt"), 10},
+        {QStringLiteral("Show/release.nfo"), 5},
+        {QStringLiteral("Bonus/making.mkv"), 500},
+    };
+}
+
+constexpr int kSkipped = int(FilePriority::Skip);
+constexpr int kNormalP = int(FilePriority::Normal);
+constexpr int kHighP = int(FilePriority::High);
+
+} // namespace
+
+void TestAddFilesModel::treeIsExposed()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    TorrentFilesModel *tree = model.tree();
+    QVERIFY(tree);
+    QCOMPARE(model.property("tree").value<TorrentFilesModel *>(), tree);
+    QCOMPARE(tree->rowCount(), model.rowCount());
+    // Its view state drives the proxy's rows.
+    tree->setKindFilter(QStringLiteral("subtitles"));
+    QCOMPARE(model.rowCount(), tree->rowCount());
+    QCOMPARE(model.rowCount(), 4); // Show/, Subs/ and the two subtitles
+}
+
+void TestAddFilesModel::sortThroughTheProxyKeepsTicksAndRenames()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    model.toggleWanted(model.rowOfPath(QStringLiteral("Show/ep1.mkv")));
+    QVERIFY(
+        model.rename(model.rowOfPath(QStringLiteral("Show/ep2.mkv")), QStringLiteral("Two.mkv")));
+
+    model.tree()->sortBy(QStringLiteral("size"));
+    const int one = model.rowOfPath(QStringLiteral("Show/ep1.mkv"));
+    const int two = model.rowOfPath(QStringLiteral("Show/Two.mkv"));
+    QVERIFY(one >= 0 && two >= 0);
+    QVERIFY(two < one); // largest first
+    QCOMPARE(roleAt(model, one, "wanted").toInt(), 0);
+    QCOMPARE(roleAt(model, two, "wanted").toInt(), 2);
+    QVERIFY(roleAt(model, two, "renamed").toBool());
+    QCOMPARE(roleAt(model, two, "originalName").toString(), QStringLiteral("ep2.mkv"));
+    QCOMPARE(model.priorities(),
+             (QList<int>{kSkipped, kNormalP, kNormalP, kNormalP, kNormalP, kNormalP}));
+}
+
+void TestAddFilesModel::flatThroughTheProxyTicksTheRightFile()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    model.tree()->setFlat(true);
+    model.tree()->sortBy(QStringLiteral("size")); // ep2 (1000), ep1, making, the rest
+    QCOMPARE(model.rowCount(), 6);
+    QCOMPARE(model.pathOf(0), QStringLiteral("Show/ep2.mkv"));
+    QCOMPARE(roleAt(model, 0, "folderPath").toString(), QStringLiteral("Show"));
+    model.toggleWanted(0);
+    QCOMPARE(model.priorities().at(1), kSkipped);
+    QCOMPARE(model.wantedCount(), 5);
+    QCOMPARE(roleAt(model, 0, "wanted").toInt(), 0);
+}
+
+void TestAddFilesModel::toggleKindSkipsThenRestoresPriorities()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    model.raise(model.rowOfPath(QStringLiteral("Show/ep1.mkv")));
+    QCOMPARE(model.priorities().at(0), kHighP);
+    // A filter on the subtitles does not narrow the box: the whole kind goes (C47 I5).
+    model.tree()->setKindFilter(QStringLiteral("subtitles"));
+
+    QSignalSpy changed(&model, &AddFilesModel::choicesChanged);
+    model.toggleKindWanted(QStringLiteral("video"));
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(model.priorities(),
+             (QList<int>{kSkipped, kSkipped, kNormalP, kNormalP, kNormalP, kSkipped}));
+    QCOMPARE(model.tree()->kinds().first().toMap().value(QStringLiteral("wanted")).toInt(), 0);
+
+    // Some skipped: every one ticked back, ep1 at high again.
+    model.toggleKindWanted(QStringLiteral("video"));
+    QCOMPARE(changed.count(), 2);
+    QCOMPARE(model.priorities(),
+             (QList<int>{kHighP, kNormalP, kNormalP, kNormalP, kNormalP, kNormalP}));
+
+    // One skipped by hand: the box ticks them all, it doesn't skip.
+    model.tree()->setKindFilter(QString());
+    model.toggleWanted(model.rowOfPath(QStringLiteral("Bonus/making.mkv")));
+    model.toggleKindWanted(QStringLiteral("video"));
+    QCOMPARE(model.priorities().at(5), kNormalP);
+
+    // A kind the torrent hasn't: nothing.
+    model.toggleKindWanted(QStringLiteral("books"));
+    QCOMPARE(changed.count(), 4);
+}
+
+void TestAddFilesModel::aFilteredFolderTicksOnlyWhatItShows()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    model.tree()->setFilterText(QStringLiteral("ep1"));
+    model.toggleWanted(model.rowOfPath(QStringLiteral("Show")));
+    QCOMPARE(model.priorities(),
+             (QList<int>{kSkipped, kNormalP, kSkipped, kNormalP, kNormalP, kNormalP}));
+}
+
+void TestAddFilesModel::loadKeepsSortFlatAndHideSkipped()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    TorrentFilesModel *tree = model.tree();
+    tree->sortBy(QStringLiteral("size"));
+    tree->setFlat(true);
+    tree->setFoldersFirst(false);
+    tree->setHideSkipped(true);
+
+    model.load(showFiles());
+    QCOMPARE(tree->sortKey(), QStringLiteral("size"));
+    QVERIFY(tree->sortDescending());
+    QVERIFY(tree->flat());
+    QVERIFY(!tree->foldersFirst());
+    QVERIFY(tree->hideSkipped());
+    QCOMPARE(model.pathOf(0), QStringLiteral("Show/ep2.mkv"));
+}
+
+void TestAddFilesModel::loadDropsKindFilterAndFolds()
+{
+    AddFilesModel model;
+    model.load(showFiles());
+    TorrentFilesModel *tree = model.tree();
+    model.setExpanded(model.rowOfPath(QStringLiteral("Bonus")), false);
+    QCOMPARE(model.rowOfPath(QStringLiteral("Bonus/making.mkv")), -1);
+    tree->setKindFilter(QStringLiteral("video"));
+    tree->setFilterText(QStringLiteral("ep"));
+
+    model.load(showFiles());
+    QCOMPARE(tree->kindFilter(), QString());
+    QCOMPARE(tree->filterText(), QString());
+    QVERIFY(model.rowOfPath(QStringLiteral("Bonus/making.mkv")) >= 0);
+    QCOMPARE(model.rowCount(), 9); // Show/, Subs/, Bonus/ and the six files
+}

@@ -11,10 +11,18 @@
 // file ids are positions in TorrentFile::files, which is qBittorrent's own numbering (pad
 // files left out), so `priorityGroups()` can go straight to `torrents/filePrio` once the
 // torrent is on the server.
+//
+// DECISIONS C47 I3: the add and details share one file pane. Its view state (sort, folders
+// first, filter, kind filter, hide skipped, tree · flat, folds) is the tree's, reached through
+// `tree`; the ticks stay this proxy's, and a row's ids (`fileIndexes`) are the files that row
+// shows, so a filtered folder ticks only what it shows. load() keeps the sort, flat, folders
+// first and hide skipped (preferences); the folds, the typed filter and the kind filter go
+// with the torrent, as TorrentFilesModel::clear() has them.
 
 #include "core/RenameDisk.hpp"
 #include "core/TorrentExtras.hpp"
 #include "core/TorrentFile.hpp"
+#include "core/TorrentFilesModel.hpp"
 
 #include <QIdentityProxyModel>
 #include <QList>
@@ -24,8 +32,6 @@
 #include <QVariantMap>
 
 namespace omaseed::core {
-
-class TorrentFilesModel;
 
 class AddFilesModel : public QIdentityProxyModel
 {
@@ -45,6 +51,9 @@ class AddFilesModel : public QIdentityProxyModel
     /// sample (12 MB). Ticked, so the torrent seeds whole." Nothing is unticked for it; the
     /// last sentence goes once one of them is skipped by hand.
     Q_PROPERTY(QString extrasText READ extrasText NOTIFY choicesChanged)
+    /// C47 I3: the tree this proxy shows, for the pane's view state (sort, filter, kinds,
+    /// flat, folds); the ticks go through this model, never the tree's priorities.
+    Q_PROPERTY(omaseed::core::TorrentFilesModel *tree READ tree CONSTANT)
 
 public:
     /// The extra role, after TorrentFilesModel's own.
@@ -60,6 +69,8 @@ public:
 
     /// The server engine's file priorities (C25 K17); empty keeps qBittorrent's.
     void setPrioritySet(const QList<int> &set);
+
+    TorrentFilesModel *tree() const { return m_tree; }
 
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -110,6 +121,10 @@ public:
     /// The tick column's head and `ctrl+a` (docs/27 D1/D2): every file ticked, or, when
     /// every file already is, none.
     Q_INVOKABLE void toggleAllWanted();
+    /// C47 I5: a kind chip's box. Every file of `kind` (a FileKinds name), whatever the
+    /// filters show, is skipped when none of them is; otherwise each skipped one is ticked
+    /// back to the priority it had before.
+    Q_INVOKABLE void toggleKindWanted(const QString &kind);
 
     // --- renaming (manual box M18) -----------------------------------------------------
     /// Why `name` cannot be `row`'s new name ("" when it can): empty, ".", "..", a "/" or

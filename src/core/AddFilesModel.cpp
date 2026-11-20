@@ -6,6 +6,8 @@
 #include <QMap>
 #include <QStringList>
 
+#include <algorithm>
+
 namespace omaseed::core {
 
 namespace {
@@ -379,6 +381,22 @@ void AddFilesModel::setAllWanted(bool wanted)
 void AddFilesModel::toggleAllWanted()
 {
     setAllWanted(wantedCount() < fileCount());
+}
+
+void AddFilesModel::toggleKindWanted(const QString &kind)
+{
+    QList<int> ids;
+    for (const QVariant &id : m_tree->kindFileIndexes(kind))
+        ids.append(id.toInt());
+    if (ids.isEmpty())
+        return;
+    const bool noneSkipped = std::none_of(ids.cbegin(), ids.cend(), [this](int id) {
+        return m_priorities.value(id, kNormal) == kSkip;
+    });
+    if (!(noneSkipped ? setIds(ids, kSkip) : restoreIds(ids)))
+        return;
+    applyToTree();
+    Q_EMIT choicesChanged();
 }
 
 QString AddFilesModel::pathAt(int row) const

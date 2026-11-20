@@ -70,4 +70,32 @@ void rememberFilter(const QString &hash, const QString &text)
     StateFile::writeSection(sectionKey(), section);
 }
 
+QString view(const QString &scope)
+{
+    const QJsonObject views =
+        StateFile::readSection(sectionKey()).value(QStringLiteral("views")).toObject();
+    return views.value(scope).toString() == QLatin1String("flat") ? QStringLiteral("flat")
+                                                                  : QStringLiteral("tree");
+}
+
+void setView(const QString &scope, const QString &view)
+{
+    if (scope.isEmpty())
+        return;
+    QJsonObject section = StateFile::readSection(sectionKey());
+    QJsonObject views = section.value(QStringLiteral("views")).toObject();
+    const QJsonObject before = views;
+    if (view == QLatin1String("flat"))
+        views.insert(scope, QStringLiteral("flat"));
+    else
+        views.remove(scope);
+    if (views == before)
+        return;
+    if (views.isEmpty())
+        section.remove(QStringLiteral("views"));
+    else
+        section.insert(QStringLiteral("views"), views);
+    StateFile::writeSection(sectionKey(), section);
+}
+
 } // namespace omaseed::core::FilesViewState

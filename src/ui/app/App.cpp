@@ -3,6 +3,7 @@
 #include "core/AltPickWords.hpp"
 #include "core/BackupFormat.hpp"
 #include "core/CertificatePin.hpp"
+#include "core/FilesViewState.hpp"
 #include "core/Format.hpp"
 #include "core/LibraryMatch.hpp"
 #include "core/MagnetLink.hpp"
@@ -465,6 +466,14 @@ void App::start()
     // #9: a real run keeps the Files tab's per-torrent filter and hide-skipped in state.json
     // (demos and QML tests never call start(), so they never write it).
     m_details->setRememberViewState(true);
+    // DECISIONS C47 I6: and the add's tree · flat, kept apart from details'.
+    m_addFiles->tree()->setFlat(FilesViewState::view(QStringLiteral("add")) ==
+                                QLatin1String("flat"));
+    connect(m_addFiles->tree(), &TorrentFilesModel::flatChanged, this, [this]() {
+        FilesViewState::setView(QStringLiteral("add"),
+                                m_addFiles->tree()->flat() ? QStringLiteral("flat")
+                                                           : QStringLiteral("tree"));
+    });
     // DECISIONS C24 H4: a real run writes the display it decided (or was told) at once.
     saveDisplaysFirst();
 
@@ -2856,6 +2865,16 @@ void App::setAddFilesWhere(const QVariantMap &where)
 {
     const auto [disk, root] = addRenameDisk(where);
     m_addFiles->setRenameDisk(disk, root);
+}
+
+void App::setFilesView(const QString &scope, bool flat)
+{
+    // DECISIONS C47 I6: the model keeps it, and its flatChanged writes state.json on a real
+    // run (start() for the add, TorrentDetails' rememberViewState for details).
+    if (scope == QLatin1String("add"))
+        m_addFiles->tree()->setFlat(flat);
+    else if (scope == QLatin1String("details"))
+        m_details->files()->setFlat(flat);
 }
 
 QString App::addRenameTaken(const QVariantMap &request) const

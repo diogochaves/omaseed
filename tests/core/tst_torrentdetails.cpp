@@ -67,6 +67,7 @@ private Q_SLOTS:
     void nothing_polls_without_a_client();
     void each_torrent_gets_its_files_filter_back();
     void without_remembering_nothing_is_written();
+    void the_files_tree_or_flat_comes_back();
 };
 
 void TestTorrentDetails::general_tab_strings_from_a_recorded_properties()
@@ -463,6 +464,24 @@ void TestTorrentDetails::without_remembering_nothing_is_written()
     QCOMPARE(details.files()->filterText(), QString());
     QTest::qWait(1000); // past the save timer's delay
     QVERIFY(!QFileInfo::exists(omaseed::core::StateFile::path()));
+}
+
+// DECISIONS C47 I6: details' tree · flat is kept apart from the add's, with the rest of #9.
+void TestTorrentDetails::the_files_tree_or_flat_comes_back()
+{
+    const ConfigHome home;
+    namespace FilesViewState = omaseed::core::FilesViewState;
+    FilesViewState::setView(QStringLiteral("details"), QStringLiteral("flat"));
+
+    TorrentDetails details;
+    QVERIFY(!details.files()->flat()); // not read until remembering is on
+    details.setRememberViewState(true);
+    QVERIFY(details.files()->flat());
+    details.files()->setFlat(false);
+    QCOMPARE(FilesViewState::view(QStringLiteral("details")), QStringLiteral("tree"));
+    details.files()->setFlat(true);
+    QCOMPARE(FilesViewState::view(QStringLiteral("details")), QStringLiteral("flat"));
+    QCOMPARE(FilesViewState::view(QStringLiteral("add")), QStringLiteral("tree"));
 }
 
 QTEST_MAIN(TestTorrentDetails)
