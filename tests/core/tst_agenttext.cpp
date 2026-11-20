@@ -148,6 +148,52 @@ QString lines(const Answers::LogInput &input, bool colour = false, int width = 8
     return Text::lines(answer, Text::TextStyle{colour, width, kNow});
 }
 
+/// docs/62 V11's mock: games running, two landed of five kept.
+Answers::MovesInput movesBoard()
+{
+    Answers::MovesInput input;
+    input.at = kNow;
+    input.omaseed = QStringLiteral("0.14.0");
+    input.server = attic().server;
+    Answers::RunningMove games;
+    games.id = QStringLiteral("j-t5c1d9");
+    games.kind = QStringLiteral("folder");
+    games.title = QStringLiteral("games");
+    games.to = QStringLiteral("/mnt/fast/games");
+    games.started = QDateTime(QDate(2026, 11, 12), QTime(13, 40, 5));
+    games.state = QStringLiteral("running");
+    games.of = 12;
+    games.there = 5;
+    games.bytesOf = qint64(48) << 30;
+    games.bytesThere = qint64(20) << 30;
+    games.nowHash = QStringLiteral("c41e09aa");
+    games.nowName = QStringLiteral("Arcade Set 02");
+    input.running = {games};
+    Answers::LandedMove music;
+    music.id = QStringLiteral("m-09ae");
+    music.kind = QStringLiteral("selection");
+    music.title = QStringLiteral("3 torrents");
+    music.to = QStringLiteral("/data/music");
+    music.finished = QDateTime(QDate(2026, 11, 12), QTime(12, 10, 19));
+    music.back = Answers::MoveBack{3, 0, 0, 0, {}};
+    Answers::LandedMove night;
+    night.id = QStringLiteral("m-07f1");
+    night.kind = QStringLiteral("selection");
+    night.title = QStringLiteral("Night Market Field Recordings");
+    night.to = QStringLiteral("/data/archive");
+    night.finished = QDateTime(QDate(2026, 11, 11), QTime(21, 10, 2));
+    night.back = Answers::MoveBack{0, 1, 0, 0, {{QStringLiteral("m-09ae"), music.finished}}};
+    input.landed = {music, night};
+    input.kept = 5;
+    return input;
+}
+
+QString lines(const Answers::MovesInput &input, bool colour = false, int width = 80)
+{
+    const QJsonObject answer = QJsonDocument::fromJson(Answers::moves(input)).object();
+    return Text::lines(answer, Text::TextStyle{colour, width, kNow});
+}
+
 } // namespace
 
 class TestAgentText : public QObject
@@ -164,6 +210,8 @@ private slots:
     void nothingNeedsYou();
     void dismissedLine();
     void logAsTheBoard();
+    void movesAsTheBoard();
+    void pausedSaysTheBand();
 };
 
 void TestAgentText::statusLinesAsTheBoard()
@@ -379,6 +427,73 @@ void TestAgentText::logAsTheBoard()
     input.options.since = 4121;
     QVERIFY(lines(input).startsWith(QStringLiteral(
         "attic · qBittorrent's log · warnings and worse · nothing new since 4121\n")));
+}
+
+void TestAgentText::movesAsTheBoard()
+{
+    // docs/62 V11: the band's figures, each landed one's move back, how many more are kept.
+    QCOMPARE(lines(movesBoard()),
+             QStringLiteral("attic · 1 running · 5 landed\n"
+                            "\n"
+                            "running  games → /mnt/fast/games                since 13:40\n"
+                            "         5 of 12 there · 20.0 of 48.0 GB · moving Arcade Set 02\n"
+                            "\n"
+                            "landed   3 torrents → /data/music               today 12:10\n"
+                            "         move back: all 3 go back\n"
+                            "landed   Night Market Field Recordings → /data/archive\n"
+                            "                                                yesterday 21:10\n"
+                            "         move back: it stays; moved again by today 12:10's move\n"
+                            "… 3 more: omaseed moves --landed 20\n"));
+
+    // Nothing: the head alone.
+    Answers::MovesInput none = movesBoard();
+    none.running.clear();
+    none.landed.clear();
+    none.kept = 0;
+    QCOMPARE(lines(none), QStringLiteral("attic · no move running · none landed\n"));
+
+    // The other move back words, mixed parts, and another server's.
+    Answers::MovesInput mixed = movesBoard();
+    mixed.running.clear();
+    mixed.kept = 2;
+    mixed.landed[0].back = Answers::MoveBack{2, 0, 1, 1, {}};
+    mixed.landed[1].back = Answers::MoveBack{0, 0, 1, 0, {}};
+    QString text = lines(mixed, false, 120);
+    QVERIFY(text.contains(QStringLiteral(
+        "move back: 2 go back · 1 stays; moved outside omaseed · 1 is gone from the library\n")));
+    QVERIFY(text.contains(QStringLiteral("move back: it stays; moved outside omaseed\n")));
+    QVERIFY(!text.contains(QStringLiteral("more:")));
+    mixed.landed[1].back = Answers::MoveBack{0, 0, 0, 1, {}};
+    QVERIFY(lines(mixed).contains(QStringLiteral("move back: it's gone from the library\n")));
+    mixed.landed[1].back = Answers::MoveBack{1, 0, 0, 0, {}};
+    QVERIFY(lines(mixed).contains(QStringLiteral("move back: it goes back\n")));
+    mixed.landed[1].back.reset();
+    QVERIFY(lines(mixed).contains(QStringLiteral("move back: known once omaseed is on attic\n")));
+
+    // Colour: running blue, landed green, titles bold.
+    const QString colour = lines(movesBoard(), true);
+    QVERIFY(colour.contains(QStringLiteral("\x1b[34mrunning\x1b[0m  \x1b[1mgames\x1b[0m → ")));
+    QVERIFY(colour.contains(QStringLiteral("\x1b[32mlanded \x1b[0m  \x1b[1m3 torrents\x1b[0m")));
+}
+
+void TestAgentText::pausedSaysTheBand()
+{
+    // C15 T3: the band's line says why; going on or ending stays the window's.
+    Answers::MovesInput input = movesBoard();
+    input.landed.clear();
+    input.kept = 0;
+    input.running[0].state = QStringLiteral("paused");
+    input.running[0].pausedFor = QStringLiteral("nearly-full");
+    input.running[0].line = QStringLiteral("The next one would leave /mnt/fast under 5 GB free.");
+    QCOMPARE(lines(input),
+             QStringLiteral("attic · 1 running · none landed\n"
+                            "\n"
+                            "paused   games → /mnt/fast/games                since 13:40\n"
+                            "         The next one would leave /mnt/fast under 5 GB free.\n"
+                            "         5 of 12 there · the window can go on or end it\n"));
+    QVERIFY(lines(input, true)
+                .startsWith(QStringLiteral(
+                    "\x1b[1mattic\x1b[0m · 1 running · none landed\n\n\x1b[33mpaused \x1b[0m")));
 }
 
 QTEST_GUILESS_MAIN(TestAgentText)

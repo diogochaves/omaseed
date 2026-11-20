@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMetaEnum>
 #include <QTest>
 #include <QTimeZone>
 
@@ -146,6 +147,112 @@ QList<int> idsOf(const QJsonObject &answer)
     return ids;
 }
 
+/// A folder job's journal (MoveJob::toJson's shape): games to /mnt/fast/games, 5 of 12 there,
+/// Arcade Set 02 moving, one left out, "3 torrents" waiting behind it; 4 GiB each.
+QJsonObject gamesJournal(const QString &state, const QString &pauseReason = QStringLiteral("None"))
+{
+    QJsonArray entries;
+    const qint64 gib = qint64(4) << 30;
+    for (int i = 0; i < 13; ++i) {
+        QString step = i < 5 ? QStringLiteral("Moved") : QStringLiteral("Waiting");
+        if (i == 5)
+            step = QStringLiteral("Moving");
+        if (i == 12)
+            step = QStringLiteral("LeftOut");
+        entries.append(QJsonObject{
+            {QStringLiteral("hash"), QStringLiteral("c41e09aa%1").arg(i, 32, 10, QLatin1Char('0'))},
+            {QStringLiteral("name"),
+             QStringLiteral("Arcade Set %1").arg(i - 3, 2, 10, QLatin1Char('0'))},
+            {QStringLiteral("from"), QStringLiteral("/mnt/archive/games")},
+            {QStringLiteral("to"), QStringLiteral("/mnt/fast/games")},
+            {QStringLiteral("bytes"), gib},
+            {QStringLiteral("step"), step},
+        });
+    }
+    return {
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("server"), QStringLiteral("{0b9e}")},
+        {QStringLiteral("spec"),
+         QJsonObject{{QStringLiteral("kind"), QStringLiteral("folder")},
+                     {QStringLiteral("title"), QStringLiteral("games")}}},
+        {QStringLiteral("state"), state},
+        {QStringLiteral("pauseReason"), pauseReason},
+        {QStringLiteral("root"), QStringLiteral("/mnt/archive/games")},
+        {QStringLiteral("newPath"), QStringLiteral("/mnt/fast/games")},
+        {QStringLiteral("startedAt"), QStringLiteral("2026-11-12T13:40:05.000Z")},
+        {QStringLiteral("entries"), entries},
+        {QStringLiteral("queued"),
+         QJsonArray{
+             QJsonObject{{QStringLiteral("spec"),
+                          QJsonObject{{QStringLiteral("title"), QStringLiteral("3 torrents")}}}}}},
+    };
+}
+
+omaseed::core::MoveRecord record(const QString &id,
+                                 const QString &title,
+                                 const QString &to,
+                                 const QDateTime &finished,
+                                 const QHash<QString, QString> &from)
+{
+    omaseed::core::MoveRecord move;
+    move.id = id;
+    move.kind = QStringLiteral("selection");
+    move.title = title;
+    move.newPath = to;
+    move.startedAt = finished.addSecs(-88);
+    move.finishedAt = finished;
+    move.from = from;
+    for (auto it = from.constBegin(); it != from.constEnd(); ++it) {
+        move.to.insert(it.key(), to);
+        move.names.insert(it.key(), QStringLiteral("Track ") + it.key());
+    }
+    return move;
+}
+
+/// Two landed moves: m-1b20 (today 12:10) took h5 on from /data/archive to /data/music2;
+/// m-09ae (yesterday 21:10) took h1–h4 and h5 from /data/incoming.
+omaseed::core::MoveHistory twoMoves()
+{
+    omaseed::core::MoveHistory history;
+    const QString incoming = QStringLiteral("/data/incoming");
+    history.add(record(QStringLiteral("m-09ae"),
+                       QStringLiteral("5 torrents"),
+                       QStringLiteral("/data/archive"),
+                       QDateTime(QDate(2026, 11, 11), QTime(21, 10, 19), QTimeZone::UTC),
+                       {{QStringLiteral("h1"), incoming},
+                        {QStringLiteral("h2"), incoming},
+                        {QStringLiteral("h3"), incoming},
+                        {QStringLiteral("h4"), incoming},
+                        {QStringLiteral("h5"), incoming}}),
+                kAt);
+    history.add(record(QStringLiteral("m-1b20"),
+                       QStringLiteral("Track h5"),
+                       QStringLiteral("/data/music2"),
+                       QDateTime(QDate(2026, 11, 12), QTime(12, 10, 19), QTimeZone::UTC),
+                       {{QStringLiteral("h5"), QStringLiteral("/data/archive")}}),
+                kAt);
+    return history;
+}
+
+/// h1, h2 where m-09ae put them; h3 moved outside omaseed; h4 gone; h5 moved by m-1b20.
+const QHash<QString, QString> kSavePaths{{QStringLiteral("h1"), QStringLiteral("/data/archive")},
+                                         {QStringLiteral("h2"), QStringLiteral("/data/archive")},
+                                         {QStringLiteral("h3"), QStringLiteral("/mnt/usb")},
+                                         {QStringLiteral("h5"), QStringLiteral("/data/music2")}};
+
+QJsonObject movesAnswer(const omaseed::core::MoveHistory &history,
+                        const QHash<QString, QString> *savePaths,
+                        int count = 5)
+{
+    Answers::MovesInput input;
+    input.at = kAt;
+    input.omaseed = QStringLiteral("0.14.0");
+    input.server = attic().server;
+    input.landed = Answers::landedOf(history, count, savePaths);
+    input.kept = int(history.records().size());
+    return parse(Answers::moves(input));
+}
+
 } // namespace
 
 class TestAgentAnswers : public QObject
@@ -178,6 +285,12 @@ private slots:
     void logTorrentFilter();
     void logNextAfterNewest();
     void logFromStartAndOldest();
+
+    void movesRunningFields();
+    void movesPausedFor();
+    void landedBackFromCheck();
+    void landedMovedAgainBy();
+    void anotherServerBackNull();
 };
 
 void TestAgentAnswers::envelopeFields()
@@ -702,6 +815,149 @@ void TestAgentAnswers::logFromStartAndOldest()
     QVERIFY(!answer.value(QStringLiteral("fromStart")).toBool());
     QCOMPARE(answer.value(QStringLiteral("oldest")).toString(),
              QStringLiteral("2026-11-11T09:12:13Z"));
+}
+
+// DECISIONS C45 V11 (design 14): the move under way, from its MoveJob.
+void TestAgentAnswers::movesRunningFields()
+{
+    omaseed::core::MoveJob job;
+    QVERIFY(job.fromJson(gamesJournal(QStringLiteral("Running"))));
+    Answers::MovesInput input;
+    input.at = kAt;
+    input.omaseed = QStringLiteral("0.14.0");
+    input.server = attic().server;
+    input.running = {Answers::runningOf(
+        job, QStringLiteral("Moving games"), QStringLiteral("http://t.example/ann/s3cr3t ok"))};
+    const QJsonObject answer = parse(Answers::moves(input));
+    QCOMPARE(answer.value(QStringLiteral("command")).toString(), QStringLiteral("moves"));
+    QCOMPARE(answer.value(QStringLiteral("landed")).toArray().size(), 0);
+    QCOMPARE(answer.value(QStringLiteral("kept")).toInt(), 0);
+    const QJsonObject move = answer.value(QStringLiteral("running")).toArray().at(0).toObject();
+    const QDateTime started(QDate(2026, 11, 12), QTime(13, 40, 5), QTimeZone::UTC);
+    QCOMPARE(move.value(QStringLiteral("id")).toString(),
+             QStringLiteral("j-") + QString::number(started.toSecsSinceEpoch(), 36));
+    QCOMPARE(move.value(QStringLiteral("kind")).toString(), QStringLiteral("folder"));
+    QCOMPARE(move.value(QStringLiteral("title")).toString(), QStringLiteral("games"));
+    QCOMPARE(move.value(QStringLiteral("to")).toString(), QStringLiteral("/mnt/fast/games"));
+    QCOMPARE(move.value(QStringLiteral("started")).toString(),
+             QStringLiteral("2026-11-12T13:40:05Z"));
+    QCOMPARE(move.value(QStringLiteral("state")).toString(), QStringLiteral("running"));
+    QVERIFY(move.value(QStringLiteral("pausedFor")).isNull());
+    QCOMPARE(move.value(QStringLiteral("headline")).toString(), QStringLiteral("Moving games"));
+    QVERIFY(!move.value(QStringLiteral("line")).toString().contains(QStringLiteral("s3cr3t")));
+    const QJsonObject torrents = move.value(QStringLiteral("torrents")).toObject();
+    QCOMPARE(torrents.value(QStringLiteral("of")).toInt(), 12);
+    QCOMPARE(torrents.value(QStringLiteral("there")).toInt(), 5);
+    QCOMPARE(torrents.value(QStringLiteral("failed")).toInt(), 0);
+    QCOMPARE(torrents.value(QStringLiteral("leftOut")).toInt(), 1);
+    const QJsonObject bytes = move.value(QStringLiteral("bytes")).toObject();
+    QCOMPARE(bytes.value(QStringLiteral("of")).toInteger(), qint64(48) << 30);
+    QCOMPARE(bytes.value(QStringLiteral("there")).toInteger(), qint64(20) << 30);
+    const QJsonObject now = move.value(QStringLiteral("now")).toObject();
+    QCOMPARE(now.value(QStringLiteral("name")).toString(), QStringLiteral("Arcade Set 02"));
+    QVERIFY(now.value(QStringLiteral("hash")).toString().startsWith(QStringLiteral("c41e09aa")));
+    QCOMPARE(move.value(QStringLiteral("queued")).toArray(),
+             QJsonArray{QStringLiteral("3 torrents")});
+}
+
+void TestAgentAnswers::movesPausedFor()
+{
+    using Reason = omaseed::core::MoveJob::PauseReason;
+    // Every reason has its word; None is null.
+    const QList<std::pair<Reason, QString>> words{
+        {Reason::None, QString()},
+        {Reason::User, QStringLiteral("by-you")},
+        {Reason::Quit, QStringLiteral("quit")},
+        {Reason::FirstFailed, QStringLiteral("first-failed")},
+        {Reason::Refused, QStringLiteral("refused")},
+        {Reason::NoSpace, QStringLiteral("no-space")},
+        {Reason::NearlyFull, QStringLiteral("nearly-full")},
+        {Reason::Stuck, QStringLiteral("stuck")},
+    };
+    for (const auto &[reason, word] : words)
+        QCOMPARE(Answers::pausedForName(reason), word);
+    const QMetaEnum meta = QMetaEnum::fromType<Reason>();
+    QCOMPARE(meta.keyCount(), int(words.size()));
+
+    // A journal's paused job says why; one paused to quit runs again when read (J5).
+    for (const char *key : {"User", "NearlyFull", "Stuck"}) {
+        omaseed::core::MoveJob job;
+        QVERIFY(job.fromJson(gamesJournal(QStringLiteral("Paused"), QString::fromLatin1(key))));
+        const Answers::RunningMove move = Answers::runningOf(job, {}, {});
+        QCOMPARE(move.state, QStringLiteral("paused"));
+        QCOMPARE(move.pausedFor, Answers::pausedForName(Reason(meta.keyToValue(key))));
+    }
+    omaseed::core::MoveJob quit;
+    QVERIFY(quit.fromJson(gamesJournal(QStringLiteral("Paused"), QStringLiteral("Quit"))));
+    QCOMPARE(Answers::runningOf(quit, {}, {}).state, QStringLiteral("running"));
+    QVERIFY(Answers::runningOf(quit, {}, {}).pausedFor.isEmpty());
+
+    using State = omaseed::core::MoveJob::State;
+    QCOMPARE(Answers::moveStateName(State::Pausing), QStringLiteral("pausing"));
+    QCOMPARE(Answers::moveStateName(State::Ending), QStringLiteral("ending"));
+    QCOMPARE(Answers::moveStateName(State::Carrying), QStringLiteral("carrying"));
+    QVERIFY(Answers::moveStateName(State::Done).isEmpty());
+}
+
+void TestAgentAnswers::landedBackFromCheck()
+{
+    // C18 D7: MoveHistory::check's counts, per torrent.
+    const QJsonObject answer = movesAnswer(twoMoves(), &kSavePaths);
+    QCOMPARE(answer.value(QStringLiteral("kept")).toInt(), 2);
+    const QJsonArray landed = answer.value(QStringLiteral("landed")).toArray();
+    QCOMPARE(landed.size(), 2);
+    QCOMPARE(landed.at(0).toObject().value(QStringLiteral("id")).toString(),
+             QStringLiteral("m-1b20")); // newest first
+    const QJsonObject older = landed.at(1).toObject();
+    QCOMPARE(older.value(QStringLiteral("title")).toString(), QStringLiteral("5 torrents"));
+    QCOMPARE(older.value(QStringLiteral("to")).toString(), QStringLiteral("/data/archive"));
+    QCOMPARE(older.value(QStringLiteral("finished")).toString(),
+             QStringLiteral("2026-11-11T21:10:19Z"));
+    QCOMPARE(older.value(QStringLiteral("started")).toString(),
+             QStringLiteral("2026-11-11T21:08:51Z"));
+    const QJsonArray torrents = older.value(QStringLiteral("torrents")).toArray();
+    QCOMPARE(torrents.size(), 5);
+    const QJsonObject first = torrents.at(0).toObject();
+    QCOMPARE(first.value(QStringLiteral("name")).toString(), QStringLiteral("Track h1"));
+    QCOMPARE(first.value(QStringLiteral("from")).toString(), QStringLiteral("/data/incoming"));
+    QCOMPARE(first.value(QStringLiteral("to")).toString(), QStringLiteral("/data/archive"));
+    const QJsonObject back = older.value(QStringLiteral("back")).toObject();
+    QCOMPARE(back.value(QStringLiteral("goBack")).toInt(), 2);
+    QCOMPARE(back.value(QStringLiteral("movedAgain")).toInt(), 1);
+    QCOMPARE(back.value(QStringLiteral("movedOutside")).toInt(), 1);
+    QCOMPARE(back.value(QStringLiteral("gone")).toInt(), 1);
+    // The newest one: its only torrent goes back.
+    const QJsonObject newest = landed.at(0).toObject().value(QStringLiteral("back")).toObject();
+    QCOMPARE(newest.value(QStringLiteral("goBack")).toInt(), 1);
+    QCOMPARE(newest.value(QStringLiteral("movedAgainBy")).toArray().size(), 0);
+}
+
+void TestAgentAnswers::landedMovedAgainBy()
+{
+    const QJsonObject answer = movesAnswer(twoMoves(), &kSavePaths);
+    const QJsonArray by = answer.value(QStringLiteral("landed"))
+                              .toArray()
+                              .at(1)
+                              .toObject()
+                              .value(QStringLiteral("back"))
+                              .toObject()
+                              .value(QStringLiteral("movedAgainBy"))
+                              .toArray();
+    QCOMPARE(by.size(), 1);
+    QCOMPARE(by.at(0).toObject().value(QStringLiteral("id")).toString(), QStringLiteral("m-1b20"));
+    QCOMPARE(by.at(0).toObject().value(QStringLiteral("finished")).toString(),
+             QStringLiteral("2026-11-12T12:10:19Z"));
+}
+
+void TestAgentAnswers::anotherServerBackNull()
+{
+    // C45 V11: another server's library isn't here: no move back, the records as kept.
+    const QJsonObject answer = movesAnswer(twoMoves(), nullptr, 1);
+    QCOMPARE(answer.value(QStringLiteral("kept")).toInt(), 2);
+    const QJsonArray landed = answer.value(QStringLiteral("landed")).toArray();
+    QCOMPARE(landed.size(), 1);
+    QVERIFY(landed.at(0).toObject().value(QStringLiteral("back")).isNull());
+    QCOMPARE(landed.at(0).toObject().value(QStringLiteral("torrents")).toArray().size(), 1);
 }
 
 QTEST_GUILESS_MAIN(TestAgentAnswers)

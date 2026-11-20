@@ -393,6 +393,188 @@ QString log(const QJsonObject &answer, const TextStyle &style)
     return out;
 }
 
+namespace {
+
+/// The column a move's time starts at, as the board's mock lines them up.
+constexpr qsizetype kMoveTimeColumn = 48;
+const QString kMoveIndent(9, QLatin1Char(' '));
+
+/// "today 12:10" for today, TorrentStory's words for any other day.
+QString landedWhen(const QJsonValue &iso, const TextStyle &style)
+{
+    const QDateTime at = QDateTime::fromString(iso.toString(), Qt::ISODate);
+    if (!at.isValid())
+        return QString();
+    const QString words = when(iso, style);
+    return at.toLocalTime().date() == nowOf(style).date() ? QStringLiteral("today ") + words
+                                                          : words;
+}
+
+/// "running  games → /mnt/fast/games      since 13:40": the label in its colour, the title
+/// bold, the time at its column (on a line of its own when the head reaches it).
+QString moveHead(const QString &label,
+                 Colour colour,
+                 const QJsonObject &move,
+                 const QString &time,
+                 const TextStyle &style)
+{
+    const QString title = move.value(QLatin1String("title")).toString();
+    const QString to = move.value(QLatin1String("to")).toString();
+    const QString tail = to.isEmpty() ? QString() : QStringLiteral(" → ") + to;
+    const qsizetype plain = kMoveIndent.size() + title.size() + tail.size();
+    // The title starts at the indent's column: "carrying" is the one label of 8.
+    const QString padded = label.leftJustified(kMoveIndent.size() - 2, QLatin1Char(' '));
+    QString out =
+        paint(padded, colour, style) +
+        QString(std::max<qsizetype>(1, kMoveIndent.size() - padded.size()), QLatin1Char(' ')) +
+        paint(title, Colour::Bold, style) + tail;
+    if (time.isEmpty())
+        return out + QLatin1Char('\n');
+    if (plain + 2 > kMoveTimeColumn)
+        return out + QLatin1Char('\n') + QString(kMoveTimeColumn, QLatin1Char(' ')) + time +
+               QLatin1Char('\n');
+    return out + QString(kMoveTimeColumn - plain, QLatin1Char(' ')) + time + QLatin1Char('\n');
+}
+
+/// "20.0 of 48.0 GB", or "800 MB of 48.0 GB" when the units differ.
+QString bytesOf(qint64 there, qint64 of)
+{
+    const QString done = Format::size(there);
+    const QString all = Format::size(of);
+    const qsizetype space = done.lastIndexOf(QLatin1Char(' '));
+    if (space > 0 && all.endsWith(done.mid(space)))
+        return done.left(space) + QStringLiteral(" of ") + all;
+    return done + QStringLiteral(" of ") + all;
+}
+
+/// C18 D7's move back, from MoveHistory::check's counts: "all 3 go back", "it stays; moved
+/// outside omaseed", parts joined with " · ".
+QString backWords(const QJsonObject &back, const QString &serverName, const TextStyle &style)
+{
+    if (back.isEmpty())
+        return QStringLiteral("known once omaseed is on %1").arg(serverName);
+    const qint64 goBack = back.value(QLatin1String("goBack")).toInteger();
+    const qint64 again = back.value(QLatin1String("movedAgain")).toInteger();
+    const qint64 outside = back.value(QLatin1String("movedOutside")).toInteger();
+    const qint64 gone = back.value(QLatin1String("gone")).toInteger();
+    const QJsonArray by = back.value(QLatin1String("movedAgainBy")).toArray();
+    const QString byWords =
+        by.size() == 1
+            ? QStringLiteral("moved again by %1's move")
+                  .arg(landedWhen(by.at(0).toObject().value(QLatin1String("finished")), style))
+            : QStringLiteral("moved again by later moves");
+    const qint64 all = goBack + again + outside + gone;
+    if (all == 1) {
+        if (goBack == 1)
+            return QStringLiteral("it goes back");
+        if (again == 1)
+            return QStringLiteral("it stays; ") + byWords;
+        if (outside == 1)
+            return QStringLiteral("it stays; moved outside omaseed");
+        return QStringLiteral("it's gone from the library");
+    }
+    if (all > 0 && goBack == all)
+        return QStringLiteral("all %1 go back").arg(all);
+    QStringList parts;
+    if (goBack > 0)
+        parts << count(goBack, QStringLiteral("goes back"), QStringLiteral("go back"));
+    if (again > 0)
+        parts << QStringLiteral("%1 %2; %3")
+                     .arg(again)
+                     .arg(again == 1 ? QStringLiteral("stays") : QStringLiteral("stay"), byWords);
+    if (outside > 0)
+        parts << count(outside,
+                       QStringLiteral("stays; moved outside omaseed"),
+                       QStringLiteral("stay; moved outside omaseed"));
+    if (gone > 0)
+        parts << count(gone,
+                       QStringLiteral("is gone from the library"),
+                       QStringLiteral("are gone from the library"));
+    return parts.isEmpty() ? QStringLiteral("nothing left to move back")
+                           : parts.join(QStringLiteral(" · "));
+}
+
+} // namespace
+
+QString moves(const QJsonObject &answer, const TextStyle &style)
+{
+    const QJsonObject server = answer.value(QLatin1String("server")).toObject();
+    const QString name = server.value(QLatin1String("name")).toString();
+    const QJsonArray running = answer.value(QLatin1String("running")).toArray();
+    const QJsonArray landed = answer.value(QLatin1String("landed")).toArray();
+    const qint64 kept = answer.value(QLatin1String("kept")).toInteger();
+
+    QString out =
+        QStringList{paint(name.isEmpty() ? QStringLiteral("no server") : name, Colour::Bold, style),
+                    running.isEmpty() ? QStringLiteral("no move running")
+                                      : QStringLiteral("%1 running").arg(running.size()),
+                    kept > 0 ? QStringLiteral("%1 landed").arg(kept)
+                             : QStringLiteral("none landed")}
+            .join(QStringLiteral(" · ")) +
+        QLatin1Char('\n');
+
+    if (!running.isEmpty())
+        out += QLatin1Char('\n');
+    for (const QJsonValue &value : running) {
+        const QJsonObject move = value.toObject();
+        const QString state = move.value(QLatin1String("state")).toString();
+        const bool paused = state == QLatin1String("paused");
+        const QString since = when(move.value(QLatin1String("started")), style);
+        out += moveHead(state,
+                        paused ? Colour::Yellow : Colour::Blue,
+                        move,
+                        since.isEmpty() ? QString() : QStringLiteral("since ") + since,
+                        style);
+        const QJsonObject torrents = move.value(QLatin1String("torrents")).toObject();
+        QStringList figures{QStringLiteral("%1 of %2 there")
+                                .arg(torrents.value(QLatin1String("there")).toInt())
+                                .arg(torrents.value(QLatin1String("of")).toInt())};
+        const int failed = torrents.value(QLatin1String("failed")).toInt();
+        if (failed > 0)
+            figures << QStringLiteral("%1 failed").arg(failed);
+        if (paused) {
+            // The band's words (C15 T1–T4): why it paused; going on or ending stays the
+            // window's (docs/62 §7).
+            const QString line = move.value(QLatin1String("line")).toString();
+            if (!line.isEmpty())
+                out += wrap(line, style.width, kMoveIndent, kMoveIndent);
+            figures << QStringLiteral("the window can go on or end it");
+        } else {
+            const QJsonObject bytes = move.value(QLatin1String("bytes")).toObject();
+            const qint64 of = bytes.value(QLatin1String("of")).toInteger();
+            if (of > 0)
+                figures << bytesOf(bytes.value(QLatin1String("there")).toInteger(), of);
+            const QString now =
+                move.value(QLatin1String("now")).toObject().value(QLatin1String("name")).toString();
+            if (!now.isEmpty())
+                figures << QStringLiteral("moving ") + now;
+        }
+        const qsizetype queued = move.value(QLatin1String("queued")).toArray().size();
+        if (queued > 0)
+            figures << count(queued, QStringLiteral("more waits"), QStringLiteral("more wait"));
+        out += wrap(figures.join(QStringLiteral(" · ")), style.width, kMoveIndent, kMoveIndent);
+    }
+
+    if (!landed.isEmpty())
+        out += QLatin1Char('\n');
+    for (const QJsonValue &value : landed) {
+        const QJsonObject move = value.toObject();
+        out += moveHead(QStringLiteral("landed"),
+                        Colour::Green,
+                        move,
+                        landedWhen(move.value(QLatin1String("finished")), style),
+                        style);
+        out += wrap(QStringLiteral("move back: ") +
+                        backWords(move.value(QLatin1String("back")).toObject(), name, style),
+                    style.width,
+                    kMoveIndent,
+                    kMoveIndent);
+    }
+    if (kept > landed.size())
+        out += QStringLiteral("… %1 more: omaseed moves --landed 20\n").arg(kept - landed.size());
+    return out;
+}
+
 QString lines(const QJsonObject &answer, const TextStyle &style)
 {
     const QString command = answer.value(QLatin1String("command")).toString();
@@ -402,6 +584,8 @@ QString lines(const QJsonObject &answer, const TextStyle &style)
         return errors(answer, style);
     if (command == QLatin1String("log"))
         return log(answer, style);
+    if (command == QLatin1String("moves"))
+        return moves(answer, style);
     return QString();
 }
 

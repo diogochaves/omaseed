@@ -417,6 +417,206 @@ QByteArray log(const LogInput &input)
     return AgentWords::orderedJson(fields);
 }
 
+QString moveStateName(MoveJob::State state)
+{
+    switch (state) {
+    case MoveJob::State::Running:
+        return QStringLiteral("running");
+    case MoveJob::State::Pausing:
+        return QStringLiteral("pausing");
+    case MoveJob::State::Paused:
+        return QStringLiteral("paused");
+    case MoveJob::State::Ending:
+        return QStringLiteral("ending");
+    case MoveJob::State::Carrying:
+        return QStringLiteral("carrying");
+    case MoveJob::State::Idle:
+    case MoveJob::State::Done:
+    case MoveJob::State::Ended:
+        break;
+    }
+    return QString();
+}
+
+QString pausedForName(MoveJob::PauseReason reason)
+{
+    switch (reason) {
+    case MoveJob::PauseReason::User:
+        return QStringLiteral("by-you");
+    case MoveJob::PauseReason::Quit:
+        return QStringLiteral("quit");
+    case MoveJob::PauseReason::FirstFailed:
+        return QStringLiteral("first-failed");
+    case MoveJob::PauseReason::Refused:
+        return QStringLiteral("refused");
+    case MoveJob::PauseReason::NoSpace:
+        return QStringLiteral("no-space");
+    case MoveJob::PauseReason::NearlyFull:
+        return QStringLiteral("nearly-full");
+    case MoveJob::PauseReason::Stuck:
+        return QStringLiteral("stuck");
+    case MoveJob::PauseReason::None:
+        break;
+    }
+    return QString();
+}
+
+QString runningMoveId(const QDateTime &started)
+{
+    return QStringLiteral("j-") +
+           QString::number(started.isValid() ? started.toSecsSinceEpoch() : 0, 36);
+}
+
+RunningMove runningOf(const MoveJob &job, const QString &headline, const QString &line)
+{
+    RunningMove move;
+    move.id = runningMoveId(job.startedAt());
+    move.kind = job.kind();
+    move.title = job.title();
+    move.to = job.newPath();
+    move.started = job.startedAt();
+    move.state = moveStateName(job.state());
+    if (job.state() == MoveJob::State::Paused)
+        move.pausedFor = pausedForName(job.pauseReason());
+    move.headline = headline;
+    move.line = line;
+    move.of = job.total();
+    move.there = job.moved();
+    move.failed = job.failed();
+    move.leftOut = job.count(MoveJob::Step::LeftOut);
+    move.bytesOf = job.bytesTotal();
+    move.bytesThere = job.bytesMoved();
+    move.nowHash = job.current();
+    if (const MoveJob::Entry *entry = move.nowHash.isEmpty() ? nullptr : job.entry(move.nowHash))
+        move.nowName = entry->name;
+    move.queued = job.queuedTitles();
+    return move;
+}
+
+QList<LandedMove>
+landedOf(const MoveHistory &history, int count, const QHash<QString, QString> *savePaths)
+{
+    QList<LandedMove> landed;
+    for (const MoveRecord &record : history.records()) {
+        if (landed.size() >= count)
+            break;
+        LandedMove move;
+        move.id = record.id;
+        move.kind = record.kind;
+        move.title = record.title;
+        move.to = record.newPath;
+        move.started = record.startedAt;
+        move.finished = record.finishedAt;
+        for (auto it = record.from.constBegin(); it != record.from.constEnd(); ++it)
+            move.torrents.append(
+                {it.key(), record.names.value(it.key()), it.value(), record.to.value(it.key())});
+        std::sort(move.torrents.begin(),
+                  move.torrents.end(),
+                  [](const MovedTorrent &a, const MovedTorrent &b) {
+                      return a.name != b.name ? a.name < b.name : a.hash < b.hash;
+                  });
+        if (savePaths != nullptr) {
+            const MoveHistory::BackCheck check = history.check(record.id, *savePaths);
+            MoveBack back;
+            back.goBack = int(check.goBack.size());
+            back.movedOutside = int(check.outside.size());
+            back.gone = int(check.gone.size());
+            for (const auto &[id, hashes] : check.movedAgain) {
+                back.movedAgain += int(hashes.size());
+                const MoveRecord *later = history.find(id);
+                back.movedAgainBy.append({id, later ? later->finishedAt : QDateTime()});
+            }
+            move.back = back;
+        }
+        landed.append(move);
+    }
+    return landed;
+}
+
+QByteArray moves(const MovesInput &input)
+{
+    QJsonArray running;
+    for (const RunningMove &move : input.running) {
+        running.append(QJsonObject{
+            {QStringLiteral("id"), move.id},
+            {QStringLiteral("kind"), move.kind},
+            {QStringLiteral("title"), move.title},
+            {QStringLiteral("to"), move.to},
+            {QStringLiteral("started"), isoUtc(move.started)},
+            {QStringLiteral("state"), move.state},
+            {QStringLiteral("pausedFor"),
+             move.pausedFor.isEmpty() ? QJsonValue() : QJsonValue(move.pausedFor)},
+            {QStringLiteral("headline"), maskText(move.headline)},
+            {QStringLiteral("line"), maskText(move.line)},
+            {QStringLiteral("torrents"),
+             QJsonObject{
+                 {QStringLiteral("of"), move.of},
+                 {QStringLiteral("there"), move.there},
+                 {QStringLiteral("failed"), move.failed},
+                 {QStringLiteral("leftOut"), move.leftOut},
+             }},
+            {QStringLiteral("bytes"),
+             QJsonObject{
+                 {QStringLiteral("of"), move.bytesOf},
+                 {QStringLiteral("there"), move.bytesThere},
+             }},
+            {QStringLiteral("now"),
+             move.nowHash.isEmpty() ? QJsonValue()
+                                    : QJsonValue(QJsonObject{
+                                          {QStringLiteral("hash"), move.nowHash},
+                                          {QStringLiteral("name"), move.nowName},
+                                      })},
+            {QStringLiteral("queued"), QJsonArray::fromStringList(move.queued)},
+        });
+    }
+    QJsonArray landed;
+    for (const LandedMove &move : input.landed) {
+        QJsonArray torrents;
+        for (const MovedTorrent &torrent : move.torrents)
+            torrents.append(QJsonObject{
+                {QStringLiteral("hash"), torrent.hash},
+                {QStringLiteral("name"), torrent.name},
+                {QStringLiteral("from"), torrent.from},
+                {QStringLiteral("to"), torrent.to},
+            });
+        QJsonValue back;
+        if (move.back) {
+            QJsonArray by;
+            for (const auto &[id, finished] : move.back->movedAgainBy)
+                by.append(QJsonObject{
+                    {QStringLiteral("id"), id},
+                    {QStringLiteral("finished"), isoUtc(finished)},
+                });
+            back = QJsonObject{
+                {QStringLiteral("goBack"), move.back->goBack},
+                {QStringLiteral("movedAgain"), move.back->movedAgain},
+                {QStringLiteral("movedOutside"), move.back->movedOutside},
+                {QStringLiteral("gone"), move.back->gone},
+                {QStringLiteral("movedAgainBy"), by},
+            };
+        }
+        landed.append(QJsonObject{
+            {QStringLiteral("id"), move.id},
+            {QStringLiteral("kind"), move.kind},
+            {QStringLiteral("title"), move.title},
+            {QStringLiteral("to"), move.to},
+            {QStringLiteral("started"), isoUtc(move.started)},
+            {QStringLiteral("finished"), isoUtc(move.finished)},
+            {QStringLiteral("torrents"), torrents},
+            {QStringLiteral("back"), back},
+        });
+    }
+    QList<std::pair<QString, QJsonValue>> fields =
+        envelope(QStringLiteral("moves"), input.at, input.omaseed);
+    fields.append({
+        {QStringLiteral("server"), serverJson(input.server)},
+        {QStringLiteral("running"), running},
+        {QStringLiteral("landed"), landed},
+        {QStringLiteral("kept"), input.kept},
+    });
+    return AgentWords::orderedJson(fields);
+}
+
 QByteArray errors(const ErrorsInput &input)
 {
     // C45 V9: only qBittorrent keeps a log omaseed reads; the others' text is the sentence.

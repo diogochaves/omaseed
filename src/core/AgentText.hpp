@@ -37,6 +37,10 @@ QString errors(const QJsonObject &answer, const TextStyle &style);
 /// each line's time, level and message, wrapped under the message.
 QString log(const QJsonObject &answer, const TextStyle &style);
 
+/// moves' lines (C45 V11, docs/62 V11's mock): the head, each running move in the band's
+/// words, each landed one with what a move back would do, and how many more are kept.
+QString moves(const QJsonObject &answer, const TextStyle &style);
+
 /// A failure's words for stderr, wrapped at the width.
 QString failure(const QString &message, const TextStyle &style);
 

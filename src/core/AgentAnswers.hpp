@@ -12,6 +12,8 @@
 //   AnnounceMask::maskText (C45 V7): a tracker's passkey never leaves in an answer.
 // - Addresses are host:port only. Nothing here reads a username, a URL or a secret.
 
+#include "core/MoveHistory.hpp"
+#include "core/MoveJob.hpp"
 #include "core/engines/TorrentStatus.hpp"
 
 #include <QDateTime>
@@ -237,6 +239,90 @@ struct LogInput
 /// line + 1 (qBittorrent numbers from 0 again after a restart): the lines then come from its
 /// first. `next` is the newest id + 1, or `since` when the log is empty.
 QByteArray log(const LogInput &input);
+
+/// A move under way (C45 V11, design 14), as MoveJob says it.
+struct RunningMove
+{
+    QString id; ///< "j-" + its start's unix seconds in base 36
+    QString kind;
+    QString title;
+    QString to;
+    QDateTime started;
+    QString state;     ///< running · pausing · paused · ending · carrying
+    QString pausedFor; ///< "" (null) · by-you · quit · first-failed · refused · no-space ·
+                       ///< nearly-full · stuck
+    QString headline;  ///< the band's (the current server's job only)
+    QString line;
+    int of = 0;
+    int there = 0;
+    int failed = 0;
+    int leftOut = 0;
+    qint64 bytesOf = 0;
+    qint64 bytesThere = 0;
+    QString nowHash; ///< the one moving now, "" for none
+    QString nowName;
+    QStringList queued; ///< the titles waiting behind it
+};
+
+/// One torrent a landed move took: its save path before and after.
+struct MovedTorrent
+{
+    QString hash;
+    QString name;
+    QString from;
+    QString to;
+};
+
+/// What a move back would do now (MoveHistory::check, C18 D7).
+struct MoveBack
+{
+    int goBack = 0;
+    int movedAgain = 0;
+    int movedOutside = 0;
+    int gone = 0;
+    /// The later moves that moved them again, newest first: id and when each landed.
+    QList<std::pair<QString, QDateTime>> movedAgainBy;
+};
+
+/// A move that landed (MoveHistory's record).
+struct LandedMove
+{
+    QString id;
+    QString kind;
+    QString title;
+    QString to; ///< "" when each kept its place below a new root
+    QDateTime started;
+    QDateTime finished;
+    QList<MovedTorrent> torrents; ///< by name
+    std::optional<MoveBack> back; ///< null for another server's (its library isn't here)
+};
+
+/// MoveJob::State's word; "" for Idle, Done and Ended (not under way).
+QString moveStateName(MoveJob::State state);
+/// MoveJob::PauseReason's word; "" for None.
+QString pausedForName(MoveJob::PauseReason reason);
+/// A running move's id: "j-" + `started`'s unix seconds in base 36.
+QString runningMoveId(const QDateTime &started);
+/// `job` as moves says it, with the band's `headline` and `line` ("" when there is no band).
+RunningMove runningOf(const MoveJob &job, const QString &headline, const QString &line);
+/// The last `count` records of `history`, newest first; each one's move back from
+/// MoveHistory::check against `savePaths` (the library's save path by hash), or null without.
+QList<LandedMove>
+landedOf(const MoveHistory &history, int count, const QHash<QString, QString> *savePaths);
+
+/// Everything moves says (C45 V11, design 14).
+struct MovesInput
+{
+    QDateTime at;
+    QString omaseed;
+    Server server;
+    QList<RunningMove> running;
+    QList<LandedMove> landed;
+    int kept = 0; ///< how many records the history holds
+};
+
+/// moves' one JSON object: `server`, `running[]`, `landed[]`, `kept`.
+QByteArray moves(const MovesInput &input);
 
 /// The envelope's first four fields (C45 V4), for an answer's own fields to follow.
 QList<std::pair<QString, QJsonValue>>
