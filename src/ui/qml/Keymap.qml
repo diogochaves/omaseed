@@ -1702,6 +1702,67 @@ QtObject {
             "helpKeys": "",
             "help": ""
         },
+        // Board 64 (DECISIONS C47 I4, I6): the pane's toolbar, from the list.
+        {
+            "area": "addFiles",
+            "key": "/",
+            "action": "filterFiles",
+            "label": qsTr("filter"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "s",
+            "action": "sortFiles",
+            "label": qsTr("sort"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "H",
+            "action": "collapseAll",
+            "label": qsTr("fold all"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "L",
+            "action": "expandAll",
+            "label": qsTr("unfold all"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "X",
+            "action": "hideSkipped",
+            "label": qsTr("hide skipped"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
+        {
+            "area": "addFiles",
+            "key": "T",
+            "action": "treeFlat",
+            "label": qsTr("tree · flat"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
+        },
 
         // The add sheet's batch (#40, docs/27 B1): its list of torrents. `tab` stays the sheet's.
         {
@@ -1966,6 +2027,17 @@ QtObject {
             "helpKeys": "X",
             "help": qsTr("hide skipped files"),
             "about": qsTr("In the Files tab: hide the files set to skip, or show them again")
+        },
+        // Board 64 (DECISIONS C47 I6): the Files tab's tree · flat; Details binds it (#273).
+        {
+            "area": "details",
+            "key": "T",
+            "action": "treeFlat",
+            "label": qsTr("tree · flat"),
+            "column": "",
+            "rank": 0,
+            "helpKeys": "",
+            "help": ""
         },
         // Board 44 F1 (DECISIONS C17 D3, #160): shift+f, the band's "Free the space…". The
         // palette offers it only on a torrent whose skipped files hold space here; C30 F13:

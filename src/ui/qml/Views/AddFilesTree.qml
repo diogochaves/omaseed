@@ -15,7 +15,15 @@ import Omaseed.Kit
 //   + -         priority        x       skip
 //   h l / ← →   fold, unfold (h on a file or a closed folder goes to its folder)
 //   r  F2       rename the row (M18)
+//   / s H L X T the pane's toolbar (board 64, DECISIONS C47 I4): filter, sort menu, fold
+//               all, unfold all, hide skipped, tree · flat; sent as `toolbarKey(action)`
 // `enter` and `tab` are left to the sheet. The rows scroll past `maximumHeight`.
+//
+// The columns (C47 I4, I6): tick, name, kind, size, priority. A click on Name, Kind or Size
+// sorts by it (`TorrentFilesModel::cycleSort`, as details' headers do). In flat (`tree.flat`)
+// every row is a file, with no fold arrow and its folder dim after the name. Whatever moves
+// the rows (a sort, a fold, flat, a filter), the cursor stays on the file it was on, found
+// again by its path. `single` (C47 I1's one-file list) drops the tick and priority columns.
 //
 // Renaming (manual box M18): `r`, F2 or the pencil on a hovered row opens a field over the
 // name. `enter` keeps the name (a refused one turns the field red and says why), `esc` puts
@@ -49,6 +57,12 @@ Rectangle {
     property int editingRow: -1
     /// Why the name in the field was refused ("" while it is fine).
     property string renameError: ""
+    /// C47 I1: a torrent of one file: no tick, no priority, no header tick.
+    property bool single: false
+
+    /// A toolbar key the list does not act on itself (`/`, `s`, `H`, `L`, `X`, `T`), by its
+    /// Keymap action: the host hands it to its FilesToolbar (`run(action)`).
+    signal toolbarKey(string action)
 
     readonly property int count: root.model ? root.model.count : 0
     /// The box with every row shown: what it would take with no `maximumHeight`.
@@ -59,12 +73,41 @@ Rectangle {
     readonly property bool editing: root.editingRow >= 0
     readonly property alias view: list
     readonly property alias scrollBar: scrollBar
+    /// The model's tree: its sort, filter, folds and view.
+    readonly property TorrentFilesModel tree: root.model ? root.model.tree : null
+    readonly property bool flat: root.tree !== null && root.tree.flat
+    /// The path under the cursor, kept to find the row again after the rows move.
+    property string _cursorPath: ""
 
     // The Files tab's columns without Done (`.files { grid-template-columns: 1fr 70px 56px
     // 72px }`), plus the check mark in front.
     readonly property int checkWidth: Theme.space(14)
     readonly property int sizeWidth: Theme.space(64)
     readonly property int priorityWidth: Theme.space(62)
+    /// C47 I4: the kind column, after the name.
+    readonly property int kindWidth: Theme.space(64)
+
+    /// The rows moved (a sort, a fold, flat, a filter): the cursor back on its path, as
+    /// details' `_followPath` does; on a path that went, it stays where it is, clamped.
+    function _followCursor(): void {
+        if (!root.model)
+            return;
+        const row = root._cursorPath.length > 0 ? root.model.rowOfPath(root._cursorPath) : -1;
+        if (row >= 0 && row !== root.cursorIndex) {
+            root.cursorIndex = row;
+            list.positionViewAtIndex(row, ListView.Contain);
+        } else if (row < 0) {
+            root.cursorIndex = Math.max(0, Math.min(root.cursorIndex, root.count - 1));
+        }
+    }
+
+    /// A click on a column's caption: by that key, one way, the other, then torrent order.
+    function sortBy(key: string): void {
+        if (root.tree === null)
+            return;
+        root.tree.cycleSort(key);
+        root.forceActiveFocus();
+    }
 
     /// `j`/`k`: one row, kept on screen.
     function moveCursor(delta: int): void {
@@ -173,7 +216,8 @@ Rectangle {
     radius: Theme.cornerRadius
 
     // A folder that folds away under the cursor leaves it past the end.
-    onCountChanged: root.cursorIndex = Math.max(0, Math.min(root.cursorIndex, root.count - 1))
+    onCountChanged: root._followCursor()
+    onCursorIndexChanged: root._cursorPath = root.model ? root.model.pathOf(root.cursorIndex) : ""
 
     Keys.onPressed: event => {
         // The rename field's keys that it did not take itself (arrows and the like) climb up
@@ -183,7 +227,23 @@ Rectangle {
             return;
         }
         if (event.key === Qt.Key_A && (event.modifiers & Qt.ControlModifier) !== 0) {
-            root.model.toggleAllWanted();
+            if (!root.single)
+                root.model.toggleAllWanted();
+            event.accepted = true;
+            return;
+        }
+        // C47 I4: the toolbar's keys, by the character typed (`H` is not `h`).
+        const toolbar = {
+            "/": "filterFiles",
+            "s": "sortFiles",
+            "H": "collapseAll",
+            "L": "expandAll",
+            "X": "hideSkipped",
+            "T": "treeFlat"
+        }[event.text];
+        if (toolbar !== undefined && (event.modifiers & (Qt.ControlModifier | Qt.AltModifier)) === 0) {
+            if (!root.single)
+                root.toolbarKey(toolbar);
             event.accepted = true;
             return;
         }
@@ -197,17 +257,21 @@ Rectangle {
             root.moveCursor(-1);
             break;
         case Qt.Key_Space:
-            root.model.toggleWanted(root.cursorIndex);
+            if (!root.single)
+                root.model.toggleWanted(root.cursorIndex);
             break;
         case Qt.Key_Plus:
         case Qt.Key_Equal:
-            root.model.raise(root.cursorIndex);
+            if (!root.single)
+                root.model.raise(root.cursorIndex);
             break;
         case Qt.Key_Minus:
-            root.model.lower(root.cursorIndex);
+            if (!root.single)
+                root.model.lower(root.cursorIndex);
             break;
         case Qt.Key_X:
-            root.model.setPriority(root.cursorIndex, 0);
+            if (!root.single)
+                root.model.setPriority(root.cursorIndex, 0);
             break;
         case Qt.Key_H:
         case Qt.Key_Left:
@@ -229,6 +293,23 @@ Rectangle {
 
     HoverHandler {
         id: hover
+    }
+
+    // A sort or flat moves the rows without changing how many there are.
+    Connections {
+        function onLayoutChanged(): void {
+            root._followCursor();
+        }
+
+        function onModelReset(): void {
+            root._followCursor();
+        }
+
+        function onRowsMoved(): void {
+            root._followCursor();
+        }
+
+        target: root.model
     }
 
     // docs/27 D1: the columns' names, and the tick for every file.
@@ -259,6 +340,7 @@ Rectangle {
             FileTick {
                 Layout.preferredHeight: Theme.railRowHeight
                 Layout.preferredWidth: root.checkWidth
+                visible: !root.single
                 // #77: the head's tick stands for every file.
                 Accessible.name: qsTr("download every file")
                 objectName: "addFilesHeadTick"
@@ -274,24 +356,43 @@ Rectangle {
                 }
             }
 
-            Text {
+            // C47 I4: the captions sort as details' do.
+            DetailsHeader {
                 Layout.fillWidth: true
-                color: header.ink.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.caption
+                Layout.preferredHeight: Theme.railRowHeight
+                descending: root.tree !== null && root.tree.sortDescending
+                objectName: "addFilesHeader_name"
+                sorted: root.tree !== null && root.tree.sortKey === "name"
                 text: qsTr("Name")
+
+                onClicked: root.sortBy("name")
             }
 
-            Text {
+            DetailsHeader {
+                Layout.preferredHeight: Theme.railRowHeight
+                Layout.preferredWidth: root.kindWidth
+                descending: root.tree !== null && root.tree.sortDescending
+                objectName: "addFilesHeader_kind"
+                sorted: root.tree !== null && root.tree.sortKey === "kind"
+                text: qsTr("Kind")
+
+                onClicked: root.sortBy("kind")
+            }
+
+            DetailsHeader {
+                Layout.preferredHeight: Theme.railRowHeight
                 Layout.preferredWidth: root.sizeWidth
-                color: header.ink.dimForeground
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.font.caption
-                horizontalAlignment: Text.AlignRight
+                alignRight: true
+                descending: root.tree !== null && root.tree.sortDescending
+                objectName: "addFilesHeader_size"
+                sorted: root.tree !== null && root.tree.sortKey === "size"
                 text: qsTr("Size")
+
+                onClicked: root.sortBy("size")
             }
 
             Text {
+                visible: !root.single
                 Layout.preferredWidth: root.priorityWidth
                 color: header.ink.dimForeground
                 font.family: Theme.fontFamily
@@ -338,8 +439,13 @@ Rectangle {
             required property int wanted
             required property bool renamed
             required property string originalName
-            /// #63 (DECISIONS C28): an NFO, a sample, an advert: a dim "extra", still ticked.
+            /// #63 (DECISIONS C28): an NFO, a sample, an advert: its kind says "extra", still
+            /// ticked.
             required property bool extra
+            /// C47 I5: "video", "subtitle"; a folder "videos" or "mixed".
+            required property string kindText
+            /// C47 I6: the file's folder inside the torrent, dim after its name in flat.
+            required property string folderPath
 
             /// docs/DECISIONS.md C30 F1: the row's words on the tree's 4 % block, and under the
             /// cursor on the hover fill over it (the band's own `ink` is over the window). A
@@ -356,6 +462,10 @@ Rectangle {
                                             || priorityMouse.containsMouse
                                             || pencilMouse.containsMouse
             readonly property bool editing: root.editingRow === row.index
+            /// What follows the name on its line: "was …" after a rename, the folder in flat.
+            readonly property real afterWidth: (wasText.visible ? wasText.implicitWidth : 0)
+                                               + (folderText.visible ? folderText.implicitWidth
+                                                                       + (wasText.visible ? Theme.space(8) : 0) : 0)
 
             // #77: a screen reader finds the file or folder by its name.
             Accessible.name: row.name
@@ -370,7 +480,10 @@ Rectangle {
             // The row's own MouseArea takes every press, so a double click is the pointer's
             // way to fold a folder or check a file.
             onDoubleClicked: {
-                if (row.isFolder)
+                // C47 I1: the one-file list has nothing to tick; a double click renames.
+                if (root.single)
+                    root.startRename(row.index);
+                else if (row.isFolder)
                     root.model.setExpanded(row.index, !row.expanded);
                 else
                     root.model.toggleWanted(row.index);
@@ -411,6 +524,7 @@ Rectangle {
                     Layout.preferredWidth: root.checkWidth
                     ink: row.blockInk
                     objectName: "addFilesMark"
+                    visible: !root.single
                     wanted: row.wanted
 
                     onClicked: root._clickPart(row.index, "mark")
@@ -483,11 +597,11 @@ Rectangle {
                         font.pixelSize: Theme.font.small
                         text: row.name
                         visible: !row.editing
-                        // Room for the original name after a rename, never less than half.
-                        width: Math.min(implicitWidth, parent.width - x
-                                        - (wasText.visible ? Math.min(wasText.implicitWidth,
-                                                                      (parent.width - x) / 2)
-                                                             + Theme.space(8) : 0))
+                        // Room for the original name after a rename and, in flat, the
+                        // folder, never less than half.
+                        width: Math.min(implicitWidth, parent.width - x - (row.afterWidth > 0
+                                                                           ? Math.min(row.afterWidth, (parent.width - x) / 2)
+                                                                           + Theme.space(8) : 0))
                     }
 
                     // M18: what the row was called in the .torrent.
@@ -496,7 +610,6 @@ Rectangle {
 
                         anchors.left: nameText.right
                         anchors.leftMargin: Theme.space(8)
-                        anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         color: row.blockInk.dimForeground
                         elide: Text.ElideRight
@@ -505,6 +618,24 @@ Rectangle {
                         objectName: "addFilesWas"
                         text: qsTr("was %1").arg(row.originalName)
                         visible: row.renamed && !row.editing
+                        width: Math.min(implicitWidth, parent.width - x)
+                    }
+
+                    // C47 I6: in flat, the file's folder, dim; it elides before the name.
+                    Text {
+                        id: folderText
+
+                        anchors.left: wasText.visible ? wasText.right : nameText.right
+                        anchors.leftMargin: Theme.space(8)
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: row.blockInk.dimForeground
+                        elide: Text.ElideLeft
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.font.small
+                        objectName: "addFilesFolder"
+                        text: row.folderPath
+                        visible: root.flat && row.folderPath.length > 0 && !row.editing
                     }
 
                     // The rename field, over the name while this row is being renamed.
@@ -591,17 +722,6 @@ Rectangle {
                     }
                 }
 
-                // #63 (DECISIONS C28): the extra's meta, dim; the line under the tree says why.
-                Text {
-                    Accessible.name: text
-                    Accessible.role: Accessible.StaticText
-                    color: row.blockInk.dimForeground
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.font.caption
-                    objectName: "addFilesExtra"
-                    text: qsTr("extra")
-                    visible: row.extra && !row.editing
-                }
 
                 // M18: the pencil on the hovered row.
                 Item {
@@ -649,6 +769,20 @@ Rectangle {
                     }
                 }
 
+                // C47 I4: the kind; an NFO, a sample, an advert says "extra" here (#63, C28:
+                // the line under the tree says why).
+                Text {
+                    Accessible.name: text
+                    Accessible.role: Accessible.StaticText
+                    Layout.preferredWidth: root.kindWidth
+                    color: row.blockInk.dimForeground
+                    elide: Text.ElideRight
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.font.caption
+                    objectName: "addFilesKind"
+                    text: row.kindText
+                }
+
                 Text {
                     Layout.preferredWidth: root.sizeWidth
                     color: row.wanted === 0 ? row.blockInk.dimForeground : row.blockInk.foreground
@@ -662,6 +796,7 @@ Rectangle {
                 Item {
                     Layout.preferredHeight: Theme.railRowHeight
                     Layout.preferredWidth: root.priorityWidth
+                    visible: !root.single
 
                     Rectangle {
                         anchors.fill: parent

@@ -1331,8 +1331,8 @@ TestCase {
         compare(sheet.sourceText, "from file");
     }
 
-    // #63 (DECISIONS C28): its README is an extra: a dim line under the tree, a dim "extra" on
-    // its row, and nothing unticked.
+    // #63 (DECISIONS C28): its README is an extra: a dim line under the tree, "extra" in its
+    // row's kind column (C47 I4), and nothing unticked.
     function test_extras_are_said_under_the_tree() {
         const sheet = testCase.openTorrent(addSheetComponent);
         compare(App.addFiles.wantedCount, 8);
@@ -1341,9 +1341,9 @@ TestCase {
         compare(line.text.indexOf("1 extra: a text file ("), 0);
         verify(line.text.endsWith(" Ticked, so the torrent seeds whole."), line.text);
         const readme = testCase.rowItem(sheet, "README.txt");
-        verify(findChild(readme, "addFilesExtra").visible);
+        compare(findChild(readme, "addFilesKind").text, "extra");
         const film = testCase.rowItem(sheet, "Sintel/");
-        verify(!findChild(film, "addFilesExtra").visible);
+        compare(findChild(film, "addFilesKind").text, "mixed");
     }
 
     function test_the_tree_is_keyboard_driven() {
@@ -1707,6 +1707,130 @@ TestCase {
         const request = added.signalArguments[0][0];
         compare(request.stopped, true);
         compare(request.filePriorities, [0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    // Board 64 (DECISIONS C47 I3–I7): the file pane's head and toolbar over the add's tree.
+    /// Every view setting of the add's tree back to its default, for the next test.
+    function resetFilesView() {
+        const tree = App.addFiles.tree;
+        tree.clearFilters();
+        tree.flat = false;
+        tree.foldersFirst = true;
+        tree.sortKey = "";
+        tree.sortDescending = false;
+    }
+
+    function test_filesToolbarSortsBySize() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const toolbar = sheet.filesToolbar;
+        verify(toolbar.visible);
+        toolbar.openSortMenu();
+        verify(toolbar.sortMenu !== null, "the sort menu opens");
+        keyClick("s"); // size, biggest first
+        tryCompare(toolbar, "sortMenu", null);
+        compare(App.addFiles.tree.sortKey, "size");
+        // Folders first (I4), the biggest first: Tears of Steel's 6 GB.
+        compare(testCase.rowNamed(sheet, "Tears of Steel/"), 0);
+        compare(toolbar.sortButton.text.indexOf("sort: size"), 0);
+        testCase.resetFilesView();
+    }
+
+    function test_flatShowsFolderDim() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        mouseClick(findChild(sheet.filesToolbar, "filesToolbarFlat"));
+        compare(App.addFiles.tree.flat, true);
+        compare(sheet.filesTree.count, 8, "every file once, no folders");
+        const film = testCase.rowItem(sheet, "sintel_4k.mkv");
+        const folder = findChild(film, "addFilesFolder");
+        verify(folder.visible);
+        compare(folder.text, "Sintel");
+        const readme = testCase.rowItem(sheet, "README.txt");
+        verify(!findChild(readme, "addFilesFolder").visible, "a top-level file has no folder");
+        // A tick in flat lands on its file.
+        App.addFiles.toggleWanted(testCase.rowNamed(sheet, "sintel_4k.mkv"));
+        compare(App.addFiles.wantedCount, 7);
+        App.addFiles.setAllWanted(true);
+        mouseClick(findChild(sheet.filesToolbar, "filesToolbarTree"));
+        compare(App.addFiles.tree.flat, false);
+        compare(sheet.filesTree.count, 14);
+        testCase.resetFilesView();
+    }
+
+    function test_kindBoxSkipsEverySubtitle() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        // The chips are drawn again from `kinds` on every change: find the box each time.
+        const box = () => findChild(sheet.filesPaneHead, "filesKindBox_subtitles");
+        verify(box() && box().visible);
+        compare(box().wanted, 2);
+        mouseClick(box());
+        compare(App.addFiles.wantedCount, 5, "the three subtitles skipped");
+        compare(box().wanted, 0);
+        mouseClick(box());
+        compare(App.addFiles.wantedCount, 8);
+        compare(box().wanted, 2);
+        // The word shows only the subtitles, and the head says so.
+        mouseClick(findChild(sheet.filesPaneHead, "filesKindWord_subtitles"));
+        compare(App.addFiles.tree.kindFilter, "subtitles");
+        compare(findChild(sheet.filesPaneHead, "filesPaneCount").text, "showing 3 of 8");
+        testCase.resetFilesView();
+    }
+
+    function test_keysSlashSHLXT() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const tree = sheet.filesTree;
+        const toolbar = sheet.filesToolbar;
+        const files = App.addFiles.tree;
+        tree.forceActiveFocus();
+
+        keyClick("/");
+        verify(toolbar.filterField.editing, "/ puts the caret in the filter");
+        keyClick(Qt.Key_Escape); // nothing to clear: back to the list
+        verify(tree.activeFocus);
+
+        keyClick("s");
+        verify(toolbar.sortMenu !== null, "s opens the sort menu");
+        keyClick(Qt.Key_Escape);
+        tryCompare(toolbar, "sortMenu", null);
+        verify(tree.activeFocus, "the menu gives the keyboard back");
+
+        keyClick("H");
+        compare(tree.count, 5, "four films and the README, folded");
+        keyClick("L");
+        compare(tree.count, 14);
+
+        keyClick("X");
+        compare(files.hideSkipped, true);
+        keyClick("X");
+        compare(files.hideSkipped, false);
+
+        keyClick("T");
+        compare(files.flat, true);
+        keyClick("T");
+        compare(files.flat, false);
+        // The lower-case keys keep their own work: `h` folds, `x` skips.
+        compare(tree.cursorIndex, 0);
+        keyClick("x");
+        verify(App.addFiles.wantedCount < 8);
+        App.addFiles.setAllWanted(true);
+        testCase.resetFilesView();
+    }
+
+    function test_aTickSurvivesASort() {
+        const sheet = testCase.openTorrent(addSheetComponent);
+        const tree = sheet.filesTree;
+        tree.forceActiveFocus();
+        const row = testCase.rowNamed(sheet, "bbb.en.srt");
+        tree.cursorIndex = row;
+        keyClick(Qt.Key_Space);
+        compare(App.addFiles.wantedCount, 7);
+        mouseClick(findChild(tree, "addFilesHeader_size"));
+        compare(App.addFiles.tree.sortKey, "size");
+        // The cursor followed its file, and its tick went with it.
+        compare(tree.cursorIndex, testCase.rowNamed(sheet, "bbb.en.srt"));
+        compare(App.addFiles.wantedCount, 7);
+        compare(testCase.rowItem(sheet, "bbb.en.srt").wanted, 0);
+        App.addFiles.setAllWanted(true);
+        testCase.resetFilesView();
     }
 
     function test_the_tree_scrolls_in_a_short_window() {

@@ -178,6 +178,9 @@ Sheet {
     readonly property alias renameField: renameField
     readonly property alias firstLastToggle: firstLastToggle
     readonly property alias filesTree: filesTree
+    /// Board 64 (DECISIONS C47 I4, I5, I7): the file pane's head and toolbar.
+    readonly property alias filesPaneHead: filesPaneHead
+    readonly property alias filesToolbar: filesToolbar
     readonly property alias downloadsList: downloadsList
     readonly property alias batchList: batchList
     readonly property alias categoryChips: categoryChips
@@ -320,6 +323,7 @@ Sheet {
     /// The body's rows but the tree, with the gaps between them.
     readonly property real _besideTree: {
         let used = filesHead.height + filesSection.spacing
+                + (filesToolbar.visible ? filesToolbar.height + filesSection.spacing : 0)
                 + (nothingTickedLine.visible ? nothingTickedLine.height + filesSection.spacing : 0)
                 + (extrasLine.visible ? extrasLine.height + filesSection.spacing : 0);
         const rows = sheet.body.children;
@@ -2210,20 +2214,49 @@ Sheet {
                             spacing: Theme.space(10)
 
                             Label {
-                                Layout.fillWidth: true
+                                Layout.fillWidth: !sheet.showFiles
                                 elide: Text.ElideRight
                                 text: qsTr("Files")
                                 tracked: true
                             }
 
+                            // Board 64 (C47 I5, I7): the kinds as chips, the count at the right,
+                            // on the Files line itself, so the tree keeps its room.
+                            FilesPaneHead {
+                                id: filesPaneHead
+
+                                Layout.fillWidth: true
+                                countText: App.addFiles.summaryText
+                                files: App.addFiles.tree
+                                objectName: "addFilesPaneHead"
+                                visible: sheet.showFiles
+
+                                onKindTicked: kind => App.addFiles.toggleKindWanted(kind)
+                            }
+
+                            // The lookup's words; with the files in, the pane's head says the count.
                             Label {
                                 Accessible.name: text
                                 Accessible.role: Accessible.StaticText
-                                color: !sheet.showFiles && fetchLine.summaryWarn ? Theme.yellow : Theme.dimForeground
+                                color: fetchLine.summaryWarn ? Theme.yellow : Theme.dimForeground
                                 objectName: "addFilesSummary"
                                 size: "caption"
-                                text: sheet.showFiles ? App.addFiles.summaryText : fetchLine.summaryText
+                                text: fetchLine.summaryText
+                                visible: !sheet.showFiles
                             }
+                        }
+
+                        // C47 I4, I6: filter, sort, tree · flat, fold all, hide skipped.
+                        FilesToolbar {
+                            id: filesToolbar
+
+                            Layout.fillWidth: true
+                            files: App.addFiles.tree
+                            objectName: "addFilesToolbar"
+                            scope: "add"
+                            visible: sheet.showFiles
+
+                            onFilterDone: filesTree.forceActiveFocus()
                         }
 
                         // docs/29 F1, F3-F5, F7, F8: the lookup's wait, where the tree will be.
@@ -2268,6 +2301,8 @@ Sheet {
                             // The header and four rows at least: below that the whole body scrolls.
                             maximumHeight: Math.max(5 * Theme.railRowHeight + 2, sheet._treeRoom)
                             model: App.addFiles
+
+                            onToolbarKey: action => filesToolbar.run(action)
                         }
 
                         // #63 (DECISIONS C28): the torrent carries extras (an NFO, a sample, an
