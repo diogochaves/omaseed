@@ -5,6 +5,17 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Changed
+
+- **`omaseed check <skin>` draws a light and a dark picture.** A skin often breaks in one
+  lightness only, so check now draws the demo library under your theme and under a stock
+  Omarchy theme of the other lightness (`catppuccin-latte` or `tokyo-night`), as
+  `<skin>.light.png` and `<skin>.dark.png`. `--theme NAME` still draws that theme alone. The
+  JSON's `pictures` lists each one with its `mode`, `theme`, `picture` and `lifted`, in place
+  of the single `theme`, `mode`, `picture` and `lifted`. (#285)
+
 ## v0.15.0 — 2026-11-20
 
 ### Added

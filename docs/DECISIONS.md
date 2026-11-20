@@ -2410,7 +2410,15 @@ the person's folder run.
   picture of one fixed sheet on the demo library, in the person's theme, base size and fonts,
   under `~/.cache/omaseed/check/`. Exit 0 drawn, 1 drawn whole as Omarchy's, 2 usage.
   Amended 2026-11-20 (#283): `check` draws a light and a dark picture by default, one per
-  lightness; `--theme NAME` still draws one (to build: #285).
+  lightness; `--theme NAME` still draws one. Built for v0.15.1 (#285), its calls assumed
+  until confirmed there: the person's theme stands for its own lightness and a stock Omarchy
+  theme for the other (light: `catppuccin-latte`, else `flexoki-light`; dark: `tokyo-night`,
+  else omaseed's bundled copy, so a dark picture is always drawn); with no light theme
+  installed the dark one alone is drawn and `unchecked` says so. The JSON's `theme`, `mode`,
+  `lifted` and `picture` became `pictures [{mode, theme, picture, lifted}]`, light first; the
+  files are `<skin>.light.png` and `<skin>.dark.png` (`<skin>@<theme>.png` with `--theme`);
+  the lines name each picture and the theme of each lift; `dropped` stays one list (the reader
+  drops a token from the file alone, before any theme); exits unchanged.
 - **U6 a.** `omaseed skin use <name>` (the running instance over its D-Bus name, else the
   saved choice) and `omaseed skin list [--json]`. No capture of the open window: it shows the
   person's library, and a picture sent to an agent goes to its model's provider.
