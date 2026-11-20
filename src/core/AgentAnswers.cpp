@@ -2,9 +2,13 @@
 
 #include "core/AgentWords.hpp"
 #include "core/AnnounceMask.hpp"
+#include "core/ServerLog.hpp"
+#include "core/TorrentProblem.hpp"
 
 #include <QJsonDocument>
 #include <QJsonValue>
+
+#include <algorithm>
 
 namespace omaseed::core::AgentAnswers {
 
@@ -231,6 +235,122 @@ QByteArray status(const StatusInput &input)
          }},
         {QStringLiteral("paused"), input.paused},
         {QStringLiteral("servers"), serversJson(input.servers)},
+    });
+    return AgentWords::orderedJson(fields);
+}
+
+QString kindOf(const ErrorTorrent &torrent)
+{
+    if (torrent.problem && torrent.stuckMove)
+        return QStringLiteral("stuck-move");
+    if ((torrent.problem && torrent.missingFiles) || torrent.phase == TorrentPhase::Missing)
+        return QStringLiteral("missing-files");
+    if (torrent.problem || torrent.failureLine.isEmpty())
+        return QStringLiteral("error");
+    return QStringLiteral("failure");
+}
+
+QString causeOf(const ErrorTorrent &torrent)
+{
+    if (torrent.problem)
+        return torrent.problemCause;
+    if (torrent.failureLine.isEmpty())
+        return QString();
+    // A failure keeps no cause of its own: its line says it, as ProblemLog reads a job's.
+    const ProblemLine line = ProblemLine::parse(torrent.failureLine);
+    if (line.kind == ProblemLine::Kind::Unknown)
+        return QString();
+    return ProblemMatch::describe(line).causeKey;
+}
+
+FixDo fixDo(const QString &fixAction)
+{
+    const QString id = fixAction.section(QLatin1Char(':'), -1);
+    if (id == QLatin1String("start"))
+        return {QStringLiteral("retry"), {}};
+    if (id == QLatin1String("startHere"))
+        return {QStringLiteral("start-here"), {}};
+    if (id == QLatin1String("location"))
+        return {QStringLiteral("move"), {QStringLiteral("--to")}};
+    if (id == QLatin1String("recheck"))
+        return {QStringLiteral("recheck"), {}};
+    return {}; // addAgain, folder: the window's own, no action of `do`'s (docs/62 V9)
+}
+
+QString phaseName(TorrentPhase phase)
+{
+    switch (phase) {
+    case TorrentPhase::Metadata:
+        return QStringLiteral("metadata");
+    case TorrentPhase::Downloading:
+        return QStringLiteral("downloading");
+    case TorrentPhase::Seeding:
+        return QStringLiteral("seeding");
+    case TorrentPhase::Checking:
+        return QStringLiteral("checking");
+    case TorrentPhase::Loading:
+        return QStringLiteral("loading");
+    case TorrentPhase::Allocating:
+        return QStringLiteral("allocating");
+    case TorrentPhase::Moving:
+        return QStringLiteral("moving");
+    case TorrentPhase::Stopped:
+        return QStringLiteral("stopped");
+    case TorrentPhase::Errored:
+        return QStringLiteral("errored");
+    case TorrentPhase::Missing:
+        return QStringLiteral("missing");
+    case TorrentPhase::Unknown:
+        break;
+    }
+    return QStringLiteral("unknown");
+}
+
+QByteArray errors(const ErrorsInput &input)
+{
+    // C45 V9: only qBittorrent keeps a log omaseed reads; the others' text is the sentence.
+    const bool hasLog = input.server.engine == QLatin1String("qbittorrent");
+    QJsonArray torrents;
+    for (const ErrorTorrent &torrent : input.torrents) {
+        QJsonArray log;
+        if (hasLog) {
+            const qsizetype from = std::max<qsizetype>(0, torrent.log.size() - 3);
+            for (qsizetype i = from; i < torrent.log.size(); ++i) {
+                const LogLine &line = torrent.log.at(i);
+                log.append(QJsonObject{
+                    {QStringLiteral("id"), line.id},
+                    {QStringLiteral("at"), isoUtc(line.at)},
+                    {QStringLiteral("level"), ServerLog::levelName(line.level)},
+                    {QStringLiteral("message"), maskText(line.message)},
+                });
+            }
+        }
+        const FixDo fix = fixDo(torrent.fixAction);
+        torrents.append(QJsonObject{
+            {QStringLiteral("hash"), torrent.hash},
+            {QStringLiteral("name"), torrent.name},
+            {QStringLiteral("kind"), kindOf(torrent)},
+            {QStringLiteral("cause"), causeOf(torrent)},
+            {QStringLiteral("fact"), maskText(torrent.fact)},
+            {QStringLiteral("sentence"), maskText(torrent.sentence)},
+            {QStringLiteral("since"), isoUtc(torrent.since)},
+            {QStringLiteral("state"), phaseName(torrent.phase)},
+            {QStringLiteral("savePath"), torrent.savePath},
+            {QStringLiteral("fix"),
+             QJsonObject{
+                 {QStringLiteral("words"), torrent.fixWords},
+                 {QStringLiteral("do"), fix.action},
+                 {QStringLiteral("needs"), QJsonArray::fromStringList(fix.needs)},
+             }},
+            {QStringLiteral("log"), log},
+        });
+    }
+    QList<std::pair<QString, QJsonValue>> fields =
+        envelope(QStringLiteral("errors"), input.at, input.omaseed);
+    fields.append({
+        {QStringLiteral("server"), serverJson(input.server)},
+        {QStringLiteral("torrents"), torrents},
+        {QStringLiteral("dismissed"), input.dismissed},
     });
     return AgentWords::orderedJson(fields);
 }

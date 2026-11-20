@@ -12,6 +12,8 @@
 //   AnnounceMask::maskText (C45 V7): a tracker's passkey never leaves in an answer.
 // - Addresses are host:port only. Nothing here reads a username, a URL or a secret.
 
+#include "core/engines/TorrentStatus.hpp"
+
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -134,6 +136,60 @@ struct StatusInput
     QList<ListedServer> servers;
 };
 
+/// One log line tied to a torrent (ProblemLog::linesNaming), for errors.
+struct LogLine
+{
+    qint64 id = 0;
+    QDateTime at;
+    int level = 4; ///< qBittorrent's: 1 normal, 2 info, 4 warning, 8 critical
+    QString message;
+};
+
+/// One torrent the rail says needs you (C45 V9, design 12), as AgentService reads it.
+struct ErrorTorrent
+{
+    QString hash;
+    QString name;
+    bool problem = false; ///< a red problem shows (ProblemLog::problem); false: a failure only
+    bool stuckMove = false;
+    bool missingFiles = false;
+    QString problemCause; ///< TorrentProblem::causeKey
+    QString failureLine;  ///< TorrentFailure::line, read for a cause when there is no problem
+    QString fact;         ///< RowWords' (wordsOfHash)
+    QString sentence;
+    QString fixWords;
+    QString fixAction; ///< RowWords::fixAction: "problem:start", "failure:location", ""
+    QDateTime since;   ///< the problem's or the failure's loggedAt
+    TorrentPhase phase = TorrentPhase::Unknown;
+    QString savePath;
+    QList<LogLine> log; ///< newest last; dropped on an engine without a log
+};
+
+/// Everything errors says (C45 V9).
+struct ErrorsInput
+{
+    QDateTime at;
+    QString omaseed;
+    Server server;
+    QList<ErrorTorrent> torrents;
+    int dismissed = 0; ///< torrents whose failure was dismissed in the window
+};
+
+/// "stuck-move", "missing-files", "error" or "failure" (design 12).
+QString kindOf(const ErrorTorrent &torrent);
+/// The problem's causeKey, or for a failure the cause its line gives
+/// (ProblemMatch::describe), "" when there is none.
+QString causeOf(const ErrorTorrent &torrent);
+/// What `omaseed do` would run for a fix id of RowWords::fixWords (C45 V9, V15).
+struct FixDo
+{
+    QString action; ///< "retry", "start-here", "move", "recheck"; "" for none
+    QStringList needs;
+};
+FixDo fixDo(const QString &fixAction);
+/// The lower-case name of a phase: "errored", "stopped", "seeding"…
+QString phaseName(TorrentPhase phase);
+
 /// The envelope's first four fields (C45 V4), for an answer's own fields to follow.
 QList<std::pair<QString, QJsonValue>>
 envelope(const QString &command, const QDateTime &at, const QString &omaseed);
@@ -145,5 +201,9 @@ QJsonArray serversJson(const QList<ListedServer> &servers);
 
 /// status's one JSON object.
 QByteArray status(const StatusInput &input);
+
+/// errors' one JSON object (C45 V9): `server`, `torrents[]`, `dismissed`. A torrent's `log`
+/// is [] unless the server runs qBittorrent; at most 3 lines.
+QByteArray errors(const ErrorsInput &input);
 
 } // namespace omaseed::core::AgentAnswers
