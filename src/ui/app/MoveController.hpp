@@ -164,6 +164,13 @@ public:
     int rechecksLeft() const { return int(m_rechecks.size()) + (m_recheckHash.isEmpty() ? 0 : 1); }
     int historyRevision() const { return m_historyRevision; }
     const core::MoveHistory &history() const { return m_history; }
+    /// DECISIONS C45 V11 (`omaseed moves --server`): any server's finished moves as state.json
+    /// keeps them (this one's as held), past D8's limits dropped. Read only: nothing is saved.
+    core::MoveHistory historyOf(const QString &serverId) const;
+    /// C45 V11: the job saved in `serverId`'s file (M13), read with MoveJob::fromJson into a
+    /// job with no file path, so nothing is written back; null when it has none. A job paused
+    /// to quit reads as running, as it runs again once omaseed is on that server (J5).
+    std::unique_ptr<core::MoveJob> savedJobOf(const QString &serverId) const;
 
     /// C25 (Deluge): a move the engine took and dropped without a word (MoveJob::notMoved):
     /// where it was to go and when omaseed saw it fail. The history keeps only moves made,

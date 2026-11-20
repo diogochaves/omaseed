@@ -1734,6 +1734,56 @@ private slots:
         QVERIFY(m_move->active());
         QCOMPARE(m_move->root(), QStringLiteral("/mnt/archive/games"));
     }
+
+    void historyOfAnotherServer()
+    {
+        // DECISIONS C45 V11: `omaseed moves --server` reads another server's history as
+        // state.json keeps it; this one's is the one held.
+        m_move->setServer(QStringLiteral("home"));
+        QVERIFY(m_move->startSelection(
+            {QStringLiteral("b2")}, QStringLiteral("/mnt/fast/all"), QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        m_move->setServer(QStringLiteral("other"));
+        QVERIFY(m_move->history().isEmpty());
+        const omaseed::core::MoveHistory home = m_move->historyOf(QStringLiteral("home"));
+        QCOMPARE(home.records().size(), 1);
+        QCOMPARE(home.records().constFirst().newPath, QStringLiteral("/mnt/fast/all"));
+        QVERIFY(m_move->historyOf(QStringLiteral("nowhere")).isEmpty());
+        QVERIFY(m_move->historyOf(QStringLiteral("other")).isEmpty());
+        // Read only: nothing saved for the server read.
+        QCOMPARE(m_history.value(QStringLiteral("home")).size(), 1);
+        QVERIFY(!m_history.contains(QStringLiteral("nowhere")));
+    }
+
+    void savedJobOfReadsTheJournal()
+    {
+        // C45 V11: another server's job, read from its journal (M13), never written back.
+        m_move->setServer(QStringLiteral("home"));
+        QTRY_COMPARE(m_move->folders()->total(), 5);
+        QVERIFY(m_move->start(
+            QStringLiteral("/mnt/archive/games"), QStringLiteral("/mnt/fast/games"), false));
+        m_move->setServer(QStringLiteral("other")); // the home job is saved and let go
+        const QString path = MoveJob::defaultFilePath(QStringLiteral("home"));
+        QFile before(path);
+        QVERIFY(before.open(QIODevice::ReadOnly));
+        const QByteArray bytes = before.readAll();
+        before.close();
+
+        const std::unique_ptr<MoveJob> job = m_move->savedJobOf(QStringLiteral("home"));
+        QVERIFY(job != nullptr);
+        QVERIFY(job->isActive());
+        QCOMPARE(job->title(), QStringLiteral("games"));
+        QCOMPARE(job->newPath(), QStringLiteral("/mnt/fast/games"));
+        QVERIFY(job->total() > 0);
+        QVERIFY(job->filePath().isEmpty());
+        QVERIFY(m_move->savedJobOf(QStringLiteral("other")) == nullptr);
+        QVERIFY(m_move->savedJobOf(QString()) == nullptr);
+
+        QFile after(path);
+        QVERIFY(after.open(QIODevice::ReadOnly));
+        QCOMPARE(after.readAll(), bytes);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMoveController)

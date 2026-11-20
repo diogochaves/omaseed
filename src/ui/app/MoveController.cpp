@@ -152,6 +152,34 @@ void MoveController::setServer(const QString &serverId)
     Q_EMIT rechecksChanged();
 }
 
+core::MoveHistory MoveController::historyOf(const QString &serverId) const
+{
+    if (serverId == m_serverId)
+        return m_history;
+    core::MoveHistory history = !serverId.isEmpty() && m_hooks.loadHistory
+                                    ? core::MoveHistory::fromJson(m_hooks.loadHistory(serverId))
+                                    : core::MoveHistory();
+    history.prune(now());
+    return history;
+}
+
+std::unique_ptr<MoveJob> MoveController::savedJobOf(const QString &serverId) const
+{
+    if (serverId.isEmpty())
+        return nullptr;
+    QFile file(MoveJob::defaultFilePath(serverId));
+    if (!file.open(QIODevice::ReadOnly))
+        return nullptr;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    auto job = std::make_unique<MoveJob>();
+    if (m_hooks.clock)
+        job->setClock(m_hooks.clock);
+    // No file path: the job reads its journal and never writes it (C45 V11).
+    if (!document.isObject() || !job->fromJson(document.object()))
+        return nullptr;
+    return job;
+}
+
 void MoveController::setFeatures(const core::EngineFeatures &features)
 {
     const bool listed = m_features.listFolders;
