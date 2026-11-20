@@ -17,6 +17,10 @@
 #                                                # OUT_DIR/index.md lists every check
 #   scripts/dev/transmission-walk.sh --interactive  # a person: the box is a window on
 #                                                # workspace 9; each step waits for enter
+# First, board 64's room (DECISIONS C47 I8, I9): with the daemon's incomplete_dir on, the add
+# sheet shows two lines, the first with a glyph and no switch (Transmission's folder is
+# session-wide); the setting is put back before the rest.
+#
 #   OMASEED_TRANSMISSION_WALK_FROM=podman scripts/dev/transmission-walk.sh [OUT_DIR]
 #       the same on Transmission in a rootless podman container (#233): LinuxServer's image on
 #       :8087 (test-server.sh start --transmission-podman), saved with a path map (/downloads
@@ -95,6 +99,9 @@ R_IN="$(remote "$IN")"
 R_MOVED="$(remote "$MOVED")"
 R_FAR="$(remote "$FAR")"
 R_BIG_DIR="$(remote "$BIG_DIR")"
+# Board 64's room: the daemon's incomplete folder, on for the first step.
+INCOMING="$WALK/incoming"
+R_INCOMING="$(remote "$INCOMING")"
 INTERACTIVE=0
 OUT=""
 case "${1:-}" in
@@ -324,6 +331,8 @@ print(",".join(str(t["id"]) for t in json.load(sys.stdin)["result"]["torrents"] 
 
 STARTED=0
 FROZEN=""
+# The daemon's incomplete_dir settings before the walk turned them on ("" once put back).
+INCOMPLETE_WAS=""
 cleanup() {
     local status=$?
     [ -z "$OUT" ] || "$repo/scripts/dev/look.sh" "$OUT" || true  # copies to Read (#251)
@@ -339,6 +348,7 @@ cleanup() {
             "$TEST_SERVER" stop "$FLAG" >/dev/null 2>&1 || true
             rm -rf "${PROFILE:?}"
         else
+            [ -z "$INCOMPLETE_WAS" ] || trpc session_set "$INCOMPLETE_WAS" >/dev/null 2>&1 || true
             remove_walk_torrents
         fi
     fi
@@ -387,6 +397,15 @@ OTHERS="$(trpc torrent_get '{"fields":["hash_string"]}' | python3 -c '
 import json, sys; print(sorted(t["hash_string"] for t in json.load(sys.stdin)["result"]["torrents"]))')"
 SEEDED="$(python3 -c 'import ast, sys; print(len(ast.literal_eval(sys.argv[1])))' "$OTHERS")"
 
+# Board 64's room (C47 I8, I9): the daemon's incomplete folder on before omaseed reads the
+# session; the first step puts it back.
+mkdir -p "$INCOMING"
+INCOMPLETE_WAS="$(trpc session_get '{"fields":["incomplete_dir","incomplete_dir_enabled"]}' | python3 -c '
+import json, sys
+r = json.load(sys.stdin)["result"]
+print(json.dumps({k: r[k] for k in ("incomplete_dir", "incomplete_dir_enabled")}))')"
+trpc session_set "{\"incomplete_dir_enabled\": true, \"incomplete_dir\": \"$R_INCOMING\"}" >/dev/null
+
 # The podman box opens on first run (its servers.json put aside), for the detector's step.
 up_args=("$FLAG" -b "$BOX")
 [ "$FROM" = podman ] && up_args+=(--first-run)
@@ -414,6 +433,26 @@ cp "$WALK/$NAME.torrent" "$home/Downloads/"
 expect_text "omaseed lists the playground's $SEEDED torrents" "$SEEDED torrents" 30
 
 # ---- the walk -----------------------------------------------------------------------------
+
+step "The room with an incomplete folder" "The daemon's incomplete_dir is on ($(short "$R_INCOMING")). a: the add sheet, ~/Downloads/$NAME.torrent: under Save to two lines (board 64 §5, C47 I8), the first with a ↓ and no switch, its note saying it is Transmission's setting, for every torrent (I9). esc until the sheet is closed; the setting is put back and omaseed started again."
+keys a
+expect_text "the add sheet is open" "Add torrent" 10
+keys -t "$BOX_HOME/Downloads/$NAME.torrent"
+expect_text "it reads the .torrent" "$NAME · 3.00 MB · from file" 10
+expect_text "two lines: downloads first to the incomplete folder (C47 I8)" "downloads first to $R_INCOMING" 10
+expect_text "…then moves to where it ends" "then moves to" 10
+expect_text "…the first line says it is the daemon's, for every torrent (I9)" "Transmission's setting, for every torrent." 10
+expect_no_text "…and has no switch (I9: session-wide)" "download to the temp folder first" 3
+shot "The add sheet: under Save to, ↓ downloads first to $(short "$R_INCOMING") · needs 3.00 MB · free space unknown (the box can't see the daemon's disk), the dim line Transmission's setting, for every torrent.; then → then moves to … · needs 3.00 MB." sheet
+for _ in 1 2 3; do
+    keys Escape
+    omabox wait -b "$BOX" --timeout 2s tree "Add torrent" --window omaseed --gone >/dev/null 2>&1 && break
+done
+expect_no_text "the sheet closed" "Add torrent" 10
+trpc session_set "$INCOMPLETE_WAS" >/dev/null
+INCOMPLETE_WAS=""
+"$APP_BOX" restart -b "$BOX" >/dev/null
+expect_text "omaseed again, on the daemon's own setting" "$SEEDED torrents" 30
 
 step "Add with a label and a save path" "a: the add sheet; ~/Downloads/$NAME.torrent in the first field; tab to Labels, space on … (the label palette), \"walk-label\", enter on new label; tab to Save to, $R_IN (the daemon's path), where its data already is; enter (add). Transmission verifies the data and seeds."
 keys a
