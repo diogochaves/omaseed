@@ -1,5 +1,7 @@
 # omaseed-integration: the desktop glue (D-Bus, tray, notifications, theme, xdg).
 qt_add_library(omaseed-integration STATIC
+    AgentClient.cpp
+    AgentClient.hpp
     AppIdentity.cpp
     AppIdentity.hpp
     Autostart.cpp
