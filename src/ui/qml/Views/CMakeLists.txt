@@ -31,6 +31,7 @@ qt_add_qml_module(omaseed-views
         BrowsedPathLine.qml
         CategoryPalette.qml
         CertificateTrust.qml
+        CheckSheet.qml
         ChipSelect.qml
         ColumnsPalette.qml
         Console.qml
