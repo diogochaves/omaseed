@@ -23,6 +23,9 @@
 # taken off folds to nothing), automatic management's moves by the category, a category and tags
 # set through qBittorrent's API (changed outside omaseed, the tag removed) and a set location
 # through it (moved outside omaseed, and the last-move block says so).
+# Details › Files is board 64's pane (DECISIONS C47, #172): T flat and back, a kind chip's word
+# shows only that kind, its box skips every file of it (checked on qBittorrent) and ticks them
+# again, and × show all.
 # Run it again after any change to an action, a sheet, a palette, the action bar or the story.
 #
 #   scripts/dev/actions-walk.sh [OUT_DIR]        # agents: a headless box, a shot per step,
@@ -808,6 +811,29 @@ expect_story "its story: Renamed a folder, Public Domain Sampler → Sampler (re
 expect_story "…and Renamed a file, README.txt → LEES MIJ.txt in Public Domain Sampler/" \
     "Renamed a file, README.txt → LEES MIJ.txt in Public Domain Sampler/"
 shot "The story, newest first: Renamed a folder, Public Domain Sampler → Sampler (renamed); Renamed a file, README.txt → LEES MIJ.txt in Public Domain Sampler/; accent squares." story
+
+# Board 64 (DECISIONS C47 I4–I7, #172): details › Files is the add sheet's pane. The Sampler's
+# files, in qBittorrent's order: LEES MIJ.txt, sampler.mkv, sampler.srt.
+step "The Files pane: flat, a kind, show all" "The same torrent's Files tab: T (shift+t) shows the files flat, each once, its folder dim; T again, the tree. The chip's word \"1 subtitle\" shows only sampler.srt (showing 1 of 3); its box skips every subtitle (qBittorrent: sampler.srt at 0) and a second press downloads them again (1); × show all lists the three again."
+table_on "Public Domain"
+keys l 2
+keys shift+t
+expect_text "T shows the files flat (C47 I6)" "flat [checked]" 10
+shot "Files, flat: LEES MIJ.txt, sampler.mkv, sampler.srt, each once, \"Sampler (renamed)/\" dim before each; no fold glyph; the toolbar's flat on." flat
+keys shift+t
+expect_text "T again: the tree" "tree [checked]" 10
+expect_text "the head's chips: 1 subtitle (C47 I5)" "1 subtitle" 10
+click_text "1 subtitle"
+expect_text "the chip's word shows only that kind: showing 1 of 3 (C47 I7)" "showing 1 of 3" 10
+expect_no_text "…sampler.mkv out of the list" "sampler.mkv" 10
+shot "Files, the subtitles alone: the chip \"1 subtitle\" on, sampler.srt the one row, \"showing 1 of 3\" and × show all at the right." kind
+click_text "download every subtitle"
+expect_priorities "the box skips every subtitle on qBittorrent" "$PDS" "1 1 0" 20
+click_text "download every subtitle"
+expect_priorities "a second press downloads them again" "$PDS" "1 1 1" 20
+click_text "show all"
+expect_text "× show all lists every file again" "sampler.mkv" 10
+expect_no_text "…and the head counts them all" "showing 1 of 3" 10
 
 step "Rename many files" "Field Recordings' Files tab, ctrl+a, r: the rename sheet on all 16 files. ctrl+e (regex), find \"(\\d+) - \", replace \"\$1. \", enter: the 14 tracks become \"NN. Title.flac\", album.cue and cover.jpg stay. Then the same sheet puts the names back. 1, its story: two Renamed 14 files lines, one per run (C38 R3)."
 ALBUM="Field Recordings Vol. 3 [FLAC]"
