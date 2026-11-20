@@ -150,4 +150,56 @@ TestCase {
         verify(!findChild(head, "filesKindBox_video").visible);
         verify(findChild(head, "filesKindWord_video").visible);
     }
+
+    // Docked details (~400 px): six kinds flow several to a line, not one per line.
+    function test_six_kinds_flow_in_a_narrow_head() {
+        const head = createTemporaryObject(headComponent, testCase, {
+                                               "width": 400,
+                                               "countText":
+                                               "113 files · 4.2 GB · 12 skipped, 3 still on disk"
+                                           });
+        const six = [["video", 33, 4e9], ["audio", 3, 3e7], ["images", 16, 2e7], ["subtitles", 54,
+                                                                                  1e6], ["extras", 5,
+                                                                                         1e4], ["other",
+                                                                                                2, 1e3]];
+        head.kinds = six.map(([kind, count, bytes]) => ({
+            "kind": kind,
+            "count": count,
+            "files": [],
+            "bytes": bytes,
+            "wanted": 2,
+            "word": head.kindWords(kind, count)
+        }));
+        waitForRendering(head);
+        const count = findChild(head, "filesPaneCount");
+        const lines = new Set();
+        for (const [kind] of six) {
+            const chip = findChild(head, "filesKindChip_" + kind);
+            const at = chip.mapToItem(head, 0, 0);
+            lines.add(at.y);
+            verify(at.x + chip.width <= (at.y === 0 ? count.mapToItem(head, 0, 0).x : head.width),
+                   kind + " runs past its line");
+        }
+        verify(lines.size <= 3, "six chips on " + lines.size + " lines");
+        verify(head.height < 3 * 2 * findChild(head, "filesKindChip_video").height,
+               "the head is as tall as its lines");
+    }
+
+    function test_a_box_says_its_kind_once() {
+        const head = testCase.make();
+        head.kinds = [
+                    {
+                        "kind": "video",
+                        "count": 9,
+                        "files": [],
+                        "bytes": 1e9,
+                        "wanted": 2,
+                        "word": "videos"
+                    }
+                ];
+        waitForRendering(head);
+        const box = findChild(head, "filesKindBox_video");
+        compare(box.Accessible.name, "download every video");
+        compare(box.tip, "skip every video");
+    }
 }

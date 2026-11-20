@@ -36,7 +36,8 @@ RowLayout {
     /// The box of `kind` was pressed: tick or skip every file of it (the owner decides).
     signal kindTicked(string kind)
 
-    readonly property var kinds: root.files !== null ? root.files.kinds : []
+    /// The model's kinds (a test may hand its own).
+    property var kinds: root.files !== null ? root.files.kinds : []
     /// The kind that takes the most room: its chip also says its size.
     readonly property string biggestKind: {
         let biggest = "";
@@ -75,6 +76,29 @@ RowLayout {
         return qsTr("%n other files", "", count);
     }
 
+    /// "video": the kind's word for one file, without a count ("download every video").
+    function kindWord(kind: string): string {
+        switch (kind) {
+        case "video":
+            return qsTr("video");
+        case "audio":
+            return qsTr("audio file");
+        case "subtitles":
+            return qsTr("subtitle");
+        case "images":
+            return qsTr("image");
+        case "books":
+            return qsTr("book");
+        case "archives":
+            return qsTr("archive");
+        case "discImages":
+            return qsTr("disc image");
+        case "extras":
+            return qsTr("extra");
+        }
+        return qsTr("other file");
+    }
+
     /// A press on a kind's word: only that kind, or all again.
     function filterKind(kind: string): void {
         if (root.files === null)
@@ -84,14 +108,58 @@ RowLayout {
 
     spacing: Theme.space(10)
 
-    Flow {
+    // The chips flow as a Flow would, several to a line, wrapping only when the next one does
+    // not fit; but only the first line shares the row with the count. A long count (details'
+    // summary) takes up to half a narrow row, and a Flow in what is left (~190 px of a docked
+    // 400 px pane) fits no two chips, so six kinds stood one per line. The lines under the
+    // count run the head's whole width.
+    Item {
         id: chips
 
+        readonly property real spacing: Theme.space(6)
+        /// Where each chip goes, `{line, x, y}` by index.
+        readonly property var places: {
+            const out = [];
+            let x = 0;
+            let line = 0;
+            for (let i = 0; i < chipRepeater.count; ++i) {
+                const item = chipRepeater.itemAt(i);
+                const w = item !== null ? item.width : 0;
+                const room = line === 0 ? chips.width : root.width;
+                if (x > 0 && x + w > room) {
+                    ++line;
+                    x = 0;
+                }
+                out.push({
+                             "line": line,
+                             "x": x,
+                             "y": line * (Theme.railRowHeight + chips.spacing)
+                         });
+                x += w + chips.spacing;
+            }
+            return out;
+        }
+        readonly property int lines: chips.places.length > 0 ? 1 + chips.places[chips.places.length
+                                                                                - 1].line : 0
+
+        Layout.alignment: Qt.AlignTop
         Layout.fillWidth: true
         Layout.minimumWidth: 0
-        spacing: Theme.space(6)
+        implicitHeight: chips.lines > 0 ? chips.lines * Theme.railRowHeight + (chips.lines - 1)
+                                          * chips.spacing : 0
+        // One line's worth, as a Flow says when it has the room: the add sheet's row asks it.
+        implicitWidth: {
+            let sum = 0;
+            for (let i = 0; i < chipRepeater.count; ++i) {
+                const item = chipRepeater.itemAt(i);
+                sum += (item !== null ? item.width : 0) + (i > 0 ? chips.spacing : 0);
+            }
+            return sum;
+        }
 
         Repeater {
+            id: chipRepeater
+
             // By count, not the list: a tick changes `kinds` (its `wanted`), and the chips stay
             // the same items, so the pointer and the tip stay where they were.
             model: root.kinds.length
@@ -110,6 +178,8 @@ RowLayout {
                 color: "transparent"
                 implicitHeight: Theme.railRowHeight
                 implicitWidth: chipRow.implicitWidth + 2 * Theme.hairWidth
+                x: chips.places[chip.index]?.x ?? 0
+                y: chips.places[chip.index]?.y ?? 0
                 objectName: "filesKindChip_" + chip.kind
                 radius: Theme.cornerRadius
 
@@ -126,13 +196,14 @@ RowLayout {
                     FileTick {
                         id: box
 
-                        Accessible.name: qsTr("download every %1").arg(chip.modelData.word)
+                        // "every video": the kind's one-file word, whatever the count.
+                        Accessible.name: qsTr("download every %1").arg(root.kindWord(chip.kind))
                         height: parent.height
                         objectName: "filesKindBox_" + chip.kind
-                        tip: chip.modelData.wanted === 2 ? qsTr("skip every %1").arg(
-                                                               chip.modelData.word) : qsTr(
-                                                               "tick every %1").arg(
-                                                               chip.modelData.word)
+                        tip: chip.modelData.wanted === 2 ? qsTr("skip every %1").arg(root.kindWord(
+                                                                                         chip.kind)) :
+                                                           qsTr("tick every %1").arg(root.kindWord(
+                                                                                         chip.kind))
                         tooltip: chipTip
                         visible: root.boxes
                         wanted: chip.modelData.wanted
