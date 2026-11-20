@@ -111,6 +111,18 @@ public:
     /// for byte.
     static Roles resolveOn(const Roles &window, const QColor &ground);
 
+    /// One role resolveOn lifted on a ground: its contrast there before and after, to one
+    /// decimal (`omaseed check`'s `lifted`, DECISIONS C37 U5).
+    struct Lift
+    {
+        QString role;
+        qreal from = 0;
+        qreal to = 0;
+    };
+    /// Every role of `window` that resolveOn lifts on `ground`, in the roles' order; none on a
+    /// ground where every role reads as it is.
+    static QList<Lift> lifts(const Roles &window, const QColor &ground);
+
     /// `top` at `alpha` over the opaque `under`, as Qt paints it, rounded to bytes.
     static QColor over(const QColor &top, const QColor &under, qreal alpha);
 

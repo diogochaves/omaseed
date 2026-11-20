@@ -46,8 +46,16 @@ public:
         /// `~/.config/omaseed/skins`: the person's skins (DECISIONS C37 U1). "" for none, so
         /// a reader made for a test sees no user skin unless it names a folder.
         QString skinsDir = {};
+        /// An installed Omarchy theme's folder (`~/.config/omarchy/themes/<name>`,
+        /// `/usr/share/omarchy/themes/<name>`) read instead of the current theme: `omaseed
+        /// check --theme NAME` (DECISIONS C37 U5). "" reads the current one.
+        QString themeDir = {};
 
         static Paths fromEnvironment();
+        /// The folder of the installed theme called `name`, the person's first, then
+        /// Omarchy's (`$OMARCHY_PATH/themes`, else `/usr/share/omarchy/themes`), as
+        /// omarchy-theme-set looks; "" when neither has its colors.toml.
+        static QString installedThemeDir(const QString &name);
     };
 
     explicit ThemeReader(QObject *parent = nullptr);

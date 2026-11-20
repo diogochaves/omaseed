@@ -128,6 +128,22 @@ ThemeReader::Paths ThemeReader::Paths::fromEnvironment()
     return paths;
 }
 
+QString ThemeReader::Paths::installedThemeDir(const QString &name)
+{
+    if (name.isEmpty() || name.contains(QLatin1Char('/')) || name.startsWith(QLatin1Char('.')))
+        return {};
+    const QString config = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    const QString omarchy =
+        qEnvironmentVariable("OMARCHY_PATH", QStringLiteral("/usr/share/omarchy"));
+    for (const QString &root :
+         {config + QStringLiteral("/omarchy/themes"), omarchy + QStringLiteral("/themes")}) {
+        const QString dir = root + QLatin1Char('/') + name;
+        if (QFileInfo::exists(dir + QStringLiteral("/colors.toml")))
+            return dir;
+    }
+    return {};
+}
+
 // -------------------------------------------------------------------------------------
 // Construction
 // -------------------------------------------------------------------------------------
@@ -300,7 +316,11 @@ QString ThemeReader::findColorsFile(bool *lightModeFile) const
 {
     // "Follow the Omarchy theme" off: the bundled Tokyo Night is the only candidate, so the
     // app keeps its own look whatever `omarchy-theme-set` does.
-    const QStringList candidates = m_followOmarchy
+    // `check --theme NAME` (C37 U5): that installed theme alone.
+    const QStringList candidates = !m_paths.themeDir.isEmpty()
+                                       ? QStringList{m_paths.themeDir
+                                                     + QStringLiteral("/colors.toml")}
+                                   : m_followOmarchy
                                        ? QStringList{
                                              m_paths.stateCurrentDir
                                                  + QStringLiteral("/theme/colors.toml"),
@@ -330,8 +350,11 @@ void ThemeReader::reload()
     ColorMap palette = resolvePalette(raw, lightModeFile);
 
     // shell.toml: the theme's generated one first, the user's overlay on top.
+    const QString themeFolder = m_paths.themeDir.isEmpty()
+                                    ? m_paths.stateCurrentDir + QStringLiteral("/theme")
+                                    : m_paths.themeDir;
     QHash<QString, QString> shell =
-        parseToml(readTextFile(m_paths.stateCurrentDir + QStringLiteral("/theme/shell.toml")));
+        parseToml(readTextFile(themeFolder + QStringLiteral("/shell.toml")));
     const QHash<QString, QString> overlay =
         parseToml(readTextFile(m_paths.configOmarchyDir + QStringLiteral("/shell.toml")));
     for (auto it = overlay.constBegin(); it != overlay.constEnd(); ++it)
@@ -341,7 +364,7 @@ void ThemeReader::reload()
         shell.insert(QStringLiteral("font.base-size"), QString::number(m_baseSizeOverride));
 
     QString name =
-        m_followOmarchy
+        m_followOmarchy && m_paths.themeDir.isEmpty()
             ? readTextFile(m_paths.stateCurrentDir + QStringLiteral("/theme.name")).trimmed()
             : QString();
     if (name.isEmpty() && !colorsPath.isEmpty())

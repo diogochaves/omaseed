@@ -67,6 +67,21 @@ ThemeInk::Roles ThemeInk::resolveOn(const Roles &window, const QColor &ground)
     return roles;
 }
 
+QList<ThemeInk::Lift> ThemeInk::lifts(const Roles &window, const QColor &ground)
+{
+    const auto tenth = [](qreal ratio) { return std::round(ratio * 10) / 10; };
+    const Roles resolved = resolveOn(window, ground);
+    QList<Lift> out;
+    for (int role = 0; role < RoleCount; ++role) {
+        if (resolved[role] == window[role])
+            continue;
+        out.append({QString::fromLatin1(roleNames()[role]),
+                    tenth(Theme::contrastRatio(window[role], ground)),
+                    tenth(Theme::contrastRatio(resolved[role], ground))});
+    }
+    return out;
+}
+
 void ThemeInk::resolve(const QColor &tint, qreal alpha, const QColor &under, const Roles &window)
 {
     // C30 F6 on a tint: held where the theme's text still reads on it (the foreground's own

@@ -11,6 +11,7 @@
 #include <QTest>
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 
 using omaseed::integration::SkinReader;
@@ -137,6 +138,7 @@ private slots:
     void captionsStayCaptionsOnASelectedRow();
     void theWindowGroundIsTheWindowsRoles();
     void groundsFollowAThemeChange();
+    void liftsNameEachLiftedRole();
 
     // #171: the skin's grounds.
     void omarchysSkinPaintsTheGroundsAsBefore_data();
@@ -704,6 +706,24 @@ void TestThemeContrast::nestedFillsLeftOnTheirGroundRead()
         ThemeInk::over(on->ticked()->fill(), on->hover()->ground(), on->ticked()->alpha());
     const qreal knobOn = Theme::contrastRatio(on->ticked()->brightForeground(), ticked);
     QVERIFY2(knobOn >= 3.0, qPrintable(QString::number(knobOn, 'f', 2)));
+}
+
+/// C37 U5: `omaseed check`'s `lifted` is ThemeInk::lifts: each role resolveOn lifted, with
+/// its contrast before and after to one decimal; none where every role reads.
+void TestThemeContrast::liftsNameEachLiftedRole()
+{
+    ThemeInk::Roles window;
+    window.fill(QColor(0xff, 0xff, 0xff));
+    window[ThemeInk::DimForeground] = QColor(0x77, 0x77, 0x77);
+
+    const QList<ThemeInk::Lift> lifted = ThemeInk::lifts(window, QColor(0x30, 0x30, 0x30));
+    QCOMPARE(lifted.size(), 1);
+    QCOMPARE(lifted.first().role, QStringLiteral("dimForeground"));
+    QVERIFY2(lifted.first().from < kFloor, qPrintable(QString::number(lifted.first().from)));
+    QVERIFY2(lifted.first().to >= kFloor, qPrintable(QString::number(lifted.first().to)));
+    QCOMPARE(lifted.first().from * 10, std::round(lifted.first().from * 10));
+
+    QVERIFY(ThemeInk::lifts(window, QColor(0, 0, 0)).isEmpty());
 }
 
 QTEST_MAIN(TestThemeContrast)
