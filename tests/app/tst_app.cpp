@@ -117,6 +117,8 @@ private slots:
     void aTransparencySetBeforeTheGroundReadsAsTranslucent();
     void theSkinIsRememberedAndReachesTheReader();
     void theEnvironmentPinsTheSkin();
+    void addWindowLayoutPersists();
+    void anUnknownValueReadsTwo();
     void aNewInstallShowsRows();
     void anExistingInstallKeepsTheTable();
     void theDisplayIsRememberedPerScope();
@@ -927,6 +929,44 @@ void TestApp::theEnvironmentPinsTheSkin()
     qunsetenv("OMASEED_SKIN");
     App app;
     QCOMPARE(app.skinChoice(), QStringLiteral("desktop"));
+}
+
+// DECISIONS C47 I14: Appearance › Add window, two columns by default, saved in state.json's
+// appearance as "addWindow".
+void TestApp::addWindowLayoutPersists()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    {
+        App app;
+        QCOMPARE(app.addWindowLayout(), QStringLiteral("two"));
+        QSignalSpy changed(&app, &App::settingsChanged);
+        app.setAddWindowLayout(QStringLiteral("one"));
+        QCOMPARE(changed.count(), 1);
+        app.setAddWindowLayout(QStringLiteral("one"));
+        QCOMPARE(changed.count(), 1);
+    }
+    QCOMPARE(omaseed::core::StateFile::readSection(QStringLiteral("appearance"))
+                 .value(QStringLiteral("addWindow"))
+                 .toString(),
+             QStringLiteral("one"));
+    App app;
+    QCOMPARE(app.addWindowLayout(), QStringLiteral("one"));
+}
+
+void TestApp::anUnknownValueReadsTwo()
+{
+    QFile::remove(omaseed::core::StateFile::path());
+    {
+        App app;
+        app.setAddWindowLayout(QStringLiteral("one"));
+        app.setAddWindowLayout(QStringLiteral("three"));
+        QCOMPARE(app.addWindowLayout(), QStringLiteral("two"));
+    }
+    QJsonObject appearance = omaseed::core::StateFile::readSection(QStringLiteral("appearance"));
+    appearance[QStringLiteral("addWindow")] = QStringLiteral("wide");
+    omaseed::core::StateFile::writeSection(QStringLiteral("appearance"), appearance);
+    App app;
+    QCOMPARE(app.addWindowLayout(), QStringLiteral("two"));
 }
 
 // DECISIONS C24 H4: rows for a new install, decided at the first read and written at once.

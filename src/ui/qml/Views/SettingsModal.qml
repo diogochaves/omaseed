@@ -947,6 +947,8 @@ Item {
     readonly property var hostStyles: root.settings.allOptions("appearance.trackerHosts")
     // docs/10 §5: where Details sits.
     readonly property var placements: root.settings.allOptions("appearance.detailsPlacement")
+    // DECISIONS C47 I14: the add window's two choices, as [value, chip text].
+    readonly property var addWindowLayouts: root.settings.allOptions("appearance.addWindow")
 
     // DECISIONS C24 H11 (#171): the skins, board 46's three choices in its order.
     readonly property var skinChoices: root.settings.allOptions("appearance.skin")
@@ -2819,6 +2821,47 @@ Item {
                                     onEditingChanged: {
                                         if (!alphaField.editing)
                                             root._applyAlpha();
+                                    }
+                                }
+                            }
+
+                            // DECISIONS C47 I14: the add window in two columns (the
+                            // torrent beside its options) or one; no control in the window.
+                            SettingsRow {
+                                id: addWindowRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("two columns puts the torrent's files and About beside its options when the screen has the room; one column keeps them under.")
+                                glyph: Glyphs.add
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("appearance.addWindow")
+                                objectName: "addWindowRow"
+                                title: root.settings.own("appearance.addWindow").title
+
+                                onClicked: {
+                                    root.paneCursor = root.settings.cursorOf("appearance.addWindow");
+                                    root.area = "pane";
+                                    root.settings.activate("appearance.addWindow");
+                                }
+
+                                RowLayout {
+                                    spacing: Theme.space(6)
+
+                                    Repeater {
+                                        model: root.addWindowLayouts
+
+                                        Chip {
+                                            id: addWindowChip
+
+                                            required property var modelData
+
+                                            block: addWindowRow.ground
+                                            checkable: true
+                                            objectName: "addWindowChip-" + addWindowChip.modelData[0]
+                                            selected: App.addWindowLayout === addWindowChip.modelData[0]
+                                            text: addWindowChip.modelData[1]
+
+                                            onClicked: App.addWindowLayout = addWindowChip.modelData[0]
+                                        }
                                     }
                                 }
                             }

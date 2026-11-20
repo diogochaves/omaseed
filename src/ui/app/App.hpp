@@ -719,6 +719,12 @@ public:
                    settingsChanged)
     QString detailsPlacement() const;
     void setDetailsPlacement(const QString &placement);
+    /// DECISIONS C47 I14: the add window's layout, "two" columns (the default; I2's fallback
+    /// still applies) or "one". Appearance › Add window; no control in the window.
+    Q_PROPERTY(QString addWindowLayout READ addWindowLayout WRITE setAddWindowLayout NOTIFY
+                   settingsChanged)
+    QString addWindowLayout() const;
+    void setAddWindowLayout(const QString &layout);
     /// The rail is hidden (`ctrl+b`); remembered across runs.
     Q_PROPERTY(bool railHidden READ railHidden WRITE setRailHidden NOTIFY settingsChanged)
     bool railHidden() const;
@@ -878,6 +884,7 @@ private:
     bool m_reducedMotion = false;
     QString m_railScrollHint = QStringLiteral("chevrons");
     QString m_detailsPlacement = QStringLiteral("auto");
+    QString m_addWindowLayout = QStringLiteral("two");
     int m_surfaceTint = 0;
     QString m_trackerHostStyle = QStringLiteral("prefix");
     QString m_speedsPlace = QStringLiteral("title");

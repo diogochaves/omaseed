@@ -1343,11 +1343,11 @@ TestCase {
         // Appearance: "In the bar" (docs/33 D25) steps through the choices it can have:
         // without the shell, tray icon and none.
         keyClick(Qt.Key_5);
-        compare(modal.paneRowCount, 13);
+        compare(modal.paneRowCount, 14);
         const tray = App.trayIconMode;
         App.trayIconMode = "auto";
         compare(App.inTheBar, "tray");
-        modal.paneCursor = 4;
+        modal.paneCursor = 5;
         modal.area = "pane";
         modal.activateRow();
         compare(App.inTheBar, "none");
@@ -1365,20 +1365,20 @@ TestCase {
         const hint = App.railScrollHint;
         const tint = App.surfaceTint;
         const hosts = App.trackerHostStyle;
-        modal.paneCursor = 7;
-        modal.activateRow();
-        verify(App.railScrollHint !== hint);
         modal.paneCursor = 8;
         modal.activateRow();
-        verify(App.surfaceTint !== tint);
+        verify(App.railScrollHint !== hint);
         modal.paneCursor = 9;
+        modal.activateRow();
+        verify(App.surfaceTint !== tint);
+        modal.paneCursor = 10;
         modal.activateRow();
         verify(App.trackerHostStyle !== hosts);
 
         // ...and the next places Details (docs/10 §5): auto, right, bottom.
         const placement = App.detailsPlacement;
         compare(placement, "auto");
-        modal.paneCursor = 10;
+        modal.paneCursor = 11;
         modal.activateRow();
         compare(App.detailsPlacement, "right");
         modal.activateRow();
@@ -1519,7 +1519,7 @@ TestCase {
         const row = testCase.childNamed(modal, "surfaceTintRow");
         verify(row !== null && row.visible);
         compare(row.title, "Surface tint");
-        modal.paneCursor = 8;
+        modal.paneCursor = 9;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1569,7 +1569,7 @@ TestCase {
         const row = testCase.childNamed(modal, "pulseRowsRow");
         verify(row, "the Appearance pane has no pulse row");
         compare(row.title, "Pulse sending rows");
-        modal.paneCursor = 11;
+        modal.paneCursor = 12;
         modal.area = "pane";
         compare(row.hasCursor, true);
         modal.activateRow();
@@ -1697,7 +1697,7 @@ TestCase {
         compare(row.title, "Window");
         const alphaRow = testCase.childNamed(modal, "windowAlphaRow");
         compare(alphaRow.visible, false);
-        compare(modal.paneRowCount, 13);
+        compare(modal.paneRowCount, 14);
 
         modal.area = "pane";
         modal.paneCursor = 3;
@@ -1705,14 +1705,38 @@ TestCase {
         modal.activateRow();
         compare(App.windowGround, "translucent");
         compare(alphaRow.visible, true);
-        compare(modal.paneRowCount, 14);
+        compare(modal.paneRowCount, 15);
         // "In the bar" moved down one.
-        modal.paneCursor = 5;
+        modal.paneCursor = 6;
         compare(testCase.childNamed(modal, "inTheBarRow").hasCursor, true);
 
         mouseClick(testCase.childNamed(modal, "groundChip-opaque"));
         compare(App.windowGround, "opaque");
         compare(alphaRow.visible, false);
+    }
+
+    // DECISIONS C47 I14: Appearance › Add window, after Window: enter steps it, a chip picks
+    // it, and App keeps it.
+    function test_addWindowRowWritesAndReads() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        const before = App.addWindowLayout;
+        App.addWindowLayout = "two";
+        modal.open();
+        keyClick(Qt.Key_5);
+        compare(modal.paneIndex, 4);
+        const row = testCase.childNamed(modal, "addWindowRow");
+        verify(row !== null && row.visible);
+        compare(row.title, "Add window");
+        verify(testCase.childNamed(row, "addWindowChip-two").selected);
+        modal.area = "pane";
+        modal.paneCursor = 4;
+        compare(row.hasCursor, true);
+        modal.activateRow();
+        compare(App.addWindowLayout, "one");
+        verify(testCase.childNamed(row, "addWindowChip-one").selected);
+        mouseClick(testCase.childNamed(row, "addWindowChip-two"));
+        compare(App.addWindowLayout, "two");
+        App.addWindowLayout = before;
     }
 
     // T5.5 Q1: the transparency row's placeholder is the shell's own default, not a
@@ -1945,7 +1969,11 @@ TestCase {
         verify(row.description.indexOf("Trigger › Torrents") === 0, row.description);
         verify(row.description.indexOf("omarchy menu summon torrents") > 0, row.description);
 
-        // The switch, a click on the row and the keyboard all flip it.
+        // The switch, a click on the row and the keyboard all flip it. The pane scrolled to
+        // the row first: below Add window (C47 I14) it can sit under the modal's fold.
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        scroller.contentY = Math.min(row.mapToItem(scroller.contentItem, 0, 0).y,
+                                     Math.max(0, scroller.contentHeight - scroller.height));
         mouseClick(toggle);
         verify(App.inOmarchyMenu);
         verify(toggle.checked);
@@ -1953,7 +1981,7 @@ TestCase {
         mouseClick(row);
         verify(!App.inOmarchyMenu);
         compare(files.read(user), mine);
-        compare(modal.paneCursor, 6);
+        compare(modal.paneCursor, 7);
         modal.activateRow();
         verify(App.inOmarchyMenu);
         modal.activateRow();
@@ -2175,7 +2203,7 @@ TestCase {
         const modal = createTemporaryObject(modalComponent, testCase);
         const scroller = testCase.childNamed(modal, "paneScroller");
         const rows = [["general.startAtLogin", 0, 4, "startAtLoginRow"], ["notifications.weekly", 2, 6, "notifyRow-weekly"],
-                      ["appearance.speedsPlace", 4, 12, "speedsPlaceRow"], ["backup.auto", 5, 2, ""],
+                      ["appearance.speedsPlace", 4, 13, "speedsPlaceRow"], ["backup.auto", 5, 2, ""],
                       ["about.widgetLine", 6, 0, ""]];
         for (const [id, pane, cursor, name] of rows) {
             verify(modal.openOn(id), id);

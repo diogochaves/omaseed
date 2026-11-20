@@ -5278,6 +5278,8 @@ const QStringList kRailScrollHints{
     QStringLiteral("chevrons"), QStringLiteral("fade"), QStringLiteral("scrollbar")};
 const QStringList kDetailsPlacements{
     QStringLiteral("auto"), QStringLiteral("right"), QStringLiteral("bottom")};
+// DECISIONS C47 I14: two columns (the default) or one.
+const QStringList kAddWindowLayouts{QStringLiteral("two"), QStringLiteral("one")};
 const QStringList kSpeedsPlaces{QStringLiteral("title"), QStringLiteral("status")};
 const QStringList kTrackerHostStyles{
     QStringLiteral("prefix"), QStringLiteral("left"), QStringLiteral("right")};
@@ -5342,6 +5344,23 @@ void App::setDetailsPlacement(const QString &placement)
     if (m_detailsPlacement == wanted)
         return;
     m_detailsPlacement = wanted;
+    saveSettings();
+    Q_EMIT settingsChanged();
+}
+
+QString App::addWindowLayout() const
+{
+    const_cast<App *>(this)->loadSettings();
+    return m_addWindowLayout;
+}
+
+void App::setAddWindowLayout(const QString &layout)
+{
+    loadSettings();
+    const QString wanted = oneOf(layout, kAddWindowLayouts);
+    if (m_addWindowLayout == wanted)
+        return;
+    m_addWindowLayout = wanted;
     saveSettings();
     Q_EMIT settingsChanged();
 }
@@ -5560,6 +5579,8 @@ void App::loadSettings()
     m_railWidth = qMax(0, appearance.value(QStringLiteral("railWidth")).toInt(0));
     m_detailsPlacement =
         oneOf(appearance.value(QStringLiteral("detailsPlacement")).toString(), kDetailsPlacements);
+    m_addWindowLayout =
+        oneOf(appearance.value(QStringLiteral("addWindow")).toString(), kAddWindowLayouts);
 }
 
 void App::saveSettings()
@@ -5588,6 +5609,7 @@ void App::saveSettings()
     appearance[QStringLiteral("railHidden")] = m_railHidden;
     appearance[QStringLiteral("railWidth")] = m_railWidth;
     appearance[QStringLiteral("detailsPlacement")] = m_detailsPlacement;
+    appearance[QStringLiteral("addWindow")] = m_addWindowLayout;
     writeStateSection(QStringLiteral("appearance"), appearance);
 }
 

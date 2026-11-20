@@ -127,11 +127,11 @@ TestCase {
                                      });
     }
 
-    // The plan's inventory: 30 rows, 12 switches, 10 choices, 3 numbers, 5 actions.
+    // The plan's inventory: 31 rows, 12 switches, 11 choices, 3 numbers, 5 actions.
     function test_the_own_rows_per_pane_and_control() {
         const table = createTemporaryObject(tableComponent, testCase);
         const count = (pane, control) => table.ownRows.filter(row => row.pane === pane && row.control === control).length;
-        compare(table.ownRows.length, 30);
+        compare(table.ownRows.length, 31);
         compare(table.panes.map(pane => pane.id), ["general", "servers", "notifications", "keybindings", "appearance",
                                                    "backup", "about"]);
         const expected = {
@@ -139,7 +139,7 @@ TestCase {
             "servers": [0, 0, 0, 0],
             "notifications": [6, 0, 1, 0],
             "keybindings": [0, 0, 0, 0],
-            "appearance": [3, 8, 2, 1],
+            "appearance": [3, 9, 2, 1],
             "backup": [0, 1, 0, 2],
             "about": [0, 0, 0, 1]
         };
@@ -148,7 +148,7 @@ TestCase {
                     expected[pane], pane);
         }
         const all = control => table.ownRows.filter(row => row.control === control).length;
-        compare([all("switch"), all("choice"), all("number"), all("action")], [12, 10, 3, 5]);
+        compare([all("switch"), all("choice"), all("number"), all("action")], [12, 11, 3, 5]);
         // Every row is in a pane there is, and titled.
         for (const row of table.ownRows) {
             verify(table.panes.some(pane => pane.id === row.pane), row.id);
@@ -175,23 +175,25 @@ TestCase {
         const table = createTemporaryObject(tableComponent, testCase);
         compare(["general", "servers", "notifications", "keybindings", "backup", "about"].map(pane => table.count(pane)),
                 [5, 0, 7, 0, 3, 1]);
-        compare(table.count("appearance"), 13);
+        compare(table.count("appearance"), 14);
         compare(table.cursorOf("appearance.window"), 3);
         compare(table.cursorOf("appearance.windowAlpha"), -1);
-        compare(table.cursorOf("appearance.inTheBar"), 4);
-        compare(table.cursorOf("appearance.speedsPlace"), 12);
-        compare(table.rowAt("appearance", 4), "appearance.inTheBar");
-        verify(table.row("appearance.windowAlpha") === null);
-        compare(table.rows().filter(row => !row.server).length, 29);
-
-        App.windowGround = "translucent";
-        compare(table.count("appearance"), 14);
-        compare(table.cursorOf("appearance.windowAlpha"), 4);
+        compare(table.cursorOf("appearance.addWindow"), 4);
         compare(table.cursorOf("appearance.inTheBar"), 5);
         compare(table.cursorOf("appearance.speedsPlace"), 13);
+        compare(table.rowAt("appearance", 5), "appearance.inTheBar");
+        verify(table.row("appearance.windowAlpha") === null);
+        compare(table.rows().filter(row => !row.server).length, 30);
+
+        App.windowGround = "translucent";
+        compare(table.count("appearance"), 15);
+        compare(table.cursorOf("appearance.windowAlpha"), 4);
+        compare(table.cursorOf("appearance.addWindow"), 5);
+        compare(table.cursorOf("appearance.inTheBar"), 6);
+        compare(table.cursorOf("appearance.speedsPlace"), 14);
         compare(table.rowAt("appearance", 4), "appearance.windowAlpha");
         compare(table.row("appearance.windowAlpha").kind, "go");
-        compare(table.rows().filter(row => !row.server).length, 30);
+        compare(table.rows().filter(row => !row.server).length, 31);
 
         // Each pane's places are 0…count-1, in the table's order.
         for (const pane of table.panes) {
@@ -243,6 +245,25 @@ TestCase {
         compare(App.windowGround, "translucent");
         table.activate("appearance.window");
         compare(App.windowGround, "opaque");
+    }
+
+    // DECISIONS C47 I14: Appearance › Add window, two columns or one, read from App and
+    // written back to it.
+    function test_addWindowRowWritesAndReads() {
+        const table = createTemporaryObject(tableComponent, testCase);
+        const before = App.addWindowLayout;
+        App.addWindowLayout = "two";
+        const row = table.row("appearance.addWindow");
+        compare(row.kind, "choice");
+        compare(row.title, "Add window");
+        compare(row.options.map(option => option[0]), ["two", "one"]);
+        compare(row.valueText, "two columns");
+        row.set("one");
+        compare(App.addWindowLayout, "one");
+        compare(table.row("appearance.addWindow").valueText, "one column");
+        compare(table.activate("appearance.addWindow"), "choice");
+        compare(App.addWindowLayout, "two"); // wraps round
+        App.addWindowLayout = before;
     }
 
     // A number and an action are the pane's to run: the table says which, and changes nothing.
@@ -355,7 +376,7 @@ TestCase {
                                                 "connected": false
                                             });
         compare(table.serverRows().length, 0);
-        compare(table.rows().length, 29);
+        compare(table.rows().length, 30);
         verify(table.row("server.speed.dl_limit") === null);
         table.connected = true;
         verify(table.serverRows().length > 0);

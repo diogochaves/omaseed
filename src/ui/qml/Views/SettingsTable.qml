@@ -207,6 +207,16 @@ QtObject {
             "write": value => App.windowAlphaOverride = value
         },
         {
+            // DECISIONS C47 I14: the add window's layout, two columns by default.
+            "id": "appearance.addWindow",
+            "pane": "appearance",
+            "title": qsTr("Add window"),
+            "control": "choice",
+            "options": [["two", qsTr("two columns")], ["one", qsTr("one column")]],
+            "read": () => App.addWindowLayout,
+            "write": value => App.addWindowLayout = value
+        },
+        {
             "id": "appearance.inTheBar",
             "pane": "appearance",
             "title": qsTr("In the bar"),
