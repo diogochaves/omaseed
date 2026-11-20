@@ -34,6 +34,12 @@ omaseed_add_test(tst_skinreader
     LIBRARIES omaseed::integration
 )
 
+# #222 (DECISIONS C37 U1): the person's skins folder, its name rule and its reads.
+omaseed_add_test(tst_userskins
+    SOURCES tst_userskins.cpp
+    LIBRARIES omaseed::integration
+)
+
 # #222 (DECISIONS C37 U3): Omarchy's token values in C++ held to the QML's fallbacks.
 omaseed_add_test(tst_skintokens
     SOURCES tst_skintokens.cpp

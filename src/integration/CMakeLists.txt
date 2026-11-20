@@ -42,6 +42,8 @@ qt_add_library(omaseed-integration STATIC
     StatusBus.hpp
     Tray.cpp
     Tray.hpp
+    UserSkins.cpp
+    UserSkins.hpp
     WidgetHeartbeat.cpp
     WidgetHeartbeat.hpp
     Xdg.cpp
