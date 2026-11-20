@@ -62,6 +62,9 @@ ColumnLayout {
             return qsTr("Transmission's setting, for every torrent.");
         if (root.room.engine === "deluge")
             return qsTr("Deluge's download folder.");
+        // C47 I12: the folder is the picked category's own, not the server's (#280).
+        if (root.room.tempRule === "own" && root.category !== "")
+            return qsTr("The category %1's own temp folder.").arg(root.category);
         return qsTr("qBittorrent's setting.");
     }
 

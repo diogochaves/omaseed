@@ -127,6 +127,18 @@ TestCase {
         verify(findChild(view.tempLine, "addRoomWhat").lineCount <= 2);
     }
 
+    // #280, C47 I12: a category's own temp folder is named as the category's, not the server's.
+    function test_aCategorysOwnFolderSaysSo() {
+        const view = createTemporaryObject(linesComponent, testCase, {
+                                               "category": "music",
+                                               "room": testCase.room({
+                                                                         "tempRule": "own",
+                                                                         "tempPath": "/fast/music"
+                                                                     })
+                                           });
+        compare(testCase.note(view.tempLine).text, "The category music's own temp folder.");
+    }
+
     function test_sameDriveSecondLineDim() {
         const view = testCase.lines({
                                         "sameDrive": true
