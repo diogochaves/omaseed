@@ -94,6 +94,13 @@ omaseed_add_test(tst_statusbus
     LIBRARIES omaseed::integration Qt6::DBus
 )
 
+# DECISIONS C45 V3 (#163): io.github.diogochaves.omaseed.Agent beside Status, on a private
+# dbus-daemon.
+omaseed_add_test(tst_agentbus
+    SOURCES tst_agentbus.cpp
+    LIBRARIES omaseed::integration Qt6::DBus
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration
