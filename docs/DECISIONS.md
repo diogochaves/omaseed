@@ -3053,3 +3053,20 @@ the person links it (the word, or a line on the Agents row), never omaseed at st
 removes only links to omaseed's skill folder; `--skill` prints the map. **Amends** C37 U4 (the
 guide's home and its printing) and C45 V19 (what `--skill` prints). Found by the agent trial
 of #227 (`.local` report, not public): the schema, not the guide, was the cost.
+
+## C49 — Layouts (board 66, ruled 2026-11-20)
+
+Board [66](66-layouts.html), #288, LY1–LY12 as recommended, with one change: the built-in
+layout is named **`omarchy`**, not `default` (LY2), like the built-in skin. Option c of #288 was
+ruled before the board: a layout is its own file beside the skin, and the Settings rows that are
+layout choices edit that same file. `~/.config/omaseed/layouts/<name>/layout.json`, a skin's
+folder, name and version rules; every block list is `order` + `hidden`. A Settings row edits the
+layout in force; the first edit on `omarchy` clones it to `mine`; a file that doesn't read is
+never written. Only arrangements omaseed already draws (LY4 a): the rail on the right, a status
+line on top and other new placements are a board and a build of their own first, then a key.
+Needs you, attention and Name stay shown. One table arrangement for every server (LY7 a): at
+migration the server in use gives it, the others' column setups are dropped; sort and folds stay
+per server in state.json. Skins and layouts stay apart; a layout's `rail.width` wins over the
+skin's only when set (LY8). `omaseed check --layout NAME [SKIN]`, `layout list|clone|use`,
+`OMASEED_LAYOUT`; the skill (C48) gains a layouts page. Migration writes `mine` only when
+state.json differs from `omarchy`.
