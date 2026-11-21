@@ -665,8 +665,15 @@ QString wordPage(const QString &word)
                    "General › Agents lets agents act. It waits for the server's answer.\n"
                    "  fixes           retry, start-here, recheck, reannounce, dismiss <hash...>;\n"
                    "                  pause, resume (the whole server, no hashes)\n"
+                   "  locate          locate <hash...> --to FOLDER: a torrent whose files are\n"
+                   "                  missing, pointed at the folder that holds them, nothing\n"
+                   "                  moved, then rechecked (a fix)\n"
                    "  moves           move <hash...> --to FOLDER, move-back <move>: always ask\n"
+                   "  remove          remove <hash...>: only a torrent whose files are gone,\n"
+                   "                  never its files; kept 30 days to add back: always asks\n"
                    "  <hash>          a torrent's hash, or 8 or more of its first characters\n"
+                   "  <move>          a landed move's id (omaseed moves), or 8 or more of its\n"
+                   "                  first characters\n"
                    "  --plan FILE|-   a JSON plan of lines, each an action and its torrents:\n"
                    "                  every line checked first, one ask for the lot\n"
                    "  --dry-run       every check, nothing asked, nothing done\n"
@@ -678,9 +685,10 @@ QString wordPage(const QString &word)
                               "servers, quit. No flag deletes files.\n"
                               "Exit: 0 done · 2 usage · 3 omaseed isn't running · 4 that server "
                               "can't act\n"
-                              "      now · 5 not done: not allowed, never, refused or not "
-                              "answered ·\n"
-                              "      6 the server refused it\n");
+                              "      now · 5 not done: not allowed, never, refused, not "
+                              "answered, not\n"
+                              "      removable or not found · 6 the server refused it\n"
+                              "Your agent's own settings are the wall: omaseed help agents.\n");
     if (word == QLatin1String("check"))
         return QStringLiteral(
                    "Usage: omaseed check <skin> [--theme NAME] [--json]\n"

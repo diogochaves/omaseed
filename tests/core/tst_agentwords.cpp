@@ -1,10 +1,12 @@
 // DECISIONS C45 V1, V2, V4, V13 and C37 U10: the words' table, their arguments, the help page
 // and each word's page, the exit map and the failure object.
 
+#include "core/AgentGate.hpp"
 #include "core/AgentWords.hpp"
 
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QTest>
 #include <QTimeZone>
 
@@ -591,6 +593,17 @@ void TestAgentWords::wordPagesHaveUsageAndExit()
                  "  --json          one JSON object; omaseed skill library describes its fields\n"
                  "Exit: 0 answered (whatever it found) · 2 usage · 3 omaseed isn't running ·\n"
                  "      4 that server can't answer now\n"));
+    // do's page names every action of every kind (#297: locate and remove were missing),
+    // and points at the wall (C50 GT7).
+    const QString doPage = AgentWords::wordPage(QStringLiteral("do"));
+    for (const auto kind : {AgentGate::Kind::Fixes,
+                            AgentGate::Kind::Moves,
+                            AgentGate::Kind::Remove})
+        for (const QString &action : AgentGate::actionsOf(kind))
+            QVERIFY2(doPage.contains(QRegularExpression(
+                         QStringLiteral("[ ,]%1[ ,;:]").arg(QRegularExpression::escape(action)))),
+                     qPrintable(action));
+    QVERIFY(doPage.contains(QStringLiteral("omaseed help agents")));
     QVERIFY(AgentWords::wordPage(QStringLiteral("nope")).isEmpty());
     QVERIFY(AgentWords::wordPage(QStringLiteral("status"))
                 .contains(QStringLiteral("whether the server answers or not")));
