@@ -3101,3 +3101,59 @@ per server in state.json. Skins and layouts stay apart; a layout's `rail.width` 
 skin's only when set (LY8). `omaseed check --layout NAME [SKIN]`, `layout list|clone|use`,
 `OMASEED_LAYOUT`; the skill (C48) gains a layouts page. Migration writes `mine` only when
 state.json differs from `omarchy`.
+
+## C50 — What an agent may do (board 67, ruled 2026-11-21)
+
+Board [67](67-what-an-agent-may-do.html), #163's acting part, GT1–GT8 all as recommended. It
+amends C45 where a library fix (torrents in missing files: recheck, re-point, remove) couldn't
+finish, and leaves the rest of C45 standing. The gate binds only omaseed's own way in, and
+omaseed says so where the gate is set.
+
+- **GT1 a.** `do remove <hash…>`: the torrent only, never its files (`--delete-files` is usage,
+  exit 2). Always asks, whatever the setting. Refused (`not-removable`, exit 5) unless its
+  problem is missing files (kind `missing-files`, or the engine's own missing state) and, where
+  omaseed sees the disk (a local server or a path map, C14 E11), none of its files is at its save
+  path when asked; where it can't see the disk, the engine's state alone, and the ask says so.
+- **GT2 a.** `do locate <hash…> --to FOLDER`: omaseed checks each file's relative path and size
+  in FOLDER, re-points without moving (Transmission `move: false`; qBittorrent and Deluge their
+  set-location over files already there, proved on each playground), then rechecks. A fix.
+  Refused (`not-found`, exit 5) unless every file is there, when omaseed can't see that disk, or
+  when the torrent's files aren't missing.
+- **GT3 a.** C48's Agents row gains lines per kind: fixes (retry, start-here, recheck,
+  reannounce, pause, resume, dismiss, locate) off · ask · allow; moves (`move --to`, `move-back`)
+  off · ask; remove off · ask. All acting off by default; the package and the first run never
+  change it. Held in the app (`Do` on the bus); `do --list` prints the lines as they stand.
+- **GT4 a.** `do --plan FILE|-`: a JSON list of lines (action, torrents, a folder for locate and
+  move). Every line is checked first; one off or refused line runs none and says which. If any
+  line asks, one window lists the plan grouped by action and folder: lines already allowed dim,
+  marked allowed in Settings; lines that ask with a ticked box each. "allow these" runs what is
+  ticked; refuse, esc, close or 2 minutes run none. The answer lists done, failed and unticked per
+  line. Each line is checked again just before it runs.
+- **GT5 a.** `--dry-run` on every `do` and `--plan`: every check, no ask, no act; line by line
+  what would happen; exits as the real run would without the ask (0 would run or ask, 5 one off or
+  refused).
+- **GT6 a.** Before a remove, the `.torrent` (Backup's export) and its record (name, save path,
+  category or labels, tags, server) go to `~/.local/share/omaseed/removed/`, kept 30 days, pruned
+  at start. The outcome strip's `add back`, and the Agents row's last line `add back…` while any
+  are kept: a sheet, each added back paused at its old place. Adding back is the person's; `do`
+  never adds.
+- **GT7 a.** The Agents row and the guide say the gate binds only omaseed. `omaseed help agents`
+  prints deny rules for the agents C48 links its skill for (`--for codex|pi|gemini`), with the
+  server on show's address: no calls to the torrent server's port, no `busctl`/`gdbus` on
+  omaseed's bus name, no edits to omaseed's files except `skins/` and `layouts/`; and says they
+  match command text, and that an agent's sandbox with a network allow list is the wall. omaseed
+  prints them, never writes them. Each agent's syntax is checked against its documentation at
+  build; a rule that can't be written well for an agent isn't printed for it.
+- **GT8 a.** A first line, Reads: on (default) · off. Off, `status`, `errors`, `log`, `moves`
+  and `do` answer `not-allowed`, exit 5, and the acting lines grey out; `check`, `skin`, `help`
+  stay. The line says it is a courtesy, not a wall.
+
+**What changes in C45.** V7: reads open by default, behind GT8's line. V13: `not-removable` and
+`not-found` join "not done" (exit 5); no number changes. V14: fixes gain `locate`; a third kind,
+`remove`, always asking; never still holds for deleting files, rename, categories, tags, adds,
+settings, servers and quit. V15: `do` gains `locate --to`, `remove`, `--plan`, `--dry-run`;
+torrents stay hashes or 8-character prefixes. V16: the three chips become GT3 and GT8's lines on
+C48's Agents row, with GT6's `add back…`. V17: one ask may hold a plan, a box per line that asks.
+V18 stands, a plan's outcome included. C48: `do` stays out of the skill's `allowed-tools`; its
+library page gains the missing-files path (errors, find, plan, dry run, one ask). V20's order
+holds: the gate and `do` as patch or minor releases after the reads, whatever is green (C33).
