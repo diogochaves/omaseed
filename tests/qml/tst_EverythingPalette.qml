@@ -731,17 +731,17 @@ TestCase {
         const table = testCase._ownTable();
         const palette = testCase._openWith(table, "");
         testCase._type("/");
-        compare(palette.items[1].detail, "28 on omaseed");
+        compare(palette.items[1].detail, "32 on omaseed");
         testCase._type("se ");
         compare(palette.filter, "settings");
         compare(palette.chip, "settings");
         compare(palette.query, "");
         compare(palette.title, "find a setting");
-        compare(palette.counter, "28 settings");
+        compare(palette.counter, "32 settings");
         const listed = table.rows().map(row => row.id).filter(id => ["backup.backUp", "backup.restore",
                                                                      "about.widgetLine"].indexOf(id) < 0);
-        // 32, less those three and Window transparency, which an opaque ground has no row for.
-        compare(listed.length, 28);
+        // 36, less those three and Window transparency, which an opaque ground has no row for.
+        compare(listed.length, 32);
         compare(palette.items.map(row => row.key), listed);
         compare(testCase._headings(palette), []);
         // The first is a switch (Z7): `enter` says which way it goes.
@@ -1131,15 +1131,15 @@ TestCase {
         const palette = testCase._openWith(qbt, "settings");
         const server = palette.items.filter(row => row.server);
         compare(server.length, qbt.serverRows().length);
-        compare(palette.items.length, 28 + server.length);
+        compare(palette.items.length, 32 + server.length);
         // After omaseed's own, section by section.
-        compare(palette.items.findIndex(row => row.server), 28);
+        compare(palette.items.findIndex(row => row.server), 32);
         const port = palette.items.find(row => row.key === "server.connection.listen_port");
         verify(port !== undefined);
         compare(port.detail, "Settings › qBittorrent › Connection");
         compare(port.toggle, undefined);
         testCase._type("/");
-        compare(palette.items[1].detail, (28 + server.length) + " on omaseed and public");
+        compare(palette.items[1].detail, (32 + server.length) + " on omaseed and public");
         palette.query = "";
         // A row the pane asks about first is no switch here: it says its value in words.
         const webui = palette.items.filter(row => row.key.startsWith("server.webui."));

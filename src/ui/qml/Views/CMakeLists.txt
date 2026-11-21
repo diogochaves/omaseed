@@ -26,6 +26,7 @@ qt_add_qml_module(omaseed-views
         AddMatchLine.qml
         AddMenu.qml
         AddSheet.qml
+        AgentGateLine.qml
         AppMenu.qml
         BanPeerConfirm.qml
         BrowsedPathLine.qml

@@ -291,4 +291,15 @@ TestCase {
         chip.selected = false;
         verify(!chip.Accessible.checked);
     }
+
+    // Board 67 §3 `.chip.no`: a level shown but never offered has its words struck.
+    function test_struck_strikes_the_words() {
+        const chip = createTemporaryObject(chipComponent, testCase, {
+                                               "text": "allow"
+                                           });
+        const label = findChild(chip, "chipLabel");
+        verify(!label.font.strikeout);
+        chip.struck = true;
+        verify(label.font.strikeout);
+    }
 }

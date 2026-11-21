@@ -132,11 +132,11 @@ TestCase {
     function test_the_own_rows_per_pane_and_control() {
         const table = createTemporaryObject(tableComponent, testCase);
         const count = (pane, control) => table.ownRows.filter(row => row.pane === pane && row.control === control).length;
-        compare(table.ownRows.length, 32);
+        compare(table.ownRows.length, 36);
         compare(table.panes.map(pane => pane.id), ["general", "servers", "notifications", "keybindings", "appearance",
                                                    "backup", "about"]);
         const expected = {
-            "general": [3, 1, 0, 2],
+            "general": [3, 5, 0, 2],
             "servers": [0, 0, 0, 0],
             "notifications": [6, 0, 1, 0],
             "keybindings": [0, 0, 0, 0],
@@ -149,7 +149,7 @@ TestCase {
                     expected[pane], pane);
         }
         const all = control => table.ownRows.filter(row => row.control === control).length;
-        compare([all("switch"), all("choice"), all("number"), all("action")], [12, 11, 3, 6]);
+        compare([all("switch"), all("choice"), all("number"), all("action")], [12, 15, 3, 6]);
         // Every row is in a pane there is, and titled.
         for (const row of table.ownRows) {
             verify(table.panes.some(pane => pane.id === row.pane), row.id);
@@ -175,7 +175,7 @@ TestCase {
     function test_the_cursor_counts_follow_what_a_pane_shows() {
         const table = createTemporaryObject(tableComponent, testCase);
         compare(["general", "servers", "notifications", "keybindings", "backup", "about"].map(pane => table.count(pane)),
-                [6, 0, 7, 0, 3, 1]);
+                [10, 0, 7, 0, 3, 1]);
         compare(table.count("appearance"), 14);
         compare(table.cursorOf("appearance.window"), 3);
         compare(table.cursorOf("appearance.windowAlpha"), -1);
@@ -184,7 +184,7 @@ TestCase {
         compare(table.cursorOf("appearance.speedsPlace"), 13);
         compare(table.rowAt("appearance", 5), "appearance.inTheBar");
         verify(table.row("appearance.windowAlpha") === null);
-        compare(table.rows().filter(row => !row.server).length, 31);
+        compare(table.rows().filter(row => !row.server).length, 35);
 
         App.windowGround = "translucent";
         compare(table.count("appearance"), 15);
@@ -194,7 +194,7 @@ TestCase {
         compare(table.cursorOf("appearance.speedsPlace"), 14);
         compare(table.rowAt("appearance", 4), "appearance.windowAlpha");
         compare(table.row("appearance.windowAlpha").kind, "go");
-        compare(table.rows().filter(row => !row.server).length, 32);
+        compare(table.rows().filter(row => !row.server).length, 36);
 
         // Each pane's places are 0…count-1, in the table's order.
         for (const pane of table.panes) {
@@ -246,6 +246,52 @@ TestCase {
         compare(App.windowGround, "translucent");
         table.activate("appearance.window");
         compare(App.windowGround, "opaque");
+    }
+
+    // DECISIONS C50 GT3, GT8 (board 67 §3): the gate's four lines are choices in the table,
+    // so the everything palette lists them; each writes App's level, moves and remove never
+    // offer allow, and with Reads off the acting lines keep their levels and take no enter.
+    function test_the_agents_gate_lines() {
+        const table = createTemporaryObject(tableComponent, testCase);
+        const ids = ["general.agents.reads", "general.agents.fixes", "general.agents.moves", "general.agents.remove"];
+        compare(ids.map(id => table.cursorOf(id)), [6, 7, 8, 9]);
+        const listed = table.rows().map(row => row.id);
+        for (const id of ids) {
+            verify(listed.indexOf(id) >= 0, id);
+            compare(table.row(id).kind, "choice", id);
+            compare(table.row(id).paneText, "Settings › General", id);
+        }
+        compare(table.row("general.agents.reads").options.map(option => option[0]), ["on", "off"]);
+        compare(table.row("general.agents.fixes").options.map(option => option[0]), ["off", "ask", "allow"]);
+        compare(table.row("general.agents.moves").options.map(option => option[0]), ["off", "ask"]);
+        compare(table.row("general.agents.remove").options.map(option => option[0]), ["off", "ask"]);
+        compare(table.allOptions("general.agents.moves").length, 3);
+        verify(!table.offers("general.agents.remove", "allow"));
+
+        compare([App.agentReads, App.agentFixes, App.agentMoves, App.agentRemove], ["on", "off", "off", "off"]);
+        table.row("general.agents.fixes").set("allow");
+        compare(App.agentFixes, "allow");
+        compare(table.row("general.agents.fixes").valueText, "allow");
+        table.activate("general.agents.moves");
+        compare(App.agentMoves, "ask");
+        table.activate("general.agents.moves"); // allow is skipped: back to off
+        compare(App.agentMoves, "off");
+        table.row("general.agents.remove").set("ask");
+        compare(App.agentRemove, "ask");
+
+        // Reads off: the acting lines are dimmed and keep what they hold.
+        table.activate("general.agents.reads");
+        compare(App.agentReads, "off");
+        verify(!table.row("general.agents.fixes").enabled);
+        table.activate("general.agents.fixes");
+        table.row("general.agents.remove").set("off");
+        compare([App.agentFixes, App.agentRemove], ["allow", "ask"]);
+        table.row("general.agents.reads").set("on");
+        verify(table.row("general.agents.fixes").enabled);
+
+        App.agentFixes = "off";
+        App.agentRemove = "off";
+        compare([App.agentReads, App.agentFixes, App.agentMoves, App.agentRemove], ["on", "off", "off", "off"]);
     }
 
     // DECISIONS C47 I14: Appearance › Add window, two columns or one, read from App and
@@ -377,7 +423,7 @@ TestCase {
                                                 "connected": false
                                             });
         compare(table.serverRows().length, 0);
-        compare(table.rows().length, 31);
+        compare(table.rows().length, 35);
         verify(table.row("server.speed.dl_limit") === null);
         table.connected = true;
         verify(table.serverRows().length > 0);

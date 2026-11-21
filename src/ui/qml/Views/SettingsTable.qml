@@ -35,6 +35,9 @@ QtObject {
     property string serverName: App.serverName
     property int serverCount: App.serverList.count
 
+    /// The acting lines' levels (C50 GT3), in the board's order; moves and remove strike allow.
+    readonly property var agentLevels: [["off", qsTr("off")], ["ask", qsTr("ask")], ["allow", qsTr("allow")]]
+
     /// The servers' settings as data, and what a row of them means.
     readonly property QbtSettingsSections schema: QbtSettingsSections {}
 
@@ -155,6 +158,50 @@ QtObject {
             "pane": "general",
             "title": qsTr("Agents"),
             "control": "action"
+        },
+        // DECISIONS C50 GT8, GT3 (board 67 §3): the gate's four lines under the Agents row,
+        // each a cursor stop of its own. With Reads off the acting lines grey out and keep
+        // their levels (enter does nothing on them); moves and remove are never allow (GT1).
+        {
+            "id": "general.agents.reads",
+            "pane": "general",
+            "title": qsTr("Agents · Reads"),
+            "control": "choice",
+            "options": [["on", qsTr("on")], ["off", qsTr("off")]],
+            "read": () => App.agentReads,
+            "write": value => App.agentReads = value
+        },
+        {
+            "id": "general.agents.fixes",
+            "pane": "general",
+            "title": qsTr("Agents · Fixes"),
+            "control": "choice",
+            "options": root.agentLevels,
+            "enabled": () => App.agentReads !== "off",
+            "read": () => App.agentFixes,
+            "write": value => App.agentFixes = value
+        },
+        {
+            "id": "general.agents.moves",
+            "pane": "general",
+            "title": qsTr("Agents · Moves"),
+            "control": "choice",
+            "options": root.agentLevels,
+            "offered": value => value !== "allow",
+            "enabled": () => App.agentReads !== "off",
+            "read": () => App.agentMoves,
+            "write": value => App.agentMoves = value
+        },
+        {
+            "id": "general.agents.remove",
+            "pane": "general",
+            "title": qsTr("Agents · Remove"),
+            "control": "choice",
+            "options": root.agentLevels,
+            "offered": value => value !== "allow",
+            "enabled": () => App.agentReads !== "off",
+            "read": () => App.agentRemove,
+            "write": value => App.agentRemove = value
         },
         root._notification("completed", qsTr("Torrent completed")),
         root._notification("added", qsTr("Torrent added")),
