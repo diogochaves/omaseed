@@ -59,8 +59,8 @@ QHash<QString, QString> frontmatter(const QString &skill)
         if (colon <= 0)
             continue;
         QString value = line.mid(colon + 1).trimmed();
-        if (value.size() >= 2 && value.startsWith(QLatin1Char('"'))
-            && value.endsWith(QLatin1Char('"'))) {
+        if (value.size() >= 2 && value.startsWith(QLatin1Char('"')) &&
+            value.endsWith(QLatin1Char('"'))) {
             value = value.mid(1, value.size() - 2);
             value.replace(QStringLiteral("\\\""), QStringLiteral("\""));
             value.replace(QStringLiteral("\\\\"), QStringLiteral("\\"));
@@ -231,8 +231,8 @@ void TestSkillPages::nothingSaidTwice()
         for (qsizetype j = i + 1; j < names.size(); ++j) {
             const QSet<QString> both = texts.value(names[i]) & texts.value(names[j]);
             QVERIFY2(both.isEmpty(),
-                     qPrintable(names[i] + u" and " + names[j] + u" both say: "
-                                + QStringList(both.values()).join(u" | ")));
+                     qPrintable(names[i] + u" and " + names[j] + u" both say: " +
+                                QStringList(both.values()).join(u" | ")));
         }
     }
 }
