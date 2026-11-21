@@ -41,6 +41,8 @@ public:
     void useSkin(const QString &options, Reply reply) override;
     /// C45 V15, C50 GT3, GT5: `do`.
     void doAction(const QString &options, uint callerPid, Reply reply) override;
+    /// `do`'s side, for the tests (its /proc root).
+    AgentDo *agentDo() const { return m_do; }
 
     /// How long errors waits for the log before it answers with what is held (design 12).
     static constexpr int kErrorsWaitMs = 5000;

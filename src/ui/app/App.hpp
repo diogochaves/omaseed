@@ -79,6 +79,7 @@
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
 #include "ui/app/AddRoute.hpp"
+#include "ui/app/AgentAsk.hpp"
 #include "ui/app/MoveController.hpp"
 
 #include <QDate>
@@ -1932,11 +1933,13 @@ public:
     void noteAgentAct(const AgentAct &act,
                       const QString &subject,
                       const omaseed::core::ActionOutcome &outcome);
-    /// An agent's `do` refused before anything ran by the gate (not-allowed, never): the
+    /// An agent's `do` refused before anything ran, by the gate (not-allowed, never) or in the
+    /// ask window (refused, no answer; `subject` then names what it asked about): the
     /// journal's line and the last line, so the person sees an agent tried.
     void noteAgentRefusal(const QString &word,
                           const QString &how,
-                          const omaseed::core::AgentOrigin &origin);
+                          const omaseed::core::AgentOrigin &origin,
+                          const QString &subject = QString());
     /// pauseTorrents/resumeTorrents' answer: `act.answered`, and for an agent the strip and
     /// the note first.
     std::function<void(const omaseed::core::ActionOutcome &)> holdAnswered(const AgentAct &act);
@@ -1954,6 +1957,11 @@ public:
     bool pauseTorrents(const AgentAct &act);
     bool resumeTorrents(const AgentAct &act);
 
+    // --- #293: the ask (C45 V17) ---------------------------------------------------------------
+    /// The one ask an agent's `do` may have open; the `omaseed · agent` window draws it.
+    Q_PROPERTY(omaseed::app::AgentAsk *agentAsk READ agentAsk CONSTANT)
+    AgentAsk *agentAsk() const { return m_agentAsk; }
+
 Q_SIGNALS:
     void agentsChanged();
 
@@ -1962,6 +1970,7 @@ private:
     void saveAgentGate();
     mutable omaseed::core::AgentGate m_agentGate;
     mutable bool m_agentGateLoaded = false;
+    AgentAsk *m_agentAsk = new AgentAsk(this);
     // --- end #291 -------------------------------------------------------------------------------
 
     // --- #24: the seed console (docs/22) -------------------------------------------------------

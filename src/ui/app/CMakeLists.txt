@@ -27,6 +27,8 @@ qt_add_library(omaseed-app STATIC
     MoveController.hpp
     StatusService.cpp
     StatusService.hpp
+    AgentAsk.cpp
+    AgentAsk.hpp
     AgentDo.cpp
     AgentDo.hpp
     AgentService.cpp

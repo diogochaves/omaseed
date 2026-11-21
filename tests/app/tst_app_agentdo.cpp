@@ -10,11 +10,14 @@
 #include "core/PauseHold.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
+#include "ui/app/AgentDo.hpp"
 #include "ui/app/AgentService.hpp"
 #include "ui/app/App.hpp"
 
 #include "FakeHttp.hpp"
 
+#include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -106,6 +109,31 @@ QJsonObject run(AgentService &service, const QString &options, QString *raw = nu
     return QJsonDocument::fromJson(json.toUtf8()).object();
 }
 
+/// A do whose answer waits (on the ask): the reply lands here.
+struct Pending
+{
+    QString json;
+    int replies = 0;
+};
+
+std::shared_ptr<Pending> begin(AgentService &service, const QString &options)
+{
+    auto pending = std::make_shared<Pending>();
+    service.doAction(options, 4242, [pending](const QString &reply) {
+        pending->json = reply;
+        ++pending->replies;
+    });
+    return pending;
+}
+
+QJsonObject finish(const std::shared_ptr<Pending> &pending)
+{
+    [&]() { QTRY_VERIFY_WITH_TIMEOUT(pending->replies > 0, 5000); }();
+    QTest::qWait(20);
+    [&]() { QCOMPARE(pending->replies, 1); }();
+    return QJsonDocument::fromJson(pending->json.toUtf8()).object();
+}
+
 QString codeOf(const QJsonObject &object)
 {
     return object.value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString();
@@ -137,7 +165,9 @@ private slots:
     void theServerRefusingIsFailed();
     void unknownAndAmbiguousRunNothing();
     void unknownServerAndFirstSync();
-    void askIsNoAnswerUntilTheWindow();
+    void askOpensTheWindow();
+    void askRefusedOrUnanswered();
+    void oneAskAtATimeAndCheckedAgain();
     void dryRunSendsNothing();
     void refusedBeforeAnythingRuns();
     void pauseAndResumeHoldTheServer();
@@ -148,8 +178,11 @@ private:
     /// An app on the fake server, synced with both torrents.
     void start();
     int sent(const QByteArray &path) const;
+    /// A /proc for pid 4242 (the bus's caller in these tests): omaseed, started by claude.
+    void writeProc();
 
     std::unique_ptr<QTemporaryDir> m_home;
+    std::unique_ptr<QTemporaryDir> m_proc;
     std::unique_ptr<FakeServer> m_server;
     Qbt m_qbt;
     std::unique_ptr<App> m_app;
@@ -180,6 +213,7 @@ void TestAppAgentDo::cleanup()
 {
     m_service.reset();
     m_app.reset();
+    m_proc.reset();
     m_server.reset();
     qunsetenv("OMASEED_SERVER_URL");
     m_home.reset();
@@ -191,10 +225,25 @@ void TestAppAgentDo::start()
     m_app = std::make_unique<App>();
     m_service = std::make_unique<AgentService>(m_app.get());
     m_app->engine()->setIntervals(100ms, 100ms, 100ms, 100ms);
+    // An empty /proc: the journal says the bus's pid alone, whatever runs as 4242 here.
+    m_proc = std::make_unique<QTemporaryDir>();
+    m_service->agentDo()->setProcRoot(m_proc->path());
     m_app->start();
     QTRY_VERIFY_WITH_TIMEOUT(m_app->engine()->globalState()->connected() &&
                                  m_app->engine()->torrents()->count() == 2,
                              5000);
+}
+
+void TestAppAgentDo::writeProc()
+{
+    const auto write = [this](uint pid, const QByteArray &line) {
+        QVERIFY(QDir(m_proc->path()).mkpath(QString::number(pid)));
+        QFile file(QStringLiteral("%1/%2/stat").arg(m_proc->path()).arg(pid));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(line);
+    };
+    write(4242, "4242 (omaseed) S 48213 4242 4100 0 -1");
+    write(48213, "48213 (claude) S 4100 48213 4100 0 -1");
 }
 
 int TestAppAgentDo::sent(const QByteArray &path) const
@@ -377,15 +426,138 @@ void TestAppAgentDo::unknownServerAndFirstSync()
 }
 
 // Until the ask window (S5): an action that would ask is no-answer, and nothing runs.
-void TestAppAgentDo::askIsNoAnswerUntilTheWindow()
+void TestAppAgentDo::askOpensTheWindow()
 {
     start();
+    writeProc();
     m_app->setAgentFixes(QStringLiteral("ask"));
-    const QJsonObject object =
-        run(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    const auto pending =
+        begin(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QTRY_VERIFY(ask->isOpen());
+    const QVariantMap request = ask->request();
+    QCOMPARE(request.value(QStringLiteral("head")).toString(),
+             QStringLiteral("An agent asks to recheck a torrent"));
+    const QVariantList torrents = request.value(QStringLiteral("torrents")).toList();
+    QCOMPARE(torrents.size(), 1);
+    QCOMPARE(torrents.first().toMap().value(QStringLiteral("name")).toString(),
+             QStringLiteral("Lantern Festival"));
+    QVERIFY(torrents.first()
+                .toMap()
+                .value(QStringLiteral("line"))
+                .toString()
+                .startsWith(QStringLiteral("in /data/incoming · ")));
+    QCOMPARE(request.value(QStringLiteral("word")).toString(), QStringLiteral("omaseed do"));
+    QCOMPARE(request.value(QStringLiteral("parent")).toString(), QStringLiteral("claude"));
+    QCOMPARE(request.value(QStringLiteral("parentPid")).toUInt(), 48213u);
+    QCOMPARE(pending->replies, 0); // nothing answered, nothing sent while it asks
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: recheck on Lantern Festival, allowed in the window (claude, pid "
+                         "48213)");
+    ask->allow();
+    QVERIFY(!ask->isOpen());
+    const QJsonObject object = finish(pending);
+    QCOMPARE(object.value(QLatin1String("asked")).toBool(), true);
+    QCOMPARE(object.value(QLatin1String("answer")).toString(), QStringLiteral("allowed"));
+    QCOMPARE(object.value(QLatin1String("done")).toArray().size(), 1);
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 1);
+    QCOMPARE(m_app->outcomes()->current().value(QStringLiteral("agent")).toString(),
+             QStringLiteral("by an agent"));
+
+    // Many torrents: the count in the head.
+    const auto two = begin(*m_service,
+                           QStringLiteral(R"({"action":"reannounce","torrents":["3f9a1c0ea",)"
+                                          R"("3f9a1c0eb"]})"));
+    QTRY_VERIFY(ask->isOpen());
+    QCOMPARE(ask->request().value(QStringLiteral("head")).toString(),
+             QStringLiteral("An agent asks to reannounce 2 torrents"));
+    QCOMPARE(ask->request().value(QStringLiteral("more")).toString(), QString());
+    QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^agent: reannounce")));
+    ask->refuse();
+    finish(two);
+}
+
+void TestAppAgentDo::askRefusedOrUnanswered()
+{
+    start();
+    writeProc();
+    m_app->setAgentFixes(QStringLiteral("ask"));
+    omaseed::app::AgentAsk *ask = m_app->agentAsk();
+
+    auto pending =
+        begin(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QTRY_VERIFY(ask->isOpen());
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: recheck on Lantern Festival, refused in the window (claude, pid "
+                         "48213)");
+    ask->refuse();
+    QJsonObject object = finish(pending);
+    QCOMPARE(codeOf(object), QStringLiteral("refused"));
+    QCOMPARE(messageOf(object), QStringLiteral("Refused in omaseed's window: not done."));
+    QCOMPARE(object.value(QLatin1String("asked")).toBool(), true);
+    QCOMPARE(object.value(QLatin1String("answer")).toString(), QStringLiteral("refused"));
+    QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 5);
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("recheck · Lantern Festival · refused in the window"));
+
+    // Two minutes, here a few ms: no answer.
+    ask->setTimeoutMs(50);
+    pending = begin(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: recheck on Lantern Festival, no answer in the window (claude, "
+                         "pid 48213)");
+    object = finish(pending);
+    QVERIFY(!ask->isOpen());
     QCOMPARE(codeOf(object), QStringLiteral("no-answer"));
+    QCOMPARE(messageOf(object),
+             QStringLiteral("Nobody answered in omaseed's window for 2 minutes: not done."));
     QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 5);
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+}
+
+// PLAN Q5: one ask at a time; a setting turned off while asking wins over the allow.
+void TestAppAgentDo::oneAskAtATimeAndCheckedAgain()
+{
+    start();
+    writeProc();
+    m_app->setAgentFixes(QStringLiteral("ask"));
+    omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    const auto first =
+        begin(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QTRY_VERIFY(ask->isOpen());
+
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: reannounce on Harbour Bells, not asked: another ask was open "
+                         "(claude, pid 48213)");
+    const QJsonObject second =
+        run(*m_service, QStringLiteral(R"({"action":"reannounce","torrents":["3f9a1c0eb"]})"));
+    QCOMPARE(codeOf(second), QStringLiteral("no-answer"));
+    QCOMPARE(second.value(QLatin1String("asked")).toBool(), false);
+    QVERIFY(ask->isOpen());
+    QCOMPARE(ask->request().value(QStringLiteral("action")).toString(), QStringLiteral("recheck"));
+
+    // The person turns Fixes off, then clicks allow on the ask still up.
+    m_app->setAgentFixes(QStringLiteral("off"));
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: recheck, not allowed: Fixes is off (claude, pid 48213)");
+    ask->allow();
+    const QJsonObject object = finish(first);
+    QCOMPARE(codeOf(object), QStringLiteral("not-allowed"));
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+
+    // Allowed while the line says allow now: still asked, said so.
+    m_app->setAgentFixes(QStringLiteral("ask"));
+    const auto third =
+        begin(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QTRY_VERIFY(ask->isOpen());
+    m_app->setAgentFixes(QStringLiteral("allow"));
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: recheck on Lantern Festival, allowed in the window (claude, pid "
+                         "48213)");
+    ask->allow();
+    QCOMPARE(finish(third).value(QLatin1String("answer")).toString(), QStringLiteral("allowed"));
 }
 
 // C50 GT5: every check, nothing asked, nothing done.

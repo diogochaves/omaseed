@@ -108,10 +108,13 @@ void App::noteAgentAct(const AgentAct &act,
     setAgentLast(AgentGate::lastLine(act.word, subject, result), QDateTime::currentDateTimeUtc());
 }
 
-void App::noteAgentRefusal(const QString &word, const QString &how, const core::AgentOrigin &origin)
+void App::noteAgentRefusal(const QString &word,
+                           const QString &how,
+                           const core::AgentOrigin &origin,
+                           const QString &subject)
 {
-    qInfo().noquote() << AgentGate::journalLine(word, QString(), how, origin);
-    setAgentLast(AgentGate::lastLine(word, QString(), how), QDateTime::currentDateTimeUtc());
+    qInfo().noquote() << AgentGate::journalLine(word, subject, how, origin);
+    setAgentLast(AgentGate::lastLine(word, subject, how), QDateTime::currentDateTimeUtc());
 }
 
 void App::saveAgentGate()
