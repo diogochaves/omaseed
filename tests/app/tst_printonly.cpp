@@ -147,17 +147,23 @@ void TestPrintOnly::version()
     QVERIFY2(m_out.startsWith(QLatin1String("omaseed ")), qPrintable(m_out + m_err));
 }
 
-// DECISIONS C45 V19: --skill prints the guide with no display and no bus, writing nothing.
+// DECISIONS C45 V19, C48: --skill prints the skill's map (each page as its command), then the
+// pages line, with no display and no bus, writing nothing.
 void TestPrintOnly::skillPrintsWithNoDisplay()
 {
     QVERIFY(run({QStringLiteral("--skill")}));
     QVERIFY2(m_exitStatus == QProcess::NormalExit, qPrintable(m_err));
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));
-    QVERIFY2(m_out.startsWith(QLatin1String("## Your library\n")), qPrintable(m_out + m_err));
+    QVERIFY2(m_out.startsWith(QLatin1String("# omaseed: ask the running app\n")),
+             qPrintable(m_out + m_err));
+    QVERIFY(!m_out.startsWith(QLatin1String("---")));
     QVERIFY(m_out.contains(QLatin1String("  omaseed errors --json ")));
-    QVERIFY(m_out.contains(QLatin1String("fields are only added within it.\n\n## Your skins\n")));
     QVERIFY(m_out.contains(QLatin1String("  omaseed skin list --json ")));
-    QVERIFY(m_out.endsWith(QLatin1String("never read that folder.\n")));
+    QVERIFY(m_out.contains(QLatin1String(": omaseed skill library\n")));
+    QVERIFY2(!m_out.contains(QLatin1String("ref:")), qPrintable(m_out));
+    QVERIFY(!m_out.contains(QLatin1String("beside this file")));
+    QVERIFY2(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")),
+             qPrintable(m_out));
     // Printing is not a start: no AGENTS.md or schema appears.
     QVERIFY(!QFile::exists(m_dir.filePath(QStringLiteral("XDG_CONFIG_HOME/omaseed/AGENTS.md"))));
     QVERIFY(

@@ -1,5 +1,6 @@
-// DECISIONS C45 V19 (#163), C37 U4 (#225): the guide's library and skins parts, and the
-// AGENTS.md, CLAUDE.md and skin.schema.json written into omaseed's config folder: each when
+// DECISIONS C45 V19 (#163), C37 U4 (#225), C48 (#286): the guide from the skill (its map and
+// pages), and the AGENTS.md, CLAUDE.md and skin.schema.json written into omaseed's config
+// folder: each when
 // missing, rewritten only when different, a file that isn't omaseed's left alone. The schema
 // is checked against the reader: every token, Omarchy's defaults, the built-ins inside it and
 // what the reader drops outside it. Every path is under a temporary directory.
@@ -59,7 +60,7 @@ void ageFile(const QString &path)
 
 QByteArray agentsBytes()
 {
-    return (Guide::header() + QStringLiteral("\n\n") + Guide::text()).toUtf8();
+    return (Guide::header() + QStringLiteral("\n\n") + Guide::printedMap()).toUtf8();
 }
 
 QJsonObject parsed(const QByteArray &json)
@@ -78,10 +79,13 @@ QJsonObject schemaOf(const QString &group, const QString &key = QString())
     return of.value(QLatin1String("properties")).toObject().value(key).toObject();
 }
 
-/// The line count of `text`.
-qsizetype linesOf(const QString &text)
+/// The map and every page, as one text.
+QString wholeGuide()
 {
-    return text.count(QLatin1Char('\n'));
+    QString text = Guide::map();
+    for (const QString &name : Guide::pages())
+        text += QLatin1Char('\n') + Guide::page(name);
+    return text;
 }
 
 } // namespace
@@ -106,10 +110,13 @@ private slots:
     void aDroppedTokenIsOutsideTheSchema_data();
     void aDroppedTokenIsOutsideTheSchema();
 
-    void guideHasBothParts();
+    void agentsMdIsTheMap();
+    void anOldWholeGuideIsRewritten();
+    void printedMapHasNoRef();
+    void everyPageReads();
+    void frontmatterIsParsed();
     void guideOpensReadOnlyFirst();
     void guideSaysCheckDrawsBothLightnesses();
-    void guideIsShort();
     void guideNamesEveryWordAndCode();
 
 private:
@@ -132,7 +139,8 @@ void TestAgentGuide::writesBothWhenMissing()
     QCOMPARE(result.claude, Guide::Wrote::Written);
     const QByteArray agents = readFile(QDir(m_config).filePath(QStringLiteral("AGENTS.md")));
     QVERIFY(agents.startsWith(
-        "Written by omaseed on every start. Edits here are overwritten.\n\n## Your library\n"));
+        "Written by omaseed on every start. Edits here are overwritten.\n\n# omaseed: ask the "
+        "running app\n"));
     QCOMPARE(agents, agentsBytes());
     QCOMPARE(readFile(QDir(m_config).filePath(QStringLiteral("CLAUDE.md"))),
              QByteArray("@AGENTS.md\n"));
@@ -454,39 +462,105 @@ void TestAgentGuide::aDroppedTokenIsOutsideTheSchema()
     QVERIFY2(!schemaProblems(parsed(json), SkinReader::schema()).isEmpty(), "the schema takes it");
 }
 
-void TestAgentGuide::guideHasBothParts()
+void TestAgentGuide::agentsMdIsTheMap()
 {
-    const QString library = Guide::libraryPart();
-    const QString skins = Guide::skinsPart();
-    QVERIFY(library.startsWith(QStringLiteral("## Your library\n")));
-    QVERIFY(skins.startsWith(QStringLiteral("## Your skins\n")));
-    QCOMPARE(Guide::text(), library + QLatin1Char('\n') + skins);
-    QVERIFY(library.endsWith(QStringLiteral(
-        "Every answer is one JSON object with \"v\": 1; fields are only added within it.\n")));
-
-    // The skins part names the schema beside it, and the folder no agent reads (#283: with no
-    // keyring, passwords are in secrets/).
-    QVERIFY(skins.contains(QStringLiteral("skin.schema.json beside this file")));
-    QVERIFY(skins.contains(QStringLiteral("in secrets/ on a machine without one")));
-    QVERIFY(skins.contains(QStringLiteral("never read that folder")));
-    QVERIFY(skins.contains(QStringLiteral("skin-check.sh")));
-
-    QVERIFY(QDir().mkpath(m_config));
+    // C48 (amending C37 U4): AGENTS.md is the header, a blank line, then the printed map; the
+    // pages stay behind `omaseed skill PAGE`, and the "not linked" line is never in it.
     Guide::writeInto(m_config);
     const QString agents =
         QString::fromUtf8(readFile(QDir(m_config).filePath(QStringLiteral("AGENTS.md"))));
-    QVERIFY(agents.contains(QStringLiteral("\n## Your library\n")));
-    QVERIFY(agents.contains(QStringLiteral("\n## Your skins\n")));
+    QCOMPARE(agents, Guide::header() + QStringLiteral("\n\n") + Guide::printedMap());
+    QVERIFY(Guide::printedMap().startsWith(QStringLiteral("# omaseed: ask the running app\n")));
+    QVERIFY(!agents.contains(QStringLiteral("\n---\n")));
+    QVERIFY(!agents.contains(QStringLiteral("allowed-tools")));
+    QVERIFY(!agents.contains(QStringLiteral("Pages: ")));
+    QVERIFY(!agents.contains(QStringLiteral("skill link")));
+    // The exit-code table is a page now, not the map.
+    QVERIFY(!agents.contains(QStringLiteral("\n  0  answered")));
+}
+
+void TestAgentGuide::anOldWholeGuideIsRewritten()
+{
+    // A v0.15.1 AGENTS.md (its header, then the whole guide's two parts) becomes the map on
+    // the first start of this omaseed, and stays put after it.
+    QVERIFY(QDir().mkpath(m_config));
+    const QString agents = QDir(m_config).filePath(QStringLiteral("AGENTS.md"));
+    writeFile(agents,
+              (Guide::header() +
+               QStringLiteral("\n\n## Your library\n\nAsk the running omaseed.\n\n## Your "
+                              "skins\n\nskin.schema.json beside this file holds every token.\n"))
+                  .toUtf8());
+    QCOMPARE(Guide::writeInto(m_config).agents, Guide::Wrote::Written);
+    QCOMPARE(readFile(agents), agentsBytes());
+    QCOMPARE(Guide::writeInto(m_config).agents, Guide::Wrote::Same);
+}
+
+void TestAgentGuide::printedMapHasNoRef()
+{
+    // docs/65 §4: printed, a page is a command; nothing points at a folder that isn't there.
+    const QString printed = Guide::printedMap();
+    QVERIFY2(!printed.contains(QStringLiteral("ref:")), qPrintable(printed));
+    QVERIFY(!printed.contains(QStringLiteral("beside this file")));
+    QVERIFY(printed.contains(QStringLiteral(
+        "A page named \"omaseed skill PAGE\" prints with that command: run it when the task "
+        "needs it.\n")));
+    // The schema by its own place, never "beside" anything.
+    QVERIFY(printed.contains(QStringLiteral("~/.config/omaseed/skin.schema.json")));
+    for (const QString &name : Guide::pages()) {
+        QVERIFY2(Guide::map().contains(QStringLiteral("ref: %1.md").arg(name)), qPrintable(name));
+        QVERIFY2(printed.contains(QStringLiteral("omaseed skill %1\n").arg(name)),
+                 qPrintable(name));
+    }
+    // Only the ref lines and the one sentence differ from the map.
+    QCOMPARE(printed.count(QLatin1Char('\n')), Guide::map().count(QLatin1Char('\n')));
+    QCOMPARE(Guide::pagesLine(), QStringLiteral("Pages: omaseed skill library, skins, files."));
+}
+
+void TestAgentGuide::everyPageReads()
+{
+    QCOMPARE(
+        Guide::pages(),
+        (QStringList{QStringLiteral("library"), QStringLiteral("skins"), QStringLiteral("files")}));
+    for (const QString &name : Guide::pages()) {
+        const QString text = Guide::page(name);
+        QVERIFY2(!text.isEmpty(), qPrintable(name));
+        QVERIFY2(text.startsWith(QStringLiteral("# omaseed: ")), qPrintable(name));
+    }
+    QVERIFY(Guide::page(QStringLiteral("SKILL")).isEmpty());
+    QVERIFY(Guide::page(QStringLiteral("../SKILL")).isEmpty());
+    QVERIFY(Guide::page(QString()).isEmpty());
+
+    // What the files page says (#283: with no keyring, passwords are in secrets/), and the
+    // skins page's omabox check.
+    const QString files = Guide::page(QStringLiteral("files"));
+    QVERIFY(files.contains(QStringLiteral("in secrets/ on a machine without one")));
+    QVERIFY(files.contains(QStringLiteral("never read that folder")));
+    QVERIFY(Guide::page(QStringLiteral("skins")).contains(QStringLiteral("skin-check.sh")));
+    QVERIFY(Guide::page(QStringLiteral("library"))
+                .contains(QStringLiteral(
+                    "Every answer is one JSON object with \"v\": 1; fields are only added "
+                    "within it.\n")));
+}
+
+void TestAgentGuide::frontmatterIsParsed()
+{
+    const QMap<QString, QString> fields = Guide::frontmatter();
+    QCOMPARE(fields.value(QStringLiteral("name")), QStringLiteral("omaseed"));
+    QVERIFY(fields.value(QStringLiteral("description")).startsWith(QStringLiteral("omaseed ")));
+    QVERIFY(!fields.value(QStringLiteral("description")).contains(QLatin1Char('"')));
+    QVERIFY(fields.value(QStringLiteral("allowed-tools"))
+                .contains(QStringLiteral("Bash(omaseed status *)")));
+    QCOMPARE(fields.size(), 3);
 }
 
 void TestAgentGuide::guideOpensReadOnlyFirst()
 {
-    // herdr's lesson: inspect before acting. The reads come before clone and use.
-    const QString skins = Guide::skinsPart();
-    const qsizetype list = skins.indexOf(QStringLiteral("omaseed skin list --json"));
-    const qsizetype check = skins.indexOf(QStringLiteral("omaseed check NAME --json"));
-    const qsizetype clone = skins.indexOf(QStringLiteral("omaseed skin clone "));
-    const qsizetype use = skins.indexOf(QStringLiteral("omaseed skin use "));
+    // herdr's lesson: inspect before acting. The map's reads come before clone and use.
+    const QString map = Guide::map();
+    const qsizetype list = map.indexOf(QStringLiteral("omaseed skin list --json"));
+    const qsizetype check = map.indexOf(QStringLiteral("omaseed check NAME --json"));
+    const qsizetype clone = map.indexOf(QStringLiteral("omaseed skin clone "));
+    const qsizetype use = map.indexOf(QStringLiteral("omaseed skin use "));
     QVERIFY(list > 0);
     QVERIFY(check > list);
     QVERIFY(clone > check);
@@ -498,24 +572,14 @@ void TestAgentGuide::guideSaysCheckDrawsBothLightnesses()
     // A skin takes its colours from the theme, and check draws a light and a dark picture
     // itself (C37 U5, amended 2026-11-20): the guide says so, and no longer asks for a second
     // check under a light theme by hand.
-    const QString skins = Guide::skinsPart();
-    QVERIFY(skins.contains(QStringLiteral("a light and a dark picture")));
+    QVERIFY(Guide::map().contains(QStringLiteral("a light and a dark picture")));
     static const QRegularExpression byHand(QStringLiteral("omaseed check \\S+ --theme \\S"));
-    QVERIFY(!byHand.match(skins).hasMatch());
-}
-
-void TestAgentGuide::guideIsShort()
-{
-    // The schema carries the reference, so the prose stays short (C37 U4). 100, not 90, since
-    // the trial (#227) added a map of where a wish lands, so agents grep the schema instead.
-    QVERIFY2(linesOf(Guide::skinsPart()) <= 100,
-             qPrintable(QString::number(linesOf(Guide::skinsPart()))));
-    QVERIFY2(linesOf(Guide::text()) <= 160, qPrintable(QString::number(linesOf(Guide::text()))));
+    QVERIFY(!byHand.match(wholeGuide()).hasMatch());
 }
 
 void TestAgentGuide::guideNamesEveryWordAndCode()
 {
-    const QString text = Guide::text();
+    const QString text = wholeGuide();
 
     // Every read of the table, as its command line (C45 V19), and every skin word (C37 U3).
     for (const QString &word : {QStringLiteral("status"),
@@ -541,7 +605,7 @@ void TestAgentGuide::guideNamesEveryWordAndCode()
     }
 
     // Every failure code, in the rows of the exit the CLI gives it.
-    const QString library = Guide::libraryPart();
+    const QString library = Guide::page(QStringLiteral("library"));
     for (const QString &code : {QStringLiteral("unreadable"),
                                 QStringLiteral("usage"),
                                 QStringLiteral("unknown-server"),
