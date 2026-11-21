@@ -18,6 +18,7 @@
 #include "integration/Notifier.hpp"
 #include "integration/QuitSignals.hpp"
 #include "integration/SingleInstance.hpp"
+#include "integration/SkillLinker.hpp"
 #include "integration/StatusBus.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/Theme.hpp"
@@ -550,12 +551,11 @@ int runPrintOnly(int argc, char *argv[])
             QTextStream(stdout) << omaseed::core::AgentWords::helpPage(parser.helpText());
             return 0;
         }
-        // DECISIONS C45 V19, C48: the skill's map as printed, then the pages line, with no
-        // display; --help and --version win over it.
+        // DECISIONS C45 V19, C48: the skill's map as printed, then the pages line (and the
+        // link line while nothing is linked), with no display; --help and --version win over it.
         if (parser.isSet(options.skill) && !parser.isSet(QStringLiteral("help")) &&
             !parser.isSet(QStringLiteral("help-all")) && !parser.isSet(QStringLiteral("version"))) {
-            QTextStream(stdout) << omaseed::integration::AgentGuide::printedMap() << '\n'
-                                << omaseed::integration::AgentGuide::pagesLine() << '\n';
+            QTextStream(stdout) << omaseed::integration::SkillLinker::printedGuide();
             return 0;
         }
         // --help-all and --version print and end the process here, as they always have.

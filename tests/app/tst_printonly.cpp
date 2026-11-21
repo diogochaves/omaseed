@@ -162,7 +162,10 @@ void TestPrintOnly::skillPrintsWithNoDisplay()
     QVERIFY(m_out.contains(QLatin1String(": omaseed skill library\n")));
     QVERIFY2(!m_out.contains(QLatin1String("ref:")), qPrintable(m_out));
     QVERIFY(!m_out.contains(QLatin1String("beside this file")));
-    QVERIFY2(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")),
+    // Nothing is linked in this run's HOME, so the last line says how (DECISIONS C48).
+    QVERIFY2(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n"
+                                          "Coding agents load this by themselves once it is "
+                                          "linked: omaseed skill link.\n")),
              qPrintable(m_out));
     // Printing is not a start: no AGENTS.md or schema appears.
     QVERIFY(!QFile::exists(m_dir.filePath(QStringLiteral("XDG_CONFIG_HOME/omaseed/AGENTS.md"))));

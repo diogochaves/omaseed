@@ -161,6 +161,12 @@ private slots:
     void skillJson();
     void aFileNamedSkillOpensAsDotSlash();
     void skillIsTheSameAsDashDashSkill();
+    void skillLinkThenStatus();
+    void skillLinkWritesTheGuideFiles();
+    void skillUnlink();
+    void skillLinkJson();
+    void skillLinkWithNowhereIs5();
+    void theMapSaysLinkOnlyWhenUnlinked();
 
 private:
     /// The environment of every run: its own homes and runtime directory, no display, and
@@ -222,6 +228,9 @@ QProcessEnvironment TestWords::environment(const QString &bus) const
     env.insert(QStringLiteral("XDG_STATE_HOME"), home + QStringLiteral("/state"));
     env.insert(QStringLiteral("XDG_CACHE_HOME"), home + QStringLiteral("/cache"));
     env.insert(QStringLiteral("XDG_RUNTIME_DIR"), home + QStringLiteral("/runtime"));
+    // skill link finds the source tree's skill, never an installed one (DECISIONS C48).
+    env.insert(QStringLiteral("XDG_DATA_DIRS"), home + QStringLiteral("/usr-share"));
+    env.insert(QStringLiteral("OMASEED_SKILL_DIR"), QStringLiteral(OMASEED_SOURCE_SKILL_DIR));
     env.remove(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"));
     if (!bus.isEmpty())
         env.insert(QStringLiteral("DBUS_SESSION_BUS_ADDRESS"), bus);
@@ -849,7 +858,10 @@ void TestWords::skillPrintsTheMap()
     QVERIFY(!m_out.startsWith(QLatin1String("---")));
     QVERIFY(m_out.contains(QLatin1String(": omaseed skill library\n")));
     QVERIFY(!m_out.contains(QLatin1String("ref: ")));
-    QVERIFY(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")));
+    // Nothing is linked in this home, so the last line says how.
+    QVERIFY(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n"
+                                         "Coding agents load this by themselves once it is "
+                                         "linked: omaseed skill link.\n")));
     QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral("config/omaseed"))));
 }
 
@@ -873,10 +885,7 @@ void TestWords::skillPagePrintsIt()
     QVERIFY2(m_err.contains(QLatin1String("skill takes a page (library, skins, files), link, "
                                           "unlink or status")),
              qPrintable(m_err));
-    // link, unlink and status are words, answered by a later step.
-    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
-    QCOMPARE(m_exitCode, 2);
-    QVERIFY(m_err.contains(QLatin1String("skill link isn't in this omaseed yet")));
+    // A page links nothing.
     QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral(".claude"))));
     QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral(".agents"))));
 }
@@ -896,7 +905,9 @@ void TestWords::skillJson()
     QVERIFY(m_out.startsWith(QLatin1String("{\"v\":1,\"command\":\"skill\",\"at\":\"")));
     QCOMPARE(map.value(QLatin1String("page")).toString(), QStringLiteral("map"));
     const QString text = map.value(QLatin1String("text")).toString();
-    QVERIFY(text.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")));
+    QVERIFY(text.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n"
+                                        "Coding agents load this by themselves once it is "
+                                        "linked: omaseed skill link.\n")));
     QVERIFY(run({QStringLiteral("skill")}, QString()));
     QCOMPARE(text, m_out);
 
@@ -940,6 +951,142 @@ void TestWords::skillIsTheSameAsDashDashSkill()
     QVERIFY(run({QStringLiteral("--skill")}, QString()));
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));
     QCOMPARE(m_out, word);
+}
+
+// DECISIONS C48 AS6–AS8 (docs/65 §5): skill link, unlink and status, the real binary in this
+// test's own HOME (environment(): HOME, XDG_* and OMASEED_SKILL_DIR all scratch), no display
+// or bus.
+void TestWords::skillLinkThenStatus()
+{
+    QVERIFY(m_home->path() != QDir::homePath());
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
+    QCOMPARE(m_exitStatus, QProcess::NormalExit);
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(
+                 QString::fromUtf8("linked   ~/.agents/skills/omaseed   → " OMASEED_SOURCE_SKILL_DIR
+                                   "\nlinked   ~/.claude/skills/omaseed\n")),
+             qPrintable(m_out));
+    QVERIFY(m_out.contains(QLatin1String("skipped  Codex, pi, Gemini, Hermes: not installed\n")));
+    QVERIFY(m_out.endsWith(QLatin1String("omaseed skill unlink takes it out.\n")));
+    for (const char *where : {".agents/skills/omaseed", ".claude/skills/omaseed"})
+        QCOMPARE(QFileInfo(m_home->filePath(QString::fromLatin1(where))).readSymLink(),
+                 QStringLiteral(OMASEED_SOURCE_SKILL_DIR));
+
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("status")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(QLatin1String("linked   Claude Code, the shared ~/.agents\n")),
+             qPrintable(m_out));
+    QVERIFY(m_out.contains(QLatin1String("skipped  Codex, pi, Gemini, Hermes: not installed\n")));
+}
+
+void TestWords::skillLinkWritesTheGuideFiles()
+{
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    // AS6: the schema the skill names is there before omaseed's first start.
+    const QDir config(m_home->filePath(QStringLiteral("config/omaseed")));
+    QVERIFY(QFileInfo::exists(config.filePath(QStringLiteral("AGENTS.md"))));
+    QVERIFY(QFileInfo::exists(config.filePath(QStringLiteral("skin.schema.json"))));
+    QFile claude(config.filePath(QStringLiteral("CLAUDE.md")));
+    QVERIFY(claude.open(QIODevice::ReadOnly));
+    QVERIFY(claude.readAll().startsWith("@AGENTS.md"));
+}
+
+void TestWords::skillUnlink()
+{
+    QVERIFY(QDir().mkpath(m_home->filePath(QStringLiteral(".codex/skills/omaseed"))));
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY(m_out.contains(
+        QLatin1String("left     ~/.codex/skills/omaseed: a folder of yours, not a link\n")));
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("unlink")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out,
+             QStringLiteral("removed  ~/.agents/skills/omaseed\n"
+                            "removed  ~/.claude/skills/omaseed\n"
+                            "left     ~/.codex/skills/omaseed: a folder of yours, not a link\n"
+                            "omaseed skill link puts it back.\n"));
+    QVERIFY(!QFileInfo(m_home->filePath(QStringLiteral(".claude/skills/omaseed"))).isSymLink());
+    QVERIFY(QFileInfo(m_home->filePath(QStringLiteral(".claude/skills"))).isDir());
+    QVERIFY(QFileInfo(m_home->filePath(QStringLiteral(".codex/skills/omaseed"))).isDir());
+    // Again: nothing to take out, still 0.
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("unlink")}, QString()));
+    QCOMPARE(m_exitCode, 0);
+    QVERIFY2(m_out.endsWith(
+                 QLatin1String("Nothing to take out: no agent's folder holds omaseed's link.\n")),
+             qPrintable(m_out));
+}
+
+void TestWords::skillLinkJson()
+{
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link"), QStringLiteral("--json")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out.count(QLatin1Char('\n')), 1);
+    QVERIFY(m_out.startsWith(QLatin1String("{\"v\":1,\"command\":\"skill link\",\"at\":\"")));
+    const QJsonObject link = json();
+    QVERIFY(!link.contains(QLatin1String("omaseed")));
+    QCOMPARE(link.value(QLatin1String("source")).toString(),
+             QStringLiteral(OMASEED_SOURCE_SKILL_DIR));
+    QCOMPARE(link.value(QLatin1String("changed")).toArray().size(), 2);
+    const QJsonArray folders = link.value(QLatin1String("folders")).toArray();
+    QCOMPARE(folders.size(), 6);
+    const QJsonObject claude = folders.at(1).toObject();
+    QCOMPARE(claude.value(QLatin1String("agent")).toString(), QStringLiteral("Claude Code"));
+    QCOMPARE(claude.value(QLatin1String("state")).toString(), QStringLiteral("linked"));
+    QCOMPARE(claude.value(QLatin1String("path")).toString(),
+             m_home->filePath(QStringLiteral(".claude/skills/omaseed")));
+    QCOMPARE(claude.value(QLatin1String("target")).toString(),
+             QStringLiteral(OMASEED_SOURCE_SKILL_DIR));
+    QCOMPARE(folders.at(2).toObject().value(QLatin1String("state")).toString(),
+             QStringLiteral("skipped"));
+    QVERIFY(folders.at(2).toObject().value(QLatin1String("target")).isNull());
+
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("status"), QStringLiteral("--json")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    const QJsonObject status = json();
+    QCOMPARE(status.value(QLatin1String("command")).toString(), QStringLiteral("skill status"));
+    QVERIFY(!status.contains(QLatin1String("changed")));
+    QCOMPARE(status.value(QLatin1String("folders")).toArray().size(), 6);
+}
+
+void TestWords::skillLinkWithNowhereIs5()
+{
+    // Both folders that are always linked hold a folder of the person's: nothing can take it.
+    QVERIFY(QDir().mkpath(m_home->filePath(QStringLiteral(".agents/skills/omaseed"))));
+    QVERIFY(QDir().mkpath(m_home->filePath(QStringLiteral(".claude/skills/omaseed"))));
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
+    QCOMPARE(m_exitCode, 5);
+    QVERIFY(m_out.isEmpty());
+    QVERIFY2(m_err.contains(QLatin1String("no folder could take the skill")), qPrintable(m_err));
+    QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral("config/omaseed"))));
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link"), QStringLiteral("--json")},
+                QString()));
+    QCOMPARE(m_exitCode, 5);
+    QCOMPARE(
+        json().value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
+        QStringLiteral("not-written"));
+}
+
+void TestWords::theMapSaysLinkOnlyWhenUnlinked()
+{
+    const QString line = QStringLiteral(
+        "Coding agents load this by themselves once it is linked: omaseed skill link.\n");
+    QVERIFY(run({QStringLiteral("skill")}, QString()));
+    QVERIFY(m_out.endsWith(line));
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    for (const char *spelling : {"skill", "--skill"}) {
+        QVERIFY(run({QString::fromLatin1(spelling)}, QString()));
+        QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+        QVERIFY(!m_out.contains(line));
+        QVERIFY(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")));
+    }
+    // AGENTS.md never carries it.
+    QFile agents(m_home->filePath(QStringLiteral("config/omaseed/AGENTS.md")));
+    QVERIFY(agents.open(QIODevice::ReadOnly));
+    QVERIFY(!agents.readAll().contains("omaseed skill link."));
 }
 
 QTEST_GUILESS_MAIN(TestWords)

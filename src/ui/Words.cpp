@@ -5,6 +5,8 @@
 #include "core/Version.hpp"
 #include "integration/AgentClient.hpp"
 #include "integration/AgentGuide.hpp"
+#include "integration/SkillLinker.hpp"
+#include "integration/SkillWords.hpp"
 #include "integration/SkinReader.hpp"
 #include "integration/SkinWords.hpp"
 #include "integration/ThemeReader.hpp"
@@ -164,17 +166,39 @@ int saved(const AgentWords::Request &request, const integration::Skin &skin)
         SkinWords::use(name, skin, false, QDateTime::currentDateTimeUtc(), core::version()));
 }
 
+/// `skill link | unlink | status` (DECISIONS C48 AS6–AS8, docs/65 §5): the links into each
+/// agent's skill folder, from the skill found now (the installed one, else a build's).
+int skillLinks(const AgentWords::Request &request)
+{
+    namespace SkillLinker = integration::SkillLinker;
+    const QString command = request.command();
+#ifdef OMASEED_SOURCE_SKILL_DIR
+    const QString source = SkillLinker::findSource(QStringLiteral(OMASEED_SOURCE_SKILL_DIR));
+#else
+    const QString source = SkillLinker::findSource();
+#endif
+    const SkillLinker::Report report =
+        request.subword == QLatin1String("link")     ? SkillLinker::link(source)
+        : request.subword == QLatin1String("unlink") ? SkillLinker::unlink(source)
+                                                     : SkillLinker::status(source);
+    if (!report.code.isEmpty())
+        return fail(command, request.json, report.code, report.message);
+    write(stdout,
+          request.json
+              ? integration::SkillWords::json(command, QDateTime::currentDateTimeUtc(), report)
+              : integration::SkillWords::lines(command, report, QDir::homePath()).toUtf8());
+    return 0;
+}
+
 /// `skill` and `skill PAGE` (DECISIONS C48, docs/65 §4): the map as --skill prints it, or a
-/// page; with --json, the envelope with page ("map" or its name) and text. link, unlink and
-/// status come with SkillLinker.
+/// page; with --json, the envelope with page ("map" or its name) and text.
 int skill(const AgentWords::Request &request)
 {
     namespace AgentGuide = integration::AgentGuide;
     const QString command = request.command();
     if (!AgentWords::isSkillPrint(request))
-        return fail(command, request.json, QStringLiteral("usage"), AgentWords::notYet(command));
-    const QString text = request.subword.isEmpty() ? AgentGuide::printedMap() + QLatin1Char('\n') +
-                                                         AgentGuide::pagesLine() + QLatin1Char('\n')
+        return skillLinks(request);
+    const QString text = request.subword.isEmpty() ? integration::SkillLinker::printedGuide()
                                                    : AgentGuide::page(request.subword);
     if (request.json) {
         write(stdout,
