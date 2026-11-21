@@ -33,6 +33,8 @@ optdepends=(
 )
 source=()
 # The working tree has no fixed checksum; nothing to verify.
+# See PKGBUILD: omaseed.install only speaks (the agent skill's messages, DECISIONS C48).
+install=omaseed.install
 
 _repo_root() {
     # packaging/arch -> repo root, resolved from this PKGBUILD file's own location

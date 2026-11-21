@@ -130,6 +130,7 @@ NOTES_PATH="$DIST_DIR/RELEASE_NOTES.md"
 ARCHIVE_PREFIX="omaseed-${VERSION}/"
 PKGBUILD_PATH="packaging/arch/PKGBUILD"
 PKGBUILD_LOCAL_PATH="packaging/arch/PKGBUILD.local"
+PKGBUILD_INSTALL_PATH="packaging/arch/omaseed.install"
 MANIFEST_PATH="plugin/manifest.json"
 MAKEPKG="${OMASEED_RELEASE_MAKEPKG:-makepkg}"
 PKG_BUILD_DIR="$DIST_DIR/pkgbuild"
@@ -148,7 +149,7 @@ maintainer labels "build-approved" -- opening the PR is necessary but not suffic
 2. git clone git@github.com:<you>/omarchy-pkgs.git /tmp/omarchy-pkgs-omaseed
 3. cd /tmp/omarchy-pkgs-omaseed && git checkout -b omaseed-${TAG}
 4. mkdir -p pkgbuilds/omaseed/.omarchy
-5. cp ${ROOT}/packaging/arch/PKGBUILD pkgbuilds/omaseed/PKGBUILD
+5. cp ${ROOT}/packaging/arch/{PKGBUILD,omaseed.install} pkgbuilds/omaseed/
 6. cp ${ROOT}/packaging/omarchy/package.json pkgbuilds/omaseed/.omarchy/package.json
 7. git add pkgbuilds/omaseed
 8. git commit -m "Add omaseed ${TAG}"
@@ -214,6 +215,9 @@ build_package() {
     rm -f "$DIST_DIR"/*.pkg.tar.zst
     mkdir -p "$PKG_BUILD_DIR"/{src,pkg,out,logs}
     git show "${rev}:${PKGBUILD_PATH}" >"$PKG_BUILD_DIR/PKGBUILD"
+    # The install= file beside it (only messages, DECISIONS C48), when REV has one.
+    git show "${rev}:${PKGBUILD_INSTALL_PATH}" >"$PKG_BUILD_DIR/omaseed.install" 2>/dev/null ||
+        rm -f "$PKG_BUILD_DIR/omaseed.install"
     [[ "$(pkgbuild_field "$PKG_BUILD_DIR/PKGBUILD" pkgver)" == "$VERSION" ]] ||
         fail "the PKGBUILD at ${rev} is not at pkgver=${VERSION}"
     pkgrel="$(pkgbuild_field "$PKG_BUILD_DIR/PKGBUILD" pkgrel)"
