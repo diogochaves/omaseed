@@ -45,6 +45,7 @@ Item {
     readonly property alias serverSheet: serverSheet
     readonly property alias confirm: confirm
     readonly property alias restoreSheet: restoreSheet
+    readonly property alias removedSheet: removedSheet
 
     /// Which pane is on show: 0–6 are omaseed's own (General, Servers, Notifications,
     /// Keybindings, Appearance, Backup, About, the order of `navRows`), 7 on the qBittorrent
@@ -2405,19 +2406,42 @@ Item {
                                     }
 
                                     // C45 V18: what the last act through `do` was; empty until one.
-                                    Label {
-                                        id: agentLastLine
-
-                                        Accessible.name: agentLastLine.text
-                                        Accessible.role: Accessible.StaticText
+                                    // C50 GT6: add back… while anything an agent removed is kept.
+                                    RowLayout {
                                         Layout.fillWidth: true
-                                        dim: true
-                                        ink: agentsRow.ink
-                                        objectName: "agentLastLine"
-                                        size: "caption"
-                                        text: App.agentLast.text ?? ""
-                                        visible: agentLastLine.text.length > 0
-                                        wrapMode: Text.Wrap
+                                        spacing: Theme.space(12)
+                                        visible: agentLastLine.visible || agentAddBack.visible
+
+                                        Label {
+                                            id: agentLastLine
+
+                                            Accessible.name: agentLastLine.text
+                                            Accessible.role: Accessible.StaticText
+                                            Layout.fillWidth: true
+                                            dim: true
+                                            ink: agentsRow.ink
+                                            objectName: "agentLastLine"
+                                            size: "caption"
+                                            text: App.agentLast.text ?? ""
+                                            visible: agentLastLine.text.length > 0
+                                            wrapMode: Text.Wrap
+                                        }
+
+                                        Item {
+                                            Layout.fillWidth: true
+                                            visible: !agentLastLine.visible
+                                        }
+
+                                        Chip {
+                                            id: agentAddBack
+
+                                            block: agentsRow.ground
+                                            objectName: "agentAddBack"
+                                            text: qsTr("add back… (%1 kept)").arg(App.removedKept.length)
+                                            visible: App.removedKept.length > 0
+
+                                            onClicked: removedSheet.open()
+                                        }
                                     }
 
                                     Hairline {
@@ -4226,6 +4250,19 @@ Item {
             bodyItem.forceActiveFocus();
         }
         onRejected: bodyItem.forceActiveFocus()
+    }
+
+    // C50 GT6 (#295): what an agent removed, to add back; over the modal like the restore sheet.
+    RemovedSheet {
+        id: removedSheet
+
+        anchors.fill: parent
+        busy: App.torrentsBackupRunning.length > 0
+        entries: App.removedKept
+        objectName: "removedSheet"
+        z: 1
+
+        onAddBackRequested: id => App.addBack([id])
     }
 
     // #32, docs/24 §5: the import sheet, over the modal like the restore sheet.

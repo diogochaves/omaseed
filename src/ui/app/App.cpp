@@ -239,6 +239,8 @@ App::App(QObject *parent)
         m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    // C50 GT6, Q12: a kept torrent comes back only to the server on show.
+    connect(this, &App::serverChanged, this, &App::removedKeptChanged);
     // C47 I10: the add's lines take what downloads in progress still promise from free.
     connect(m_engine->torrents(), &TorrentModel::updated, this, &App::followPromisedRoom);
     // C47 I12: a category's temp folder or save path moved while the sheet is open.
@@ -492,6 +494,7 @@ void App::start()
         qInfo().noquote() << QStringLiteral("removed: %1 kept for over %2 days deleted")
                                  .arg(pruned)
                                  .arg(RemovedKeep::kDays);
+    refreshRemovedKept();
 
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.
@@ -3856,6 +3859,8 @@ std::function<void(const Result<Done> &)> App::tableAnswer(const QString &action
                     else
                         outcome.keptIds << id;
                 }
+                if (!agent->kept.isEmpty())
+                    refreshRemovedKept();
             }
             m_outcomes->report(outcome);
             if (agent) {

@@ -1675,6 +1675,8 @@ void AgentDo::keepNext(const std::shared_ptr<KeepRun> &run)
                 // Q11: no way back, no remove; what was kept for it goes.
                 for (const QString &kept : std::as_const(run->kept))
                     core::RemovedKeep::forget(kept);
+                if (!self.isNull())
+                    self->m_app->refreshRemovedKept();
                 run->reply(AgentService::failure(
                     kCommand,
                     QStringLiteral("not-removable"),
@@ -1759,6 +1761,7 @@ void AgentDo::keepNext(const std::shared_ptr<KeepRun> &run)
     if (!m_app->removeForAgent(run->hashes, act)) {
         for (const QString &kept : std::as_const(run->kept))
             core::RemovedKeep::forget(kept);
+        m_app->refreshRemovedKept();
         run->reply(AgentService::failure(
             kCommand,
             QStringLiteral("failed"),

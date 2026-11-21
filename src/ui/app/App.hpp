@@ -44,6 +44,7 @@
 #include "core/OmaseedBackup.hpp"
 #include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/RenameDisk.hpp"
 #include "core/SearchModel.hpp"
 #include "core/SecretStore.hpp"
@@ -1904,11 +1905,18 @@ public:
     /// The row's last line (C45 V18): {text ("last: … · today 15:20"), what (as saved), at};
     /// empty until something was done through `do`.
     Q_PROPERTY(QVariantMap agentLast READ agentLast NOTIFY agentsChanged)
+    /// C50 GT6 (#295): what an agent removed and omaseed keeps to add back, newest first, for
+    /// the Agents row's add back… and its sheet: {id, hash, name, savePath, server, here (the
+    /// server on show: only there can it come back, Q12), removed ("today 15:20"), until}.
+    Q_PROPERTY(QVariantList removedKept READ removedKept NOTIFY removedKeptChanged)
     QString agentReads() const { return agentGate().readsLevel(); }
     QString agentFixes() const;
     QString agentMoves() const;
     QString agentRemove() const;
     QVariantMap agentLast() const;
+    QVariantList removedKept() const;
+    /// Reads the removed folder again (a keep, an add back, a prune, a remove refused).
+    void refreshRemovedKept();
     void setAgentReads(const QString &level);
     void setAgentFixes(const QString &level);
     void setAgentMoves(const QString &level);
@@ -1975,6 +1983,7 @@ public:
 
 Q_SIGNALS:
     void agentsChanged();
+    void removedKeptChanged();
 
 private:
     void setAgentLevel(omaseed::core::AgentGate::Kind kind, const QString &level);
@@ -2511,6 +2520,7 @@ private:
                 int calls = 1,
                 std::optional<AgentAct> agent = std::nullopt);
 
+    QList<omaseed::core::RemovedKeep::Entry> m_removedKept;
     /// addBack's run, one kept torrent after another.
     struct AddingBack;
     void addBackNext(const std::shared_ptr<AddingBack> &run);

@@ -1122,6 +1122,7 @@ void App::keepRemoved(const QString &hash,
                                  .arg(name)
                                  .arg(RemovedKeep::kDays)
                                  .arg(tilde(QFileInfo(outcome.path).path()));
+        refreshRemovedKept();
         done(id, {});
     };
     // The engine's own exporter, as Backup's (exportTorrents), for this one torrent alone.
@@ -1215,6 +1216,7 @@ void App::addBackRemoved(const QString &id, const std::function<void(const QStri
                 return;
             }
             RemovedKeep::forget(id);
+            refreshRemovedKept();
             qInfo().noquote()
                 << QStringLiteral("removed: %1 added back to %2, stopped").arg(name, m_server.name);
             done(QString());
@@ -1234,6 +1236,34 @@ void App::addBackRemoved(const QString &id, const std::function<void(const QStri
         else
             run(new TorrentsImport(qbtEngine(), this));
     });
+}
+
+void App::refreshRemovedKept()
+{
+    QList<RemovedKeep::Entry> entries = RemovedKeep::list();
+    if (entries == m_removedKept)
+        return;
+    m_removedKept = std::move(entries);
+    Q_EMIT removedKeptChanged();
+}
+
+QVariantList App::removedKept() const
+{
+    QVariantList out;
+    const QString here = m_server.url.toString();
+    for (const RemovedKeep::Entry &entry : m_removedKept)
+        out.append(QVariantMap{
+            {QStringLiteral("id"), entry.id},
+            {QStringLiteral("hash"), entry.hash},
+            {QStringLiteral("name"), entry.name},
+            {QStringLiteral("savePath"), entry.savePath},
+            {QStringLiteral("server"), entry.serverName},
+            {QStringLiteral("here"), m_hasServer && entry.serverUrl == here},
+            {QStringLiteral("removed"), Format::relativeTime(entry.removedAt.toLocalTime())},
+            {QStringLiteral("until"),
+             QLocale().toString(entry.keptUntil.toLocalTime().date(), QStringLiteral("d MMM"))},
+        });
+    return out;
 }
 
 /// One add back from the window on its way: what is left, and how it went (C50 GT6).

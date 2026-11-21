@@ -454,6 +454,11 @@ void TestAppAgentRemove::alwaysAsksThenKeepsAndRemoves()
              QStringLiteral("2 removed · kept 30 days"));
     QCOMPARE(strip.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
     QCOMPARE(strip.value(QStringLiteral("keptIds")).toStringList().size(), 2);
+    // The Agents row's add back… lists them, on the server on show.
+    const QVariantList listed = m_app->removedKept();
+    QCOMPARE(listed.size(), 2);
+    QVERIFY(listed.first().toMap().value(QStringLiteral("here")).toBool());
+    QCOMPARE(listed.first().toMap().value(QStringLiteral("savePath")).toString(), m_qbt.savePath);
 }
 
 // GT1: a server whose disks omaseed can't see: the server's word alone, and the ask says so.
@@ -550,6 +555,7 @@ void TestAppAgentRemove::addBackAddsItStoppedWhereItWas()
     QVERIFY(m_qbt.lastAdd.contains(m_qbt.savePath.toUtf8()));
     QVERIFY(m_qbt.lastAdd.contains("stopped"));
     QVERIFY(RemovedKeep::list().isEmpty());
+    QVERIFY(m_app->removedKept().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestAppAgentRemove)
