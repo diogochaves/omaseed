@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board 67 · What an agent may do</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/67: What an agent may do (2026-11-21, #163, the acting part).
+   A proposal amending board 62 / C45 V14 to V18. Board 62's page kit
+   and mock styles, every colour a Theme role. No box crops: the acting
+   part isn't built, so every pane and terminal here is a mock. Names
+   and folders are invented.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14; --bg-light:#1b1b2b;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c; --cyan:#7cd6e8;
+  --f4: color-mix(in srgb, var(--fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--fg) 18%, transparent);
+  --f22: color-mix(in srgb, var(--fg) 22%, transparent);
+  --b40: color-mix(in srgb, var(--fg) 40%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html { background:var(--bg-dark); }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:60; background:var(--bg-dark); }
+main { max-width:1180px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+main > * { min-width:0; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:88ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code, kbd { font:inherit; color:var(--fg-bright); background:var(--f4); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:90ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11.5px; color:var(--fg-dark); max-width:100ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.src { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid var(--hairline); color:var(--fg-dark); margin-right:6px; }
+.src.mock { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:22px; align-items:start; }
+.cols > * { min-width:0; }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--f4); font-size:12px; max-width:100ch; }
+.note.warn { border-color:var(--yellow); }
+.facts li::marker { color:var(--accent); }
+.flags { display:flex; flex-wrap:wrap; gap:8px; }
+.flag { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border:1px solid var(--hairline); padding:2px 9px; }
+.flag.hot { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.flag.ok { color:var(--green); border-color:color-mix(in srgb, var(--green) 45%, transparent); }
+.item { display:grid; gap:10px; min-width:0; }
+.item h3 .id { color:var(--accent); margin-right:6px; }
+.recl { font-size:12.4px; border-left:2px solid var(--green); padding:6px 12px; background:var(--f4); max-width:100ch; }
+.recl b { color:var(--green); }
+.rec-tag { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid color-mix(in srgb, var(--green) 40%, transparent); color:var(--green); margin-left:8px; vertical-align:2px; }
+.scroll { overflow-x:auto; max-width:100%; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; min-width:760px; color:var(--fg); }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; background:var(--bg-dark); }
+.t td:first-child { color:var(--fg-bright); }
+.t .y { color:var(--green); } .t .n { color:var(--fg-dark); } .t .m { color:var(--yellow); }
+.steps { counter-reset:s; list-style:none; padding:0; gap:10px; }
+.steps li { counter-increment:s; display:grid; grid-template-columns:28px 1fr; gap:8px; max-width:100ch; }
+.steps li::before { content:counter(s); color:var(--accent); font-weight:600; }
+.block { margin:0; padding:10px 12px; background:var(--bg); border:1px solid var(--hairline); font:inherit; font-size:11.5px; line-height:1.55; color:var(--fg); white-space:pre; }
+.opts { display:grid; gap:6px; padding-left:0; list-style:none; }
+.opts li { display:grid; grid-template-columns:22px 1fr; gap:6px; }
+.opts li > b:first-child { color:var(--accent); }
+.opts li.rec > b:first-child { color:var(--green); }
+
+/* ---------- terminals (mock) ---------- */
+.term { background:var(--bg); border:1px solid var(--hairline); min-width:0; }
+.term .tbar { display:flex; justify-content:space-between; gap:10px; padding:3px 12px; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border-bottom:1px solid var(--hairline); }
+.term pre { margin:0; padding:10px 12px; font:inherit; font-size:11.5px; line-height:1.55; white-space:pre; overflow-x:auto; color:var(--fg); }
+.term .p { color:var(--fg-dark); } .term .c { color:var(--fg-bright); }
+.term .r { color:var(--red); } .term .y { color:var(--yellow); } .term .g { color:var(--green); }
+.term .a { color:var(--accent); } .term .d { color:var(--fg-dark); } .term .b { color:var(--fg-bright); font-weight:600; }
+.term .k { color:var(--cyan); }
+
+/* ---------- the switches over the mocks ---------- */
+.ctl { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; font-size:12px; }
+.ctl .lab { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); margin-right:4px; }
+.ctl .grp { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.ctl button { font:inherit; font-size:12px; padding:1px 9px; border:1px solid var(--hairline); color:var(--fg); background:transparent; cursor:pointer; }
+.ctl button[aria-pressed="true"] { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+
+/* ---------- Settings › General, the Agents row (mock), as the baseline draws it ---------- */
+.pane2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap:22px; align-items:start; }
+.set { background:var(--bg); border:1px solid var(--hairline); padding:14px 16px 16px; display:grid; gap:8px; min-width:0; }
+.set .sh { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.set .sh b { font-size:13px; }
+.set .sh span { font-size:10px; color:var(--fg-dark); }
+.srow { border:1px solid var(--hairline); display:grid; grid-template-columns:22px minmax(0, 1fr); gap:6px 8px; padding:9px 12px; align-items:start; }
+.srow.ghost { opacity:.45; }
+.srow .ic { color:var(--fg-dark); font-size:11px; padding-top:3px; text-align:center; }
+.srow .tx { display:grid; gap:1px; min-width:0; }
+.srow .tx b { font-weight:500; font-size:12.4px; }
+.srow .tx span { font-size:11.4px; color:var(--fg-dark); }
+.srow .tx .last { color:var(--fg-dark); font-size:11px; margin-top:4px; }
+.srow .chips { grid-column:2; display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+.chip { font-size:11.5px; padding:1px 8px; border:1px solid var(--b40); color:var(--fg); }
+.chip.on { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+.set.con { --fl:"Chakra Petch", "Rajdhani", system-ui, sans-serif; --fv:"Share Tech Mono", "JetBrains Mono", ui-monospace, monospace; border-color:var(--accent); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+.set.con .sh b { font:700 13px var(--fl); letter-spacing:.22em; text-transform:uppercase; }
+.set.con .sh b em { font-style:normal; font-weight:500; letter-spacing:0; color:var(--cyan); font-size:11px; margin-left:8px; }
+.set.con .tx span, .set.con .tx .last { font-family:var(--fv); }
+.set.con .chip { font-family:var(--fv); }
+
+/* ---------- the ask window (mock), in the two skins ---------- */
+.ask { background:var(--bg); border:1px solid var(--accent); max-width:460px; min-width:0; display:grid; }
+.ask .ah { padding:12px 16px 10px; border-bottom:1px solid var(--hairline); display:grid; gap:2px; }
+.ask .ah .wt { font-size:10px; color:var(--fg-dark); letter-spacing:.08em; }
+.ask .ah b { font-size:14px; }
+.ask .ab { padding:12px 16px; display:grid; gap:10px; font-size:12px; }
+.ask .names { display:grid; gap:2px; padding:8px 10px; background:var(--f4); }
+.ask .names span { overflow-wrap:anywhere; color:var(--fg-bright); }
+.ask .names small { color:var(--fg-dark); font-size:11px; }
+.ask .who { color:var(--fg-dark); font-size:11.4px; }
+.ask .who code { background:transparent; padding:0; color:var(--fg); }
+.ask .warnl { padding:6px 10px; background:color-mix(in srgb, var(--yellow) 8%, transparent); color:var(--yellow); font-size:11.4px; }
+.ask .af { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 16px 12px; border-top:1px solid var(--hairline); }
+.ask .keys { font-size:10.5px; color:var(--fg-dark); }
+.ask .btns { display:flex; gap:8px; }
+.btn { font-size:12px; padding:2px 12px; border:1px solid var(--b40); color:var(--fg); }
+.btn.go { border-color:var(--accent); color:var(--accent); }
+.ask.con { --fl:"Chakra Petch", "Rajdhani", system-ui, sans-serif; --fv:"Share Tech Mono", "JetBrains Mono", ui-monospace, monospace; font-family:var(--fv); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+.ask.con .ah b { font:700 13px var(--fl); letter-spacing:.16em; text-transform:uppercase; }
+.ask.con .ah b em { font-style:normal; font-weight:500; letter-spacing:0; color:var(--cyan); font-size:11px; margin-left:8px; }
+.ask.con .names { clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); background:color-mix(in srgb, var(--bg-light) 70%, var(--bg)); }
+.ask.con .names span { font:600 12px var(--fl); letter-spacing:.04em; }
+.ask.con .btn { font:600 11px var(--fl); letter-spacing:.16em; text-transform:uppercase; }
+
+/* ---------- the decision sheet (board 52's) ---------- */
+.dec { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap:14px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; min-width:0; align-content:start; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:150px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+#free { width:100%; min-height:70px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:8px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ---------- board 67: the Agents row's lines (GT3, GT8) ---------- */
+.klines { grid-column:2; display:grid; gap:6px; margin-top:6px; padding-top:8px; border-top:1px solid var(--hairline); }
+.kl { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 12px; align-items:center; }
+.kl .kt { display:grid; gap:0; min-width:0; }
+.kl .kt b { font-weight:500; font-size:12px; }
+.kl .kt span { font-size:11px; color:var(--fg-dark); }
+.kl .chips { grid-column:auto; margin-top:0; justify-content:end; }
+.chip.no { opacity:.35; text-decoration:line-through; }
+.srow .skill { font-size:11px; color:var(--fg-dark); margin-top:4px; }
+.srow .skill b { color:var(--fg); font-weight:500; font-size:11px; }
+.set.con .kl .kt b { font:600 12px var(--fl); letter-spacing:.08em; text-transform:uppercase; }
+.set.con .kl .kt span, .set.con .srow .skill { font-family:var(--fv); }
+
+/* ---------- board 67: the ask for a plan (GT4) ---------- */
+.ask.wide { max-width:620px; }
+.pl { display:grid; gap:8px; }
+.pg { display:grid; gap:2px; padding:8px 10px; background:var(--f4); }
+.pg .ph { display:flex; justify-content:space-between; gap:10px; font-size:11.4px; }
+.pg .ph b { font-size:12px; }
+.pg .ph span { color:var(--fg-dark); }
+.pg .pr { display:grid; grid-template-columns:18px minmax(0, 1fr); gap:6px; font-size:11.6px; align-items:start; }
+.pg .pr .cb { width:12px; height:12px; border:1px solid var(--b40); margin-top:3px; display:inline-grid; place-items:center; font-size:9px; line-height:1; color:var(--bg); }
+.pg .pr .cb.on { background:var(--accent); border-color:var(--accent); }
+.pg .pr .nm { color:var(--fg-bright); overflow-wrap:anywhere; }
+.pg .pr .nm small { color:var(--fg-dark); font-size:10.8px; margin-left:6px; }
+.pg.allowed { opacity:.72; }
+.pg.allowed .pr { grid-template-columns:18px minmax(0, 1fr); }
+.pg .more { color:var(--fg-dark); font-size:11px; padding-left:24px; }
+.ask.con .pg { clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); background:color-mix(in srgb, var(--bg-light) 70%, var(--bg)); }
+.ask.con .pg .ph b { font:600 12px var(--fl); letter-spacing:.1em; text-transform:uppercase; }
+.flow { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap:8px; }
+.flow div { border:1px solid var(--hairline); padding:8px 10px; font-size:11.6px; }
+.flow div b { display:block; margin-bottom:2px; color:var(--accent); font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:12px">
+    <div class="eyebrow">omaseed · board 67 · 2026-11-21 · a proposal · #163, the acting part · builds on board 62 / C45</div>
+    <h1>What an agent may do</h1>
+    <p class="lead">Board 62 gave agents a way to read the library (built, v0.14) and ruled a way to act (V14 to V18, not built). Before building that second part, it was tried against a real afternoon: 35 torrents in <q>missing files</q>, their files moved or deleted outside omaseed. An agent with a shell can find where each one went. C45 as ruled can't let it finish: it may never remove a torrent, re-pointing one counts as a move that asks once per word, and the gate is one coarse row. This board amends only those gaps, as <b>GT1 to GT8</b>, and leaves the rest of C45 standing.</p>
+    <div class="flags"><span class="flag hot">a proposal · amends C45 V7, V13 to V17</span><span class="flag">remove · locate · --plan · --dry-run</span><span class="flag ok">nothing deletes a file</span><span class="flag ok">everything off until you say</span><span class="flag">one ask for a whole plan</span><span class="flag">a hard block is the agent's own setting</span></div>
+  </header>
+
+  <!-- 1 -->
+  <section id="case">
+    <div class="sec-head"><div class="eyebrow">1 · the case</div><h2>35 torrents whose files aren't where the server left them</h2></div>
+    <p><code>omaseed errors</code> lists them with kind <code>missing-files</code> and the fixes the window offers: <code>move --to</code> (set location) and <code>recheck</code>. For each, the way out is one of three:</p>
+    <ol class="steps">
+      <li><span><b>The disk wasn't mounted.</b> It is now, so the files are back where they were: <b>recheck</b>.</span></li>
+      <li><span><b>The files were moved.</b> They're whole in another folder: <b>point the torrent at that folder</b>, then recheck.</span></li>
+      <li><span><b>The files are gone.</b> Nothing on any disk: <b>remove the torrent</b> from the list.</span></li>
+    </ol>
+    <p>The finding is the agent's part, and it's good at it: search the disks for the names <code>errors</code> gave, compare sizes. What C45 lets it do with what it found:</p>
+    <div class="scroll"><table class="t">
+      <thead><tr><th>step</th><th>C45 as ruled</th><th>the gap</th></tr></thead>
+      <tbody>
+        <tr><td>recheck</td><td class="y">a fix: runs under <q>let them fix</q></td><td>none</td></tr>
+        <tr><td>point at the new folder</td><td class="m"><code>move --to</code>, a move: always asks, one window per <code>do</code></td><td>Nothing on disk moves, yet it asks like a 48 GB move would, nine times over. And a move's job expects files at the source.</td></tr>
+        <tr><td>remove</td><td class="n">never (V14)</td><td>The six dead torrents stay red for ever, or the person removes them by hand one by one.</td></tr>
+        <tr><td>the gate</td><td class="m">one row, three chips</td><td>Someone who wants rechecks but no moves, or no agent at all, can't say so.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note warn"><b>Is the gate a hard block?</b> No, and it never was. omaseed's gate binds only omaseed's own way in (<code>omaseed do</code> and its bus interface). Anything running as you can call the torrent server's API, the bar widget's D-Bus menu (pause, resume) or edit omaseed's files. A hard block is a rule in the agent's own permission settings, which only you can write. C45 says this in one line; GT7 says it where people will read it, with the rules ready to paste.</div>
+  </section>
+
+  <!-- 2 -->
+  <section id="acts">
+    <div class="sec-head"><div class="eyebrow">2 · GT1 and GT2 · two actions</div><h2>Remove what's gone, re-point what moved</h2></div>
+
+    <div class="item"><h3><span class="id">GT1</span>Remove<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b><code>omaseed do remove &lt;hash…&gt;</code>: the torrent only, never its files.</b> No flag deletes files; <code>--delete-files</code> is usage (exit 2), so no wording of a request turns it into a delete. It <b>always asks</b>, whatever the setting allows (GT3 has no <q>allow</q> for it). And omaseed <b>refuses unless that torrent's files are gone</b>: its problem is missing files (kind <code>missing-files</code>, or the engine's own missing state) and, where omaseed sees the disk (a local server or a path map, C14 E11), none of its files is at its save path at the moment of asking. On a server whose disks omaseed can't see, the engine's state alone, and the ask says so. Why: the case's six are already lost; removing them loses nothing, and the guard means an agent can't clear a healthy library through this word.</span></li>
+        <li><b>b</b><span>Remove any torrent, files kept, always asking. More useful (a finished torrent you no longer seed), and one <q>allow</q> clicked without reading takes a working torrent off the list.</span></li>
+        <li><b>c</b><span>Keep V14: never. The case can't finish; the person removes six torrents by hand after the agent has already found them.</span></li>
+      </ul>
+      <figure><div class="term"><div class="tbar"><span>omaseed do remove</span><span>mock</span></div><pre><span class="p">$</span> <span class="c">omaseed do remove 9c40e7a2</span>
+Asking in omaseed's window… removes always ask.
+<span class="g">Allowed.</span> Removed from attic · Night Market Field Recordings · its files were already gone
+
+<span class="p">$</span> <span class="c">omaseed do remove 5b17d3f0</span>
+<span class="r">Not removed: Harbour Bells at Dawn has its files (12 of 12 at /data/archive/field).</span>
+<span class="r">omaseed do removes only a torrent whose files are gone. Try recheck.</span>
+
+<span class="p">$</span> <span class="c">omaseed do remove 9c40e7a2 --delete-files</span>
+<span class="r">omaseed do never deletes files: remove takes the torrent off the list and</span>
+<span class="r">nothing else.</span></pre></div><figcaption><span class="src mock">mock</span><b>The guard.</b> The second is <code>not-removable</code>, exit 5, a new code in V13's <q>not done</q> row. The third is usage, exit 2.</figcaption></figure>
+    </div>
+
+    <div class="item"><h3><span class="id">GT2</span>Locate<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b><code>omaseed do locate &lt;hash…&gt; --to FOLDER</code></b>: re-point a torrent whose files are missing at a folder where they are. omaseed <b>first checks</b> that the files are there (each file's relative path and size, as the torrent lists them), then sets the torrent's location <b>without moving anything</b> (Transmission's set-location with <code>move: false</code>; on qBittorrent and Deluge their set-location, which leaves files already at the destination in place; the build proves each on its playground), then <b>rechecks</b>. It's in the <b>fixes</b> tier: nothing on disk changes, and the recheck says whether it was right. Refused when the files aren't all there: <q>locate found 0 of 12 files in /data/shelf-b</q>; also when omaseed can't see that disk, and for a torrent whose files aren't missing (that's a move).</span></li>
+        <li><b>b</b><span>Treat it as <code>move --to</code>: always asks, the move's job and checks (room, names there). The job's room check counts the whole size against a drive the files already sit on, and the person is asked nine times for something that moves nothing.</span></li>
+        <li><b>c</b><span>No locate. The agent tells the person nine folders and the person types them into nine set-location sheets.</span></li>
+      </ul>
+      <div class="cols">
+        <figure><div class="term"><div class="tbar"><span>omaseed do locate</span><span>mock</span></div><pre><span class="p">$</span> <span class="c">omaseed do locate 71ad02bc --to /data/shelf-b/recordings</span>
+Found 12 of 12 files in /data/shelf-b/recordings (3.4 GB).
+Located · Lantern Festival Field Recordings · rechecking
+
+<span class="p">$</span> <span class="c">omaseed do locate e50f9a13 --to /data/shelf-b</span>
+<span class="r">Not located: found 0 of 12 files in /data/shelf-b.</span>
+<span class="r">Point at the folder that holds "Rain on Tin Roofs/".</span>
+
+<span class="p">$</span> <span class="c">omaseed do locate 0d77c1e8 --to /data/new-drive/lectures</span>
+<span class="r">Not located: found 7 of 12 files; 5 missing, the first</span>
+<span class="r">"Lecture 08.mkv". A recheck there would download them again.</span></pre></div><figcaption><span class="src mock">mock</span><b>Without --json.</b> A partial find is refused, not run: re-pointing and downloading the rest is the person's call, from the window.</figcaption></figure>
+        <figure><div class="scroll"><pre class="block">$ omaseed do locate 71ad02bc --to /data/shelf-b/recordings --json
+{
+  "v": 1, "command": "do", "at": "2026-11-21T15:12:40Z", "omaseed": "0.17.0",
+  "action": "locate", "to": "/data/shelf-b/recordings",
+  "asked": false, "answer": "not-asked",
+  "done": [ { "hash": "71ad02bc…", "name": "Lantern Festival Field Recordings",
+              "found": 12, "files": 12, "rechecking": true } ],
+  "failed": [],
+  "outcome": "Located · Lantern Festival Field Recordings · rechecking"
+}
+
+$ omaseed do locate e50f9a13 --to /data/shelf-b --json
+{ …, "action": "locate", "done": [],
+  "failed": [ { "hash": "e50f9a13…", "name": "Rain on Tin Roofs",
+      "code": "not-found", "found": 0, "files": 12,
+      "message": "found 0 of 12 files in /data/shelf-b" } ] }</pre></div><figcaption><span class="src mock">mock</span><b>--json.</b> <code>found</code> and <code>files</code> on every line, so an agent can search again before it asks the person.</figcaption></figure>
+      </div>
+    </div>
+    <p class="recl"><b>Recommended: GT1 a, GT2 a.</b> Two words that change nothing on disk: one takes a dead torrent off the list and is refused on a live one; the other re-points a torrent only where its files are proved to be.</p>
+  </section>
+
+  <!-- 3 -->
+  <section id="allow">
+    <div class="sec-head"><div class="eyebrow">3 · GT3 and GT8 · what each person allows</div><h2>One line per kind of act, off until you say</h2></div>
+    <p>Some people want agents nowhere near their library; some want rechecks run while they're away and nothing else. V16's three chips can't say either. The Agents row already exists (C48: the board's sentence and <b>link the skill</b>); C48 left the gate to join it. This is how it joins.</p>
+
+    <div class="item"><h3><span class="id">GT3</span>The Agents row: a line per kind<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>Three lines under the row, one per kind of act.</b> <b>Fixes</b> (retry, start-here, recheck, reannounce, pause, resume, dismiss, locate): off · ask · allow. <b>Moves</b> (<code>move --to</code>, <code>move-back</code>): off · ask, never allow. <b>Remove</b> (GT1): off · ask, never allow. <b>Everything off is read only</b>, the default; the package and the first run never change it. The gate stays in the app (<code>Do</code> on the bus), and <code>do --list</code> prints the three lines as they stand. Three choices cover what people ask for (<q>nothing</q>, <q>rechecks but not moves</q>, <q>ask me for all of it</q>) and keep the dangerous kinds from ever running unasked.</span></li>
+        <li><b>b</b><span>V16 as ruled (read only · ask me · let them fix), with remove behind an ask under the last two. No way to allow fixes and refuse moves, which is the most common wish.</span></li>
+        <li><b>c</b><span>A switch per action (V16 c). Ten actions now, each with three states: thirty choices for a row most people set once. The kinds already sort them by what they can harm.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">GT8</span>Reads, for those who want none<span class="rec-tag">recommended a</span></h3>
+      <p class="dim">Added: the brief's three kinds gate acting only, and V7 keeps reads open with no setting. The maintainer's <q>some people won't want agents near their library at all</q> includes reading it.</p>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>A fourth line, first: Reads: on · off.</b> On is the default, so the built reads change nothing. Off, every word (<code>status</code>, <code>errors</code>, <code>log</code>, <code>moves</code>, <code>do</code>) answers <code>not-allowed</code>, exit 5, and the acting lines grey out. Local words (<code>check</code>, <code>skin</code>, <code>help</code>) stay, since they read no library. The line says plainly that this is a courtesy, not a wall (GT7).</span></li>
+        <li><b>b</b><span>Keep V7: reads always open. Simpler, and a person who wants none has only the agent's own settings.</span></li>
+      </ul>
+    </div>
+
+    <div class="ctl" role="group" aria-label="The Agents row's state">
+      <span class="grp"><span class="lab">set to</span><button type="button" data-preset="off" aria-pressed="true">the default</button><button type="button" data-preset="case" aria-pressed="false">the case's</button><button type="button" data-preset="none" aria-pressed="false">no agents at all</button></span>
+    </div>
+    <div class="pane2">
+      <figure><div class="set oma" id="gate-oma"></div><figcaption><span class="src mock">mock</span><b>Omarchy skin.</b> The row as v0.16 draws it (its sentence, the Skill line), and under it the four lines, chips as Start at login draws them. A struck chip is one the kind never offers. Faded: the row above, for place.</figcaption></figure>
+      <figure><div class="set con" id="gate-con"></div><figcaption><span class="src mock">mock</span><b>Console skin.</b> The same lines in the label and value voices (C31).</figcaption></figure>
+    </div>
+    <p class="recl"><b>Recommended: GT3 a, GT8 a.</b> Four short lines: reads on or off, then fixes, moves and remove, each as far as you want and no further. Nothing is on for acting until you turn it on, and two kinds can never run unasked.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="plan">
+    <div class="sec-head"><div class="eyebrow">4 · GT4 and GT5 · many at once</div><h2>Say the whole plan first, then one ask</h2></div>
+
+    <div class="item"><h3><span class="id">GT4</span>One ask for many<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b><code>omaseed do --plan FILE|-</code></b>: a JSON list of lines, each an action, its torrents and, for locate and move, a folder. omaseed checks every line first (the setting, GT1's guard, GT2's find); if any line is off or refused, nothing runs and the answer says which. Otherwise, if any line asks, <b>one window</b> lists the whole plan grouped by action and folder: the lines the setting already allows dim, marked <q>allowed in Settings</q>; the lines that ask with a checkbox each, ticked. <b>allow these</b> runs the plan with what's ticked; <b>refuse</b> (or esc, close, 2 minutes) runs none of it. The answer lists done and failed per line. Every line is checked again just before it runs, so a dry run's answer can't go stale into a wrong act.</span></li>
+        <li><b>b</b><span>One ask per word (V17 today). Fifteen windows for the case, the tenth one clicked without reading.</span></li>
+        <li><b>c</b><span><q>Allow everything for this session</q> in the first window. One click hands over the rest of the afternoon, moves and removes included.</span></li>
+      </ul>
+      <figure><div class="scroll"><pre class="block">$ cat plan.json
+{ "v": 1, "server": "attic", "lines": [
+  { "action": "recheck", "torrents": ["3f9a1c0e", "a20c55d1", … 20 in all] },
+  { "action": "locate",  "torrents": ["71ad02bc", "c3e81f40", "19be7a05", "f0d2a6e9"],
+    "to": "/data/shelf-b/recordings" },
+  { "action": "locate",  "torrents": ["e50f9a13", "4a9b0c27", "8d61e3f2"],
+    "to": "/data/shelf-b/films" },
+  { "action": "locate",  "torrents": ["2c7f4e90", "b8a31d66"],
+    "to": "/data/new-drive/lectures" },
+  { "action": "remove",  "torrents": ["9c40e7a2", "61f0b3c8", … 6 in all] } ] }</pre></div><figcaption><span class="src mock">mock</span><b>A plan.</b> The same hashes or 8-character prefixes as <code>do</code> (V15), never names. <code>server</code> is optional and must be the one on show (V6), as for every word.</figcaption></figure>
+    </div>
+
+    <div class="item"><h3><span class="id">GT5</span>Say first, then do<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b><code>--dry-run</code> on every <code>do</code> and <code>--plan</code></b>: every check runs (the setting, the guard, locate's find), nothing asks and nothing acts. It says what would happen line by line (<q>locate found 12 of 12</q>, <q>remove: its files are gone; the list loses it</q>, <q>would ask</q>) and exits as the real run would, minus the ask: 0 when every line would run or ask, 5 when one is off or refused. An agent can show the person the plan in the terminal before a window ever opens.</span></li>
+        <li><b>b</b><span>None. The agent learns a line was refused only by trying it, and the person meets the plan first in the window.</span></li>
+      </ul>
+    </div>
+    <p class="recl"><b>Recommended: GT4 a, GT5 a.</b> The agent writes what it found as one plan, checks it dry, and asks once. You see the whole of it in one window, and untick what you'd rather keep.</p>
+  </section>
+
+  <!-- 5 -->
+  <section id="back">
+    <div class="sec-head"><div class="eyebrow">5 · GT6 and GT7 · after, and around</div><h2>A way back, and the wall that isn't omaseed's</h2></div>
+
+    <div class="item"><h3><span class="id">GT6</span>A way back after a remove<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>Kept 30 days.</b> Before a remove, omaseed saves the torrent's <code>.torrent</code> (the same export Backup uses) and its record (name, save path, category or labels, tags, the server) under <code>~/.local/share/omaseed/removed/</code>; a start prunes what's older than 30 days. The outcome strip says <q>Removed 5 · by an agent · add back</q>, and the Agents row's last line keeps <b>add back…</b> while any are kept: a sheet listing them, each added back paused at its old place (you might have found the files). Adding back is the person's, in the window; <code>do</code> never adds (V14).</span></li>
+        <li><b>b</b><span>Nothing. The files are gone anyway; but the torrent was the way to fetch them again, and a magnet or the file may be hard to find later.</span></li>
+        <li><b>c</b><span>Keep them for ever. A folder that grows unseen, for torrents removed because they were dead.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">GT7</span>The hard block, said plainly<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>Say it where it's read, and hand over the rules.</b> The Agents row's reads line and the guide say that the gate binds only omaseed. <code>omaseed help agents</code> prints ready-made deny rules for the agents omaseed links its skill for (C48), filled in with the server on show's address: no calls to the torrent server's port; no <code>busctl</code>/<code>gdbus</code> on omaseed's bus name (omaseed's own words reach it without either); no edits to omaseed's files except <code>skins/</code> and <code>layouts/</code>. People paste them; omaseed prints and never writes them. It also says what such rules are: pattern matches on commands, which a determined script can step around; an agent's sandbox with a network allow list is the wall.</span></li>
+        <li><b>b</b><span>Nothing more than C45's one line. True, and nobody reads it where they set the gate.</span></li>
+        <li><b>c</b><span>omaseed writes those rules into each agent's settings itself. Rejected: writing another app's settings (C48 links a skill folder and stops there).</span></li>
+      </ul>
+      <figure><div class="term"><div class="tbar"><span>omaseed help agents · its last part</span><span>mock</span></div><pre><span class="b">A wall, not a gate</span>
+omaseed's Agents settings bind only omaseed's own way in. Anything running as
+you can call attic's API, omaseed's bar widget on D-Bus, or edit omaseed's
+files. To block that, tell your agent. For Claude Code, in its settings.json:
+
+  "permissions": { "deny": [
+    "Bash(*127.0.0.1:8080*)",  "Bash(*localhost:8080*)",
+    "WebFetch(domain:127.0.0.1)",
+    "Bash(*busctl*io.github.diogochaves.omaseed*)",
+    "Bash(*gdbus*io.github.diogochaves.omaseed*)",
+    "Edit(~/.config/omaseed/*.json)", "Edit(~/.config/omaseed/moves/**)",
+    "Write(~/.config/omaseed/*.json)"
+  ] }
+
+<span class="d">Codex · pi · Gemini: omaseed help agents --for codex|pi|gemini</span>
+<span class="d">These match command text. A sandbox with a network allow list is the wall.</span></pre></div><figcaption><span class="src mock">mock</span><b>The rules as printed.</b> The address is the server on show; the exact syntax per agent is checked against each agent's own documentation when this is built, and a rule omaseed can't write well for an agent isn't printed for it.</figcaption></figure>
+    </div>
+    <p class="recl"><b>Recommended: GT6 a, GT7 a.</b> A removed torrent can come back for a month. And omaseed tells you, where you set the gate, that the real wall is your agent's, with the rules to build it.</p>
+  </section>
+
+  <!-- 6 -->
+  <section id="worked">
+    <div class="sec-head"><div class="eyebrow">6 · worked through</div><h2>35 torrents in missing files</h2></div>
+    <p>The Agents row set as the case's preset above: reads on, fixes allow, moves ask, remove ask. The person says <q>sort out the red ones</q> and goes to make tea.</p>
+    <div class="flow">
+      <div><b>1 · read</b><code>omaseed errors --json</code>: 35, kind <code>missing-files</code>, each with its save path and size.</div>
+      <div><b>2 · find</b>The agent's own shell: <code>/data/archive</code> is mounted again (20 are back); <code>find</code> by name and size finds 9 elsewhere; 6 nowhere.</div>
+      <div><b>3 · plan</b>plan.json, then <code>--dry-run</code>: one remove is refused (its files are there after all); it moves to recheck.</div>
+      <div><b>4 · ask</b>One window: the 29 fixes dim, 6 removes ticked. The person unticks one, allows.</div>
+      <div><b>5 · outcome</b>20 rechecked, 9 located and rechecking, 5 removed and kept 30 days, 1 left red.</div>
+    </div>
+    <div class="cols">
+      <figure><div class="term"><div class="tbar"><span>the dry run</span><span>mock</span></div><pre><span class="p">$</span> <span class="c">omaseed do --plan plan.json --dry-run</span>
+Plan for attic · 35 torrents · dry run, nothing done
+  recheck  19                                      <span class="g">would run</span>  <span class="d">allowed</span>
+  locate    4 → /data/shelf-b/recordings  found 4 of 4   <span class="g">would run</span>
+  locate    3 → /data/shelf-b/films       found 3 of 3   <span class="g">would run</span>
+  locate    2 → /data/new-drive/lectures  found 2 of 2   <span class="g">would run</span>
+  remove    7   files gone: 6 of 7                  <span class="y">would ask</span>
+    <span class="r">refused: Harbour Bells at Dawn has its files (12 of 12</span>
+    <span class="r">at /data/archive/field). Try recheck.</span>
+<span class="r">1 line refused: nothing would run. Fix the plan and try again.</span>
+
+<span class="p">$</span> <span class="c">omaseed do --plan plan.json --dry-run</span>  <span class="d"># 5b17d3f0 moved to recheck</span>
+Plan for attic · 35 torrents · dry run, nothing done
+  recheck  20                                      <span class="g">would run</span>  <span class="d">allowed</span>
+  locate    9 → 3 folders                found 9 of 9   <span class="g">would run</span>
+  remove    6   files gone: 6 of 6 · each kept 30 days to add back
+                                                   <span class="y">would ask</span>
+Would ask once, for 6 removes.</pre></div><figcaption><span class="src mock">mock</span><b>Dry runs.</b> The first exits 5 and acts on nothing; the second exits 0. An agent shows the second to the person, or just runs it.</figcaption></figure>
+      <figure><div class="term"><div class="tbar"><span>for real</span><span>mock</span></div><pre><span class="p">$</span> <span class="c">omaseed do --plan plan.json</span>
+Asking in omaseed's window… 6 removes ask.
+<span class="g">Allowed</span>, 5 of 6 removes ticked.
+  recheck  20   <span class="g">20 rechecking</span>
+  locate    9   <span class="g">9 located, rechecking</span>
+  remove    5   <span class="g">5 removed</span> · kept 30 days (add back…)
+            1   <span class="d">left: unticked in the window</span> · Public Domain Reel 03
+Done: 34 of 35 · by an agent</pre></div><figcaption><span class="src mock">mock</span><b>The answer.</b> Exit 0: every ticked line ran. An unticked line is the person's choice, not a failure; a line the server refused would make it exit 6.</figcaption></figure>
+    </div>
+    <figure><div class="scroll"><pre class="block">$ omaseed do --plan plan.json --json
+{
+  "v": 1, "command": "do", "at": "2026-11-21T15:20:04Z", "omaseed": "0.17.0",
+  "plan": true, "asked": true, "answer": "allowed",
+  "lines": [
+    { "action": "recheck", "done": [ { "hash": "3f9a1c0e…", "name": "…" }, … 20 ], "failed": [] },
+    { "action": "locate", "to": "/data/shelf-b/recordings",
+      "done": [ { "hash": "71ad02bc…", "name": "Lantern Festival Field Recordings",
+                  "found": 12, "files": 12, "rechecking": true }, … 4 ], "failed": [] },
+    { "action": "locate", "to": "/data/shelf-b/films", "done": [ … 3 ], "failed": [] },
+    { "action": "locate", "to": "/data/new-drive/lectures", "done": [ … 2 ], "failed": [] },
+    { "action": "remove", "done": [ { "hash": "9c40e7a2…", "name": "Night Market Field Recordings",
+                                      "kept": "2026-12-21" }, … 5 ],
+      "unticked": [ { "hash": "61f0b3c8…", "name": "Public Domain Reel 03" } ], "failed": [] }
+  ],
+  "outcome": "Done: 34 of 35 · by an agent"
+}</pre></div><figcaption><span class="src mock">mock</span><b>--json.</b> Per line: <code>done</code>, <code>failed</code> (each with its code and message, as V4's failure object), and for an ask <code>unticked</code>. A remove's <code>kept</code> is the day GT6 lets it go.</figcaption></figure>
+
+    <div class="ctl" role="group" aria-label="What is ticked in the ask">
+      <span class="grp"><span class="lab">ask</span><button type="button" data-tick="all" aria-pressed="false">as it opens</button><button type="button" data-tick="one" aria-pressed="true">one unticked</button></span>
+    </div>
+    <div class="pane2">
+      <figure><div class="ask oma wide" id="plan-oma"></div><figcaption><span class="src mock">mock</span><b>Omarchy skin.</b> V17's window, wider for a list. The dim groups run with the plan because Settings allows them; only the removes have boxes. No key allows (V17): <kbd>space</kbd> ticks, <kbd>tab</kbd> walks, <kbd>↵</kbd> only on a button.</figcaption></figure>
+      <figure><div class="ask con wide" id="plan-con"></div><figcaption><span class="src mock">mock</span><b>Console skin.</b> Each group a small cut plate, its head in the label voice.</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="amends">
+    <div class="sec-head"><div class="eyebrow">7 · what it changes in C45</div><h2>Six rulings amended, the rest standing</h2></div>
+    <ul class="facts">
+      <li><b>V7</b> (GT8): reads stay open by default, behind a line that can turn them off.</li>
+      <li><b>V14</b> (GT1, GT2): the fixes gain <code>locate</code>; a third kind, <b>remove</b>, the torrent only and only when its files are gone, always asking. Never still holds for deleting files, rename, categories, tags, adds, settings, servers and quit.</li>
+      <li><b>V15</b> (GT2, GT4, GT5): <code>do</code> gains <code>locate --to</code>, <code>remove</code>, <code>--plan FILE|-</code> and <code>--dry-run</code>. Torrents stay hashes or 8-character prefixes. <b>V13</b> gains the failure code <code>not-removable</code> (exit 5) and locate's <code>not-found</code> (exit 5); its numbers don't change.</li>
+      <li><b>V16</b> (GT3, GT6): the three chips become four lines on C48's Agents row (reads; fixes off · ask · allow; moves off · ask; remove off · ask), all acting off by default; the last line keeps <b>add back…</b> while removed torrents are kept.</li>
+      <li><b>V17</b> (GT4): one ask may hold a whole plan, with a box per line that asks; refusing refuses all of it.</li>
+      <li><b>V18</b> stands: <q>· by an agent</q> on every act, a plan's outcome too. <b>C45's preamble</b> on the gate gets GT7's words and <code>omaseed help agents</code>.</li>
+      <li><b>C48</b>: the skill's never list keeps <code>do</code> out of <code>allowed-tools</code>; its library page gains <q>missing files: errors, find, plan, dry run, one ask</q>.</li>
+    </ul>
+  </section>
+
+  <!-- 8 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">8 · your calls</div><h2>GT1 to GT8</h2></div>
+    <p class="recl"><b>Recommended: GT1 a to GT8 a.</b> Remove for dead torrents only, locate as a fix, a line per kind with everything off, one ask per plan after a dry run, a month to add back, the wall said plainly, and reads that can be turned off.</p>
+    <p>Recommended options are preselected. Change what you disagree with and paste the block back into a session, or answer "all as recommended".</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- the Agents row (GT3, GT8) ---------- */
+const PRESETS = {
+  off:  { reads: "on",  fixes: "off",   moves: "off", remove: "off", last: "" },
+  case: { reads: "on",  fixes: "allow", moves: "ask", remove: "ask", last: "last: plan · 34 of 35 done · today 15:20 · add back… (5 kept)" },
+  none: { reads: "off", fixes: "off",   moves: "off", remove: "off", last: "" },
+};
+const KINDS = [
+  ["reads",  "Reads",  "status, errors, log, moves. Off: every word says no.", ["on", "off"], []],
+  ["fixes",  "Fixes",  "retry, start-here, recheck, reannounce, pause, resume, dismiss, locate", ["off", "ask", "allow"], []],
+  ["moves",  "Moves",  "move to a folder, move back. Never without asking.", ["off", "ask", "allow"], ["allow"]],
+  ["remove", "Remove", "a torrent whose files are gone; never its files. Never without asking.", ["off", "ask", "allow"], ["allow"]],
+];
+const P = { preset: "off" };
+function gatePane(con) {
+  const s = PRESETS[P.preset];
+  const head = con ? `<b>General<em>設定</em></b>` : `<b>General</b>`;
+  const line = s.reads === "off"
+    ? "Agents get nothing from omaseed's commands. That's omaseed's side only: your agent's own settings are the wall (omaseed help agents)."
+    : (s.fixes === "off" && s.moves === "off" && s.remove === "off"
+      ? "Agents can read your library through omaseed's commands. They can't change anything."
+      : "Agents can read your library and do what the lines below allow. Deleting files, renaming and settings stay yours.");
+  const lines = KINDS.map(([k, name, sub, opts, never]) => {
+    const greyed = k !== "reads" && s.reads === "off";
+    const chips = opts.map(o => {
+      const no = never.includes(o);
+      return `<span class="chip${!no && s[k] === o ? " on" : ""}${no ? " no" : ""}">${esc(o)}</span>`;
+    }).join("");
+    return `<div class="kl"${greyed ? ' style="opacity:.4"' : ""}><span class="kt"><b>${esc(name)}</b><span>${esc(sub)}</span></span><span class="chips">${chips}</span></div>`;
+  }).join("");
+  return `<div class="sh">${head}<span>esc</span></div>
+    <div class="srow ghost"><span class="ic">▹</span><span class="tx"><b>Start at login</b><span>The seed history only grows while omaseed runs.</span></span></div>
+    <div class="srow"><span class="ic">◇</span><span class="tx"><b>Agents</b><span>${esc(line)}</span><span class="skill"><b>Skill</b> · linked for Claude Code and 1 more · ⋯</span>${s.last ? `<span class="last">${esc(s.last)}</span>` : ""}</span><div class="klines">${lines}</div></div>`;
+}
+
+/* ---------- the ask for a plan (GT4) ---------- */
+const T = { tick: "one" };
+function planPane(con) {
+  const one = T.tick === "one";
+  const head = con ? `<b>An agent asks to run a plan<em>依頼</em></b>` : `<b>An agent asks to run a plan</b>`;
+  const rm = [
+    ["Night Market Field Recordings", "/data/archive/field · 2.1 GB"],
+    ["Public Domain Reel 03", "/data/archive/films · 1.4 GB"],
+    ["Creative Commons Lectures 2019", "/data/archive/lectures · 8.8 GB"],
+    ["Coastal Birdsong Vol. 2", "/data/archive/field · 640 MB"],
+  ];
+  const rows = rm.map(([n, w], i) => `<div class="pr"><span class="cb${one && i === 1 ? "" : " on"}">${one && i === 1 ? "" : "✓"}</span><span class="nm">${esc(n)}<small>${esc(w)}</small></span></div>`).join("");
+  return `<div class="ah"><span class="wt">omaseed · agent</span>${head}</div>
+    <div class="ab"><div class="pl">
+      <div class="pg allowed"><div class="ph"><b>Recheck 20</b><span>allowed in Settings</span></div><div class="more">Harbour Bells at Dawn, Lantern Festival Field Recordings… · back on /data/archive</div></div>
+      <div class="pg allowed"><div class="ph"><b>Locate 9</b><span>allowed in Settings</span></div><div class="more">4 → /data/shelf-b/recordings · 3 → /data/shelf-b/films · 2 → /data/new-drive/lectures · every file found</div></div>
+      <div class="pg"><div class="ph"><b>Remove 6 from attic</b><span>${one ? "5" : "6"} ticked</span></div>${rows}<div class="more">and 2 more · none of their files is on disk (checked) · each kept 30 days to add back</div></div>
+    </div>
+      <span class="who">Asked by <code>omaseed do --plan</code>, started from <code>claude</code> (process 48213), at 15:19.</span>
+      <span class="warnl">omaseed can't tell who is behind a command. Allow it only if you asked for this.</span></div>
+    <div class="af"><span class="keys">space ticks · tab · ↵ on a button · esc refuses</span><span class="btns"><span class="btn">refuse</span><span class="btn go">allow these</span></span></div>`;
+}
+
+function draw() {
+  $("#gate-oma").innerHTML = gatePane(false);
+  $("#gate-con").innerHTML = gatePane(true);
+  $("#plan-oma").innerHTML = planPane(false);
+  $("#plan-con").innerHTML = planPane(true);
+  document.querySelectorAll("[data-preset]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.preset === P.preset)));
+  document.querySelectorAll("[data-tick]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tick === T.tick)));
+}
+document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => { P.preset = b.dataset.preset; draw(); }));
+document.querySelectorAll("[data-tick]").forEach(b => b.addEventListener("click", () => { T.tick = b.dataset.tick; draw(); }));
+draw();
+
+/* ---------- the calls ---------- */
+const DEC = [
+  { id: "GT1", s: "§2", q: "Remove", opts: [
+    ["a", "do remove: the torrent only, never its files (no flag deletes); always asks; refused unless its files are gone", true],
+    ["b", "Remove any torrent, files kept, always asking"],
+    ["c", "Keep V14: never"]] },
+  { id: "GT2", s: "§2", q: "Locate", opts: [
+    ["a", "do locate --to FOLDER: checks names and sizes are there, re-points without moving, rechecks; a fix; refused when not all found", true],
+    ["b", "Treat it as move --to (always asks)"],
+    ["c", "No locate"]] },
+  { id: "GT3", s: "§3", q: "What each person allows", opts: [
+    ["a", "A line per kind on the Agents row: fixes off · ask · allow; moves off · ask; remove off · ask; all off by default, never changed by the package", true],
+    ["b", "V16 as ruled, plus remove behind ask"],
+    ["c", "A switch per action"]] },
+  { id: "GT4", s: "§4", q: "One ask for many", opts: [
+    ["a", "do --plan FILE|-: all lines checked first; one window grouped by action and folder, a box per line that asks; allow these / refuse; done and failed per line", true],
+    ["b", "One ask per word (V17 today)"],
+    ["c", "Allow everything for the session"]] },
+  { id: "GT5", s: "§4", q: "Say first, then do", opts: [
+    ["a", "--dry-run on every do and --plan: every check, no ask, no act; exits as the real run would", true],
+    ["b", "None"]] },
+  { id: "GT6", s: "§5", q: "A way back after a remove", opts: [
+    ["a", "The .torrent and its record kept 30 days; add back… from the strip and the Agents row, paused at the old place", true],
+    ["b", "Nothing"],
+    ["c", "Kept for ever"]] },
+  { id: "GT7", s: "§5", q: "The hard block, said plainly", opts: [
+    ["a", "The row and the guide say the gate binds only omaseed; omaseed help agents prints deny rules to paste; omaseed never writes them", true],
+    ["b", "Nothing more than C45's line"],
+    ["c", "omaseed writes the rules into agents' settings"]] },
+  { id: "GT8", s: "§3", q: "Reads, for those who want none (added)", opts: [
+    ["a", "A first line, Reads: on (default) · off; off, every library word answers not-allowed, exit 5", true],
+    ["b", "Keep V7: reads always open"]] },
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${esc(label)}${rec ? `<span class="rec">recommended</span>` : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${esc(d.q)} <span class="dim">${d.s}</span></legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else</label><textarea id="free"></textarea>`;
+dec.append(notes);
+function answers() {
+  const out = ["docs/67 What an agent may do (2026-11-21, #163):"];
+  for (const d of DEC) { const c = document.querySelector(`input[name="${d.id}"]:checked`); out.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) out.push("notes: " + f);
+  $("#answers").value = out.join("\n");
+}
+dec.addEventListener("input", answers); notes.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  try {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select()); else ta.select();
+  } catch { ta.select(); }
+});
+})();
+</script>
+</body>
+</html>
