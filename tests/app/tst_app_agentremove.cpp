@@ -21,6 +21,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -255,6 +256,7 @@ private slots:
     void aFileStillThereIsNotRemovable();
     void alwaysAsksThenKeepsAndRemoves();
     void unseenDiskGoesByTheServersWord();
+    void aFolderOnAnUnpluggedDriveIsNotRemovable();
     void keepFailureRefusesTheRemove();
     void dryRunSendsNothing();
     void addBackAddsItStoppedWhereItWas();
@@ -490,6 +492,29 @@ void TestAppAgentRemove::unseenDiskGoesByTheServersWord()
     QCOMPARE(codeOf(object), QStringLiteral("refused"));
     QCOMPARE(sent("/api/v2/torrents/delete"), 0);
     QCOMPARE(sent("/api/v2/torrents/export"), 0);
+}
+
+// GT1: files gone means gone, not a drive unplugged: a save path under /run/media whose drive
+// isn't mounted is refused, though the server says missing and nothing is there.
+void TestAppAgentRemove::aFolderOnAnUnpluggedDriveIsNotRemovable()
+{
+    const QString drive = QStringLiteral("/run/media/omaseed-test-nobody/SHELF");
+    QVERIFY(!QFileInfo::exists(drive));
+    m_qbt.items[kSingle].savePath = drive + QStringLiteral("/Films");
+    start();
+    m_app->setAgentRemove(QStringLiteral("ask"));
+    for (const bool dry : {false, true}) {
+        const QJsonObject object = run(*m_service, removeJson({kSingle}, dry));
+        QCOMPARE(codeOf(object), QStringLiteral("not-removable"));
+        QCOMPARE(messageOf(object),
+                 QStringLiteral("Not removed: Single.bin's folder is on a drive that isn't "
+                                "mounted (%1): plug it in and recheck.\nomaseed do removes only "
+                                "a torrent whose files are gone.")
+                     .arg(drive));
+    }
+    QVERIFY(!m_app->agentAsk()->isOpen());
+    QCOMPARE(sent("/api/v2/torrents/export"), 0);
+    QCOMPARE(sent("/api/v2/torrents/delete"), 0);
 }
 
 // GT6, Q11: no way back (its export failed), no remove; what was kept for the others goes.

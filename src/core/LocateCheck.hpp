@@ -13,6 +13,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
 #include <optional>
@@ -39,6 +40,38 @@ Result check(const QList<ContentFile> &files, const QString &localFolder, const 
 /// their size, skipped ones too (`found` of `files`; `firstMissing` stays the first absent).
 /// Any found means the torrent still has files there.
 Result present(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat);
+
+/// The mount points this machine has now (/proc/self/mountinfo) and the ones /etc/fstab
+/// names, for `unmountedDrive`.
+struct Mounts
+{
+    QStringList mounted;
+    QStringList listed;
+};
+
+/// Read from the two files (a test hands its own copies).
+Mounts readMounts(const QString &mountinfo = QStringLiteral("/proc/self/mountinfo"),
+                  const QString &fstab = QStringLiteral("/etc/fstab"));
+
+/// Whether a local path exists (a file or a folder).
+using Exists = std::function<bool(const QString &localPath)>;
+bool existsLocal(const QString &localPath);
+
+/// `do remove`'s guard (C50 GT1): "files gone" must mean gone, not a drive unplugged. When
+/// `localFolder` is missing and the drive that should hold it isn't mounted, the drive's
+/// folder ("/run/media/<user>/SHELF"); "" when the folder is there or its drive is mounted.
+/// The rule (assumed in the build, C50 "Built for"):
+/// - the folder is at or under an /etc/fstab target that isn't mounted; or
+/// - it is under /run/media, /media or /mnt, and the nearest folder of it that exists is
+///   not on a filesystem mounted under that root (an empty mount folder, or the top folder
+///   gone entirely, as udisks leaves it). A drive mounted there with the folder missing on it
+///   is files gone.
+/// The drive's folder is the root's next component (two under /run/media, and under /media
+/// when the first is `user`).
+QString unmountedDrive(const QString &localFolder,
+                       const Mounts &mounts,
+                       const Exists &exists,
+                       const QString &user);
 
 /// QFileInfo on this machine's disk.
 std::optional<qint64> statLocal(const QString &localPath);

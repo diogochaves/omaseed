@@ -3218,7 +3218,11 @@ left to the build:
 - **Remove and the keep** (`RemovedKeep`, `~/.local/share/omaseed/removed/yyyymmdd-hash8/`). "Files
   gone" is the engine's missing state (a failed move is not: its files are somewhere) and, where
   omaseed sees the disk, no file at any size at the save path or, while incomplete, qBittorrent's
-  incomplete folder. The keep runs after the ask, one torrent at a time; one that can't keep (its
+  incomplete folder. Gone is not unplugged: a missing folder whose drive isn't mounted (at or
+  under an `/etc/fstab` target not mounted now, or under `/run/media`, `/media` or `/mnt` with its
+  nearest existing folder on no filesystem mounted under that root: the drive's folder gone or
+  left empty) refuses `not-removable`, "its folder is on a drive that isn't mounted (…): plug it
+  in and recheck" (`LocateCheck::unmountedDrive`). The keep runs after the ask, one torrent at a time; one that can't keep (its
   `.torrent` unreadable from here, the daemon's folder out of reach) refuses the whole remove
   `not-removable`, "omaseed keeps a way back before every remove"; a bare magnet keeps its link.
   Add back (`App.addBack`) is the person's: another server's kept torrent is listed, its button off

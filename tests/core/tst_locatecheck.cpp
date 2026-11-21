@@ -3,7 +3,10 @@
 
 #include "core/LocateCheck.hpp"
 
+#include <QFile>
 #include <QHash>
+#include <QSet>
+#include <QTemporaryDir>
 #include <QTest>
 
 using omaseed::core::ContentFile;
@@ -145,6 +148,67 @@ private slots:
                                        file(QStringLiteral("Dir/b.bin"), 1)};
         QCOMPARE(LocateCheck::shownName(loose, QStringLiteral("Dir/b.bin")),
                  QStringLiteral("Dir/b.bin"));
+    }
+
+    // C50 GT1: an unplugged drive isn't files gone. udisks' folder gone entirely, or an
+    // empty mount folder left behind, is a drive not mounted; a mounted drive without the
+    // folder is files gone.
+    void unmountedDrive()
+    {
+        const QSet<QString> there{QStringLiteral("/"),
+                                  QStringLiteral("/run"),
+                                  QStringLiteral("/run/media"),
+                                  QStringLiteral("/run/media/me"),
+                                  QStringLiteral("/run/media/me/OTHER"),
+                                  QStringLiteral("/mnt"),
+                                  QStringLiteral("/mnt/shelf"),
+                                  QStringLiteral("/mnt/disk"),
+                                  QStringLiteral("/data"),
+                                  QStringLiteral("/home/me")};
+        const LocateCheck::Exists exists = [there](const QString &p) { return there.contains(p); };
+        LocateCheck::Mounts mounts;
+        mounts.mounted = {QStringLiteral("/"),
+                          QStringLiteral("/run"),
+                          QStringLiteral("/run/media/me/OTHER"),
+                          QStringLiteral("/mnt/disk")};
+        mounts.listed = {QStringLiteral("/"), QStringLiteral("/data"), QStringLiteral("/mnt/disk")};
+        const auto drive = [&](const char *path) {
+            return LocateCheck::unmountedDrive(
+                QString::fromUtf8(path), mounts, exists, QStringLiteral("me"));
+        };
+        QCOMPARE(drive("/run/media/me/SHELF/Films"), QStringLiteral("/run/media/me/SHELF"));
+        QCOMPARE(drive("/mnt/shelf/Films/"), QStringLiteral("/mnt/shelf")); // an empty folder
+        QCOMPARE(drive("/media/me/SHELF/Films"), QStringLiteral("/media/me/SHELF"));
+        QCOMPARE(drive("/media/SHELF/Films"), QStringLiteral("/media/SHELF"));
+        QCOMPARE(drive("/data/lib"), QStringLiteral("/data")); // in fstab, not mounted
+        // Files gone: the drive is mounted, or the path is on no drive of its own.
+        QCOMPARE(drive("/run/media/me/OTHER/Films"), QString());
+        QCOMPARE(drive("/mnt/disk/Films"), QString());
+        QCOMPARE(drive("/home/me/Films"), QString());
+        // There: nothing to tell.
+        QCOMPARE(drive("/mnt/shelf"), QString());
+    }
+
+    void readMounts()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString info = dir.filePath(QStringLiteral("mountinfo"));
+        const QString fstab = dir.filePath(QStringLiteral("fstab"));
+        QFile a(info);
+        QVERIFY(a.open(QIODevice::WriteOnly));
+        a.write("22 1 0:21 / / rw - btrfs /dev/x rw\n"
+                "40 22 8:1 / /run/media/me/MY\\040DISK rw - ext4 /dev/sdb1 rw\n");
+        a.close();
+        QFile b(fstab);
+        QVERIFY(b.open(QIODevice::WriteOnly));
+        b.write("# a comment\nUUID=1 / btrfs rw 0 0\nUUID=2 /data ext4 rw 0 2\n"
+                "UUID=3 none swap sw 0 0\n");
+        b.close();
+        const LocateCheck::Mounts mounts = LocateCheck::readMounts(info, fstab);
+        QCOMPARE(mounts.mounted,
+                 QStringList({QStringLiteral("/"), QStringLiteral("/run/media/me/MY DISK")}));
+        QCOMPARE(mounts.listed, QStringList({QStringLiteral("/"), QStringLiteral("/data")}));
     }
 
     void statLocal()

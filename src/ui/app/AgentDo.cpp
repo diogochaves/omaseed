@@ -1567,6 +1567,8 @@ void AgentDo::removeChecked(const QString &json,
         bool seen = false; ///< omaseed looked on the disk (else the server's word alone)
     };
     QList<Look> looks;
+    const core::LocateCheck::Mounts mounts = core::LocateCheck::readMounts();
+    const QString user = qEnvironmentVariable("USER");
     for (const QString &hash : hashes) {
         if (model->indexOfHash(hash) < 0) {
             reply(AgentService::failure(
@@ -1588,6 +1590,21 @@ void AgentDo::removeChecked(const QString &json,
             if (local.isEmpty())
                 continue;
             look.seen = true;
+            // GT1: files gone means gone, not a drive unplugged (assumed in the build): a
+            // missing folder whose drive isn't mounted refuses, whatever the server says.
+            const QString drive = core::LocateCheck::unmountedDrive(
+                local, mounts, core::LocateCheck::existsLocal, user);
+            if (!drive.isEmpty()) {
+                reply(AgentService::failure(
+                    kCommand,
+                    QStringLiteral("not-removable"),
+                    core::AnnounceMask::maskText(
+                        QStringLiteral("Not removed: %1's folder is on a drive that isn't mounted "
+                                       "(%2): plug it in and recheck.\nomaseed do removes only "
+                                       "a torrent whose files are gone.")
+                            .arg(torrent.name, drive))));
+                return;
+            }
             const core::LocateCheck::Result there =
                 core::LocateCheck::present(list, local, core::LocateCheck::statLocal);
             if (there.found > 0) {
