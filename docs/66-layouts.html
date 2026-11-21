@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board 66 · Layouts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* docs/66: Layouts (2026-11-20). A proposal. Board 55's page kit; every picture is a mock. */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c;
+  --f4: color-mix(in srgb, var(--fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--fg) 18%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html { background:var(--bg-dark); }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:60; background:var(--bg-dark); }
+main { max-width:1180px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:88ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code, kbd { font:inherit; color:var(--fg-bright); background:var(--f4); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:90ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11.5px; color:var(--fg-dark); max-width:100ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.src { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid var(--hairline); color:var(--fg-dark); margin-right:6px; }
+.src.mock { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:22px; align-items:start; }
+.cols > * { min-width:0; }
+.cols.two { grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); }
+.shot { border:1px solid var(--hairline); display:block; max-width:100%; height:auto; }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--f4); font-size:12px; max-width:100ch; }
+.note.warn { border-color:var(--yellow); }
+.facts li::marker { color:var(--accent); }
+.flags { display:flex; flex-wrap:wrap; gap:8px; }
+.flag { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border:1px solid var(--hairline); padding:2px 9px; }
+.flag.hot { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.flag.ok { color:var(--green); border-color:color-mix(in srgb, var(--green) 45%, transparent); }
+.item { display:grid; gap:10px; min-width:0; }
+.item h3 .id { color:var(--accent); margin-right:6px; }
+.recl { font-size:12.4px; border-left:2px solid var(--green); padding:6px 12px; background:var(--f4); max-width:100ch; }
+.recl b { color:var(--green); }
+.rec-tag { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid color-mix(in srgb, var(--green) 40%, transparent); color:var(--green); margin-left:8px; vertical-align:2px; }
+.scroll { overflow-x:auto; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; min-width:760px; color:var(--fg); }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; background:var(--bg-dark); }
+.t td:first-child { color:var(--fg-bright); }
+.t .y { color:var(--green); } .t .n { color:var(--fg-dark); } .t .m { color:var(--yellow); }
+.steps { counter-reset:s; list-style:none; padding:0; gap:10px; }
+.steps li { counter-increment:s; display:grid; grid-template-columns:28px 1fr; gap:8px; max-width:100ch; }
+.steps li::before { content:counter(s); color:var(--accent); font-weight:600; }
+
+/* ---------- the Settings rows, drawn ---------- */
+.pane { display:grid; gap:8px; padding:12px; background:var(--bg); border:1px solid var(--hairline); min-width:0; }
+.pane .cap { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.srow { display:grid; grid-template-columns:22px minmax(0, 1fr) auto; gap:4px 12px; align-items:center; padding:10px 12px; border:1px solid var(--hairline); min-width:0; }
+.srow .g { color:var(--fg-dark); font-size:12px; text-align:center; }
+.srow .tt { display:grid; gap:2px; min-width:0; }
+.srow .tt b { font-weight:500; color:var(--fg-bright); }
+.srow .tt small { font-size:12px; color:var(--fg-dark); line-height:1.45; }
+.srow.new { border-color:color-mix(in srgb, var(--accent) 55%, transparent); }
+.chips { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.chip { font-size:12px; padding:1px 8px; border:1px solid var(--hairline); color:var(--fg); white-space:nowrap; }
+.chip.on { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+.flow { font-size:11.5px; color:var(--fg-dark); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.flow .arrow { color:var(--accent); }
+.flow .bad { color:var(--yellow); }
+.block { margin:0; padding:10px 12px; background:var(--bg); border:1px solid var(--hairline); font:inherit; font-size:11.5px; line-height:1.55; color:var(--fg); white-space:pre; }
+
+/* ---------- the decision sheet (board 52's) ---------- */
+.dec { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap:14px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; min-width:0; align-content:start; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:150px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+#free { width:100%; min-height:70px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:8px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+.block { overflow-x:auto; max-width:100%; }
+.srow .chips { min-width:0; }
+/* ---------- board 66: the arrangement sketches ---------- */
+.srow.edits { border-color:color-mix(in srgb, var(--green) 40%, transparent); }
+.grp { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); padding:8px 2px 0; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.grp .file { text-transform:none; letter-spacing:0; color:var(--green); }
+.win { border:1px solid var(--hairline); background:var(--bg); display:grid; grid-template-rows:auto 1fr auto; min-height:300px; font-size:10.5px; color:var(--fg-dark); min-width:0; }
+.win .bar { display:flex; justify-content:space-between; gap:8px; padding:5px 8px; border-bottom:1px solid var(--hairline); }
+.win .bar b { font-weight:500; }
+.win .body { display:grid; min-height:0; min-width:0; }
+.win .foot { padding:4px 8px; border-top:1px solid var(--hairline); display:flex; justify-content:space-between; gap:8px; }
+.win .rail { background:var(--f4); border-right:1px solid var(--hairline); padding:6px 8px; display:grid; gap:4px; align-content:start; }
+.win .rail span { display:block; }
+.win .rail .off { text-decoration:line-through; opacity:.55; }
+.win .list { padding:6px 8px; display:grid; gap:4px; align-content:start; min-width:0; }
+.win .det { background:var(--f4); padding:6px 8px; display:grid; gap:4px; align-content:start; }
+.win .ghead { color:var(--fg); border-bottom:1px solid var(--hairline); padding-bottom:2px; }
+.win .ln { height:7px; background:var(--f8); }
+.win .ln.s { width:70%; }
+.win .cols { display:grid; gap:6px; grid-template-columns:none; }
+.win .th { display:flex; gap:10px; color:var(--fg); border-bottom:1px solid var(--hairline); padding-bottom:2px; white-space:nowrap; overflow:hidden; }
+.win .tabs { display:flex; gap:8px; color:var(--fg); white-space:nowrap; overflow:hidden; }
+.win .tabs .on { color:var(--fg-bright); border-bottom:1px solid var(--accent); }
+.win .sp { color:var(--fg-bright); }
+.win.console { --tint:var(--f8); }
+.win.console .bar, .win.console .foot { text-transform:uppercase; letter-spacing:.08em; }
+.win.console .rail { background:var(--f8); }
+.win.console .ghead { text-transform:uppercase; letter-spacing:.08em; border-bottom:1px solid var(--accent); }
+.diff { color:var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:12px">
+    <div class="eyebrow">omaseed · board 66 · 2026-11-20 · a proposal · #288</div>
+    <h1>Layouts</h1>
+    <p class="lead">Board 55 let the person's agent change how omaseed looks. This board lets it change how omaseed is <b>arranged</b>: which blocks a view shows and in what order, the table's columns, where the details sit, where the speeds go. Only the blocks omaseed already has. A layout is data, read all or nothing at the file like a skin, and checked without a display. Nothing here is built until it is ruled.</p>
+    <div class="note"><b>Already ruled (2026-11-20, #288, option c).</b> A layout is <b>its own file beside the skin</b>, as herdr keeps its themes and layouts apart. The Settings rows that are layout choices <b>edit that same file</b>: one truth, nothing to arbitrate, no "a row you touched wins" and no "set by the skin". Look and arrangement mix freely: Console's look with the person's own block order is one skin and one layout. Data only, no code, no new blocks. This board builds on that; options a and b of #288 are not redrawn.</div>
+    <div class="flags"><span class="flag ok">option c ruled 2026-11-20</span><span class="flag hot">a proposal · LY1 to LY12</span><span class="flag">~/.config/omaseed/layouts</span><span class="flag">omaseed layout · omaseed check --layout</span><span class="flag ok">nothing moves under the default layout</span></div>
+  </header>
+
+  <!-- 1 -->
+  <section id="inventory">
+    <div class="sec-head"><div class="eyebrow">1 · the inventory</div><h2>Every arrangement omaseed has today, and what it becomes</h2></div>
+    <p>Each choice is one of three things. <b>Layout</b>: where a block is, whether it shows, how wide. <b>Look</b>: how a thing is drawn; it stays a skin token or a setting. <b>Behaviour</b>: what omaseed does, or which words it uses; it stays a setting. Clicks of the moment (a fold, a sort, a scope's own display) stay in <code>state.json</code>, as herdr keeps its clicks apart from its layout files.</p>
+    <div class="note"><b>The headline.</b> Of the fifteen rows in Settings › Appearance, three are layout (Add window, Details panel, Speeds), plus one row in General (Show the Servers group in the rail). Most of a layout has no row today: the table's columns (saved per server), the library's display, the rail's groups, the rows display's five groups, the details tabs and the seed console's eleven blocks. Those are fixed in QML or kept per server, and become keys of the file.</div>
+    <div class="scroll">
+    <table class="t">
+      <thead><tr><th>Choice</th><th>Today's home</th><th>Kind</th><th>Becomes</th></tr></thead>
+      <tbody>
+        <tr><td>Add window: two columns · one column</td><td><code>appearance.addWindow</code> (C47 I14)</td><td class="y">layout</td><td><code>addWindow</code>; the row edits the file</td></tr>
+        <tr><td>Details panel: auto · right · bottom</td><td><code>appearance.detailsPlacement</code></td><td class="y">layout</td><td><code>details.placement</code>; the row edits the file</td></tr>
+        <tr><td>Speeds: title bar · status line</td><td><code>appearance.speedsPlace</code> (C32 D2)</td><td class="y">layout</td><td><code>speeds</code>; the row edits the file</td></tr>
+        <tr><td>Show the Servers group in the rail</td><td><code>general.showServersGroup</code></td><td class="y">layout</td><td><code>rail.hidden</code> holds <code>servers</code>; the row moves to Arrangement and edits the file</td></tr>
+        <tr><td>The rail's groups and their order: now · categories · folders · tags · trackers · servers</td><td>fixed in the rail's QML</td><td class="y">layout</td><td><code>rail.order</code>, <code>rail.hidden</code>; file only (LY5)</td></tr>
+        <tr><td>The rail's width (a drag)</td><td><code>appearance.railWidth</code>, 0 = the skin's <code>density.railWidth</code></td><td class="y">layout</td><td><code>rail.width</code>, <code>null</code> = the skin's (LY8)</td></tr>
+        <tr><td>The library's display: rows · table · space</td><td><code>displays.library</code> (C24 H4)</td><td class="y">layout</td><td><code>library.display</code> (LY6)</td></tr>
+        <tr><td>A scope's own display</td><td><code>displays.scopes</code></td><td class="n">click</td><td>stays in <code>state.json</code> (LY6)</td></tr>
+        <tr><td>The table's columns, shown and in order (8 of 29 by default)</td><td><code>tables.&lt;server&gt;.columns</code>, <code>.columnOrder</code></td><td class="y">layout</td><td><code>table.order</code>, <code>table.hidden</code>, one for every server (LY7); the columns palette edits the file</td></tr>
+        <tr><td>Column widths (a grip drag)</td><td><code>tables.&lt;server&gt;.columnWidths</code>, base-12 units, only the changed</td><td class="y">layout</td><td><code>table.widths</code>, same units, same "only the changed"</td></tr>
+        <tr><td>Sort</td><td><code>tables.&lt;server&gt;.sortRole</code>, <code>.sortOrder</code></td><td class="n">click</td><td>stays in <code>state.json</code></td></tr>
+        <tr><td>Details width and height (a split drag)</td><td><code>tables.&lt;server&gt;.detailsWidth</code>, <code>.detailsHeight</code></td><td class="y">layout</td><td><code>details.width</code>, <code>details.height</code>, <code>null</code> = the default</td></tr>
+        <tr><td>Details folded; rail groups folded; folders folded; servers folded; rail hidden</td><td><code>tables.&lt;server&gt;.*Folded</code>, <code>general.serversFolded</code>, <code>appearance.railHidden</code></td><td class="n">click</td><td>stay in <code>state.json</code></td></tr>
+        <tr><td>The details tabs: story · files · swarm · trackers · web seeds</td><td>fixed in the details' QML</td><td class="y">layout</td><td><code>details.order</code>, <code>details.hidden</code>; file only. The digit keys follow the order</td></tr>
+        <tr><td>The rows display's groups: needs you · arriving · landed today · giving back · resting</td><td>fixed, the questions' order</td><td class="y">layout</td><td><code>rows.order</code>, <code>rows.hidden</code>; file only. Needs you stays shown and first (LY4)</td></tr>
+        <tr><td>The seed console's blocks: attention · totals · tide · year · keeping alive · ratio ladder · trackers · earning · holding · on air · lately, in three columns when wide</td><td>fixed in the console's QML</td><td class="y">layout</td><td><code>console.columns</code>, three lists; file only. Attention stays shown and first (LY4)</td></tr>
+        <tr><td>The space display's tiles</td><td>by folder, no blocks</td><td class="n">none</td><td>nothing to arrange</td></tr>
+        <tr><td>Skin; Follow the Omarchy theme; Base size</td><td><code>appearance.skin</code>, <code>.followOmarchyTheme</code>, <code>.baseSizeOverride</code></td><td class="m">look</td><td>stay as they are</td></tr>
+        <tr><td>Window: opaque · translucent; Window transparency</td><td><code>appearance.windowGround</code>, <code>.windowAlphaOverride</code> (C24 H13)</td><td class="m">look</td><td>stay settings</td></tr>
+        <tr><td>Surface tint; Scroll hint; Pulse sending rows</td><td><code>appearance.surfaceTint</code>, <code>.railScrollHint</code>, <code>.pulseRows</code></td><td class="m">look</td><td>stay settings: how a thing is drawn, not where</td></tr>
+        <tr><td>Tracker hosts: drop prefix · cut start · cut end</td><td><code>appearance.trackerHostStyle</code></td><td class="n">behaviour</td><td>stays a setting (words)</td></tr>
+        <tr><td>In the bar; Widget; In the Omarchy menu</td><td><code>appearance.trayIconMode</code> and the bar's own</td><td class="n">behaviour</td><td>stay settings, in a group of their own (§5)</td></tr>
+        <tr><td>A skin's density: <code>railWidth</code>, <code>searchAnswersWidth</code>, every gap and inset</td><td><code>skin.json</code> <code>density</code> (Omarchy 200, Console 222)</td><td class="m">look</td><td>stay skin tokens: the proportions of a look. Only the rail's width has a layout key over it</td></tr>
+        <tr><td>Speeds alignment, upload and download trends</td><td><code>appearance.speedsAlignment</code>, <code>.uploadTrend</code>, <code>.downloadTrend</code>, read by nothing since #167</td><td class="n">gone</td><td>not carried over; removed at the migration (LY12)</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="file">
+    <div class="sec-head"><div class="eyebrow">2 · LY1 and LY2 · the file</div><h2>One folder per layout, beside <code>skins/</code></h2></div>
+
+    <div class="item"><h3><span class="id">LY1 a</span><code>layouts/&lt;name&gt;/layout.json</code>, shaped like a skin<span class="rec-tag">recommended</span></h3>
+      <p>Under <code>$XDG_CONFIG_HOME/omaseed/</code>, the same folder rule, name rule and version rule as a skin (C37 U1): the name is the folder, <code>version</code> is 1, a newer version is not drawn. The folder leaves room for <code>RECIPE.md</code> and <code>preview.png</code> when a layout is shared, as U9 does for skins. Every list of blocks has the same two keys, <code>order</code> and <code>hidden</code>; a block the file doesn't name keeps its default place and its default visibility, so a block a later omaseed adds still shows up.</p>
+      <pre class="block">{
+  "$schema": "../../layout.schema.json",
+  "version": 1,
+  "cloned_from": { "layout": "default", "version": 1 },
+  "description": "Table first, details below, speeds in the status line.",
+  "library":  { "display": "table" },
+  "rows":     { "order": ["needsYou", "arriving", "landed", "givingBack", "resting"], "hidden": ["resting"] },
+  "table":    { "order": ["name", "progress", "status", "dlspeed", "upspeed", "ratio", "category"],
+                "hidden": ["size", "seedsPeers", "swarm", "eta"],
+                "widths": { "status": 140 } },
+  "rail":     { "order": ["now", "folders", "categories", "trackers", "tags", "servers"], "hidden": ["tags"],
+                "width": null },
+  "details":  { "placement": "bottom", "order": ["story", "files", "trackers", "swarm", "webSeeds"],
+                "hidden": [], "width": null, "height": 260 },
+  "console":  { "columns": [["attention", "totals", "tide", "year"],
+                            ["keepingAlive", "ratioLadder", "trackers", "earning"],
+                            ["holding", "onAir", "lately"]] },
+  "speeds":   "status",
+  "addWindow": "one"
+}</pre>
+      <ul class="facts">
+        <li>Every key is optional. A missing key is the default layout's value; an empty file with only <code>version</code> is the default layout.</li>
+        <li>Widths are base-12 units, as <code>columnWidths</code> are today, so a base-size change scales them; <code>null</code> or a missing width is the default (or, for the rail, the skin's <code>density.railWidth</code>).</li>
+        <li>The schema, <code>layout.schema.json</code>, is generated from the reader's table and written beside <code>skin.schema.json</code> on every start, under the same header rule (C37 U4).</li>
+      </ul>
+    </div>
+    <div class="item"><h3><span class="id">LY1 b</span><code>layouts/&lt;name&gt;.json</code>, one file each, as herdr does</h3>
+      <p>Shorter to type. No room for a recipe or a preview beside it, and a different shape from <code>skins/</code> for the agent to learn.</p>
+    </div>
+
+    <div class="item"><h3><span class="id">LY2 a</span>One built-in, <code>default</code>: today's arrangement<span class="rec-tag">recommended</span></h3>
+      <p>The default layout is written out once in C++ (as <code>SkinReader::omarchyTokens()</code> is for Omarchy's skin), shipped and never written to disk. It is today's omaseed exactly, so a person who never touches a layout sees nothing move. It is called <code>default</code>, not <code>omarchy</code>: an arrangement belongs to no look, and <code>default</code> under Console's skin reads right. <code>default</code> joins the reserved names (with <code>omarchy</code>, <code>console</code>, <code>desktop</code>).</p>
+      <p><b>Console gets no layout of its own.</b> Board 46's station (numbered plates, a specials column) was an arrangement with blocks omaseed doesn't have, and C46 ruled it out. Console today is a look over the default arrangement, and stays that.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY2 b</span><code>default</code>, plus a shipped <code>console</code> layout</h3>
+      <p>A second built-in so Console's look comes with an arrangement of its own (the table first, the rail wider, details below). It couples a look to an arrangement again, which option c just pulled apart, and the station itself would need new blocks.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY2 c</span>No built-in; the default is whatever the code does when no layout is chosen</h3>
+      <p>Nothing to clone from by name, so <code>layout clone</code> has no source and an agent starts from an empty file and the schema.</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="say">
+    <div class="sec-head"><div class="eyebrow">3 · LY4 · what a layout may say</div><h2>Arrangements omaseed already draws, and nothing else</h2></div>
+
+    <div class="item"><h3><span class="id">LY4 a</span>Today's arrangements only, with two guards<span class="rec-tag">recommended</span></h3>
+      <p>A layout may <b>order</b> and <b>hide</b> the blocks of every list in §1 (the rail's groups, the rows display's groups, the table's columns, the details tabs, the console's blocks), set the <b>widths</b> a drag sets today, and pick among the <b>placements</b> omaseed already has: the details auto, right or bottom; the speeds in the title bar or the status line; the add window in one or two columns; the library's display.</p>
+      <p>It may not add a block, run code, name a file, or say a colour, a size of type or a gap: those are a skin's. Placements omaseed can't draw today (the rail on the right, the status line on top, a fourth console column) are not keys; each would be a board and a build of its own, and then a key.</p>
+      <ul class="facts">
+        <li><b>Needs you stays shown and first</b> in the rows display, and <b>attention</b> in the console. A torrent that needs the person must never be arranged out of sight. A file that hides or moves them has that dropped, with why.</li>
+        <li><b>Name stays shown</b> in the table, as the columns palette already holds it.</li>
+        <li>Hiding a block hides it from that view only. Its keys, its commands in the everything palette and the agent's words still work. The details tabs' digits follow the shown tabs; a hidden tab still opens from the palette.</li>
+      </ul>
+    </div>
+    <div class="item"><h3><span class="id">LY4 b</span>Also new placements: the rail on the right, the status line on top</h3>
+      <p>Closer to "where the rail sits" in #288's words. Each needs a build (mirrored rail, focus order, the split's grip) before a key can say it, and makes this board's build twice the size.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="settings">
+    <div class="sec-head"><div class="eyebrow">4 · LY3 and LY5 · Settings edits the file</div><h2>Appearance, split in three</h2></div>
+    <p>Per option c, the rows that are layout choices write into the layout in force; nothing in <code>state.json</code> holds them any more. Appearance becomes three groups: <b>Look</b> (the skin and what draws), <b>Arrangement</b> (the Layout row, then the rows that edit it) and <b>In the desktop</b> (the bar, the widget, the Omarchy menu). Settings › General loses Show the Servers group, which moves to Arrangement.</p>
+
+    <div class="cols two">
+      <figure>
+        <div class="pane">
+          <div class="cap"><span class="src mock">mock</span>Settings › Appearance, after</div>
+          <div class="grp"><span>look</span></div>
+          <div class="srow"><span class="g">◑</span><span class="tt"><b>Skin</b><small>The default skin.</small></span><span class="chips"><span class="chip">Omarchy</span><span class="chip on">Console</span><span class="chip">follow the desktop</span></span></div>
+          <div class="srow"><span class="g">◐</span><span class="tt"><b>Follow the Omarchy theme</b></span><span class="chips"><span class="chip on">on</span></span></div>
+          <div class="srow"><span class="g">#</span><span class="tt"><b>Base size</b></span><span class="chips"><span class="chip">shell</span></span></div>
+          <div class="srow"><span class="g">▢</span><span class="tt"><b>Window</b></span><span class="chips"><span class="chip on">opaque</span><span class="chip">translucent</span></span></div>
+          <div class="srow"><span class="g">░</span><span class="tt"><b>Surface tint · Scroll hint · Pulse sending rows · Tracker hosts</b><small>As today, one row each.</small></span><span class="chips"></span></div>
+          <div class="grp"><span>arrangement</span><span class="file">these rows edit layouts/mine/layout.json</span></div>
+          <div class="srow new"><span class="g">▦</span><span class="tt"><b>Layout</b><small>Table first, details below, speeds in the status line.</small></span>
+            <span class="chips"><span class="chip">default</span></span>
+            <span></span><span class="tt"><small>yours</small></span><span class="chips"><span class="chip on">mine</span><span class="chip">reading</span><span class="chip">open folder</span></span>
+            <span></span><span class="tt" style="grid-column:2 / -1"><small style="color:var(--yellow)">mine: 1 key left at the default: rows.hidden "needsYou" (needs you is always shown).</small></span>
+          </div>
+          <div class="srow edits"><span class="g">⊞</span><span class="tt"><b>Add window</b></span><span class="chips"><span class="chip">two columns</span><span class="chip on">one column</span></span></div>
+          <div class="srow edits"><span class="g">⊟</span><span class="tt"><b>Details panel</b></span><span class="chips"><span class="chip">auto</span><span class="chip">right</span><span class="chip on">bottom</span></span></div>
+          <div class="srow edits"><span class="g">↕</span><span class="tt"><b>Speeds</b></span><span class="chips"><span class="chip">title bar</span><span class="chip on">status line</span></span></div>
+          <div class="srow edits"><span class="g">☰</span><span class="tt"><b>Show the Servers group in the rail</b></span><span class="chips"><span class="chip on">on</span></span></div>
+          <div class="srow edits"><span class="g">⋯</span><span class="tt"><b>Table columns</b><small>7 shown. The columns palette and the grips edit them too.</small></span><span class="chips"><span class="chip">columns…</span></span></div>
+          <div class="srow"><span class="g">✎</span><span class="tt"><b>The rest is in the file</b><small>The rail's groups, the rows' groups, the details tabs, the console's blocks: ask your agent, or edit it.</small></span><span class="chips"><span class="chip">open file</span></span></div>
+          <div class="grp"><span>in the desktop</span></div>
+          <div class="srow"><span class="g">▭</span><span class="tt"><b>In the bar · Widget · In the Omarchy menu</b><small>As today.</small></span><span class="chips"></span></div>
+        </div>
+        <figcaption><b>Green-edged rows</b> write into the layout in force; the group's line names its file. The Layout row is the Skin row's twin (C37 U1): the built-in, the person's own after it, <b>yours ▾</b> past three, <b>open folder</b>, a yellow line for what the drawn layout dropped.</figcaption>
+      </figure>
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="item"><h3><span class="id">LY3 a</span>A row edits the layout in force; on <code>default</code>, the first edit makes <code>mine</code><span class="rec-tag">recommended</span></h3>
+          <p>The built-in is never written. When the person is on <code>default</code> and changes a layout row, drags a column or a split, or ticks a column, omaseed clones <code>default</code> into <code>layouts/mine/</code> (<code>mine-2</code> if taken), writes the change there, switches to it, and says so once under the Layout row: <q>Saved as your layout mine.</q> On a layout of the person's, the row writes into its file straight away.</p>
+          <ul class="facts">
+            <li>omaseed writes only the key that changed, keeping every other key, <code>description</code>, <code>$schema</code> and the key order; a drag writes once, on release, as today.</li>
+            <li>The folder is watched (debounced, compared by content, as skins are): the agent's save redraws, and a row shows the file's value at once.</li>
+            <li>A file that doesn't parse, or is a newer version, is <b>never written</b>: the green rows are off and the yellow line says to fix the file first (as <code>not-written</code>, C37). Drops don't block a write.</li>
+          </ul>
+        </div>
+        <div class="item"><h3><span class="id">LY3 b</span>Rows locked on a built-in</h3>
+          <p>On <code>default</code> the green rows are greyed with "clone to change". Honest, and a dead end for someone who only wanted the details at the bottom.</p>
+        </div>
+        <div class="item"><h3><span class="id">LY3 c</span>Edit the built-in in place, move it aside later</h3>
+          <p>herdr's way: a shipped file edited anyway is moved to <code>&lt;name&gt;-edited</code> on the next start. omaseed's built-in isn't a file, so there is nothing to move; this would mean shipping it as one.</p>
+        </div>
+        <div class="item"><h3><span class="id">LY5 a</span>Settings edits what it edits today; the rest is file only<span class="rec-tag">recommended</span></h3>
+          <p>The four rows, the columns palette, the grips and the split are the layout's controls in the window. The new lists (rail, rows, details tabs, console) have no control yet: the person's agent edits them, and the Arrangement group ends on one row that says so, with <b>open file</b>. A control for them can follow if people ask.</p>
+        </div>
+        <div class="item"><h3><span class="id">LY5 b</span>A new Arrangement pane with a drag list per view</h3>
+          <p>Every list reorderable and hideable by hand. A large piece of UI for a feature whose first users arrive through their agent.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="scope">
+    <div class="sec-head"><div class="eyebrow">5 · LY6 and LY7 · one layout, or one per place</div><h2>One layout for the window; a scope keeps its own display as a click</h2></div>
+    <div class="item"><h3><span class="id">LY6 a</span>The layout says the library's display; a scope's own pick stays in <code>state.json</code><span class="rec-tag">recommended</span></h3>
+      <p>C24 H4 already splits this: the library's display is what every scope without its own shows, and picking one inside a folder or a category sets that scope only. The first is an arrangement, so it becomes <code>library.display</code>; the display menu in the library writes it into the layout. The second is the person's memory of a place, so it stays in <code>displays.scopes</code>. <code>OMASEED_DISPLAY</code> still pins every scope for a run and writes nothing.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY6 b</span>Displays stay out of layouts entirely</h3>
+      <p>The display menu keeps writing <code>state.json</code> only. Simpler, and a layout that says "table first" can't.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY6 c</span>The layout holds every scope's display too</h3>
+      <p>Folder paths and category names in a file meant to be shared, and a layout that means nothing on another library.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY7 a</span>One table arrangement for every server<span class="rec-tag">recommended</span></h3>
+      <p>Today the columns and widths are saved per server (<code>tables.&lt;server&gt;</code>), mostly by accident of where the table's state lives. A layout is the person's, not a server's: one <code>table</code> for all. A column an engine has nothing for shows as it does today on that engine. Sort and folds stay per server in <code>state.json</code>.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY7 b</span>A layout may say columns per engine</h3>
+      <p><code>"table": { "qbittorrent": {…}, "transmission": {…} }</code>. Closer to today for someone with two engines, and a heavier file for everyone else.</p>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="skins">
+    <div class="sec-head"><div class="eyebrow">6 · LY8 · skins and layouts</div><h2>They mix; neither names the other</h2></div>
+    <div class="cols two">
+      <figure>
+        <div class="win">
+          <div class="bar"><b>omaseed</b><span class="sp">↓ 2.1 MB/s ↑ 340 kB/s</span></div>
+          <div class="body" style="grid-template-columns:30% 1fr 34%">
+            <div class="rail"><span class="ghead">now</span><span>categories</span><span>folders</span><span>tags</span><span>trackers</span><span>servers</span></div>
+            <div class="list"><span class="ghead">needs you · 1</span><div class="ln"></div><span class="ghead">arriving · 3</span><div class="ln"></div><div class="ln s"></div><span class="ghead">giving back · 12</span><div class="ln"></div><div class="ln s"></div><span class="ghead">resting · 40</span><div class="ln s"></div></div>
+            <div class="det"><div class="tabs"><span class="on">story</span><span>files</span><span>swarm</span><span>trackers</span></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div></div>
+          </div>
+          <div class="foot"><span>56 torrents</span><span>free 1.2 TB</span></div>
+        </div>
+        <figcaption><span class="src mock">mock</span><b>Omarchy's skin, the <code>default</code> layout.</b> Today's omaseed: rows display, rail groups in their order, details on the right, speeds in the title bar.</figcaption>
+      </figure>
+      <figure>
+        <div class="win console">
+          <div class="bar"><b>omaseed</b><span></span></div>
+          <div class="body" style="grid-template-columns:26% 1fr;grid-template-rows:1fr auto">
+            <div class="rail" style="grid-row:1 / 3"><span class="ghead">now</span><span class="diff">folders</span><span class="diff">categories</span><span>trackers</span><span class="off">tags</span><span>servers</span></div>
+            <div class="list"><div class="th"><span>name</span><span>progress</span><span>status</span><span>↓</span><span>↑</span><span class="diff">ratio</span><span class="diff">category</span></div><div class="ln"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div><div class="ln s"></div></div>
+            <div class="det" style="border-top:1px solid var(--hairline)"><div class="tabs"><span class="on">story</span><span>files</span><span class="diff">trackers</span><span class="diff">swarm</span></div><div class="ln"></div></div>
+          </div>
+          <div class="foot"><span>56 torrents</span><span class="sp diff">↓ 2.1 MB/s ↑ 340 kB/s</span></div>
+        </div>
+        <figcaption><span class="src mock">mock</span><b>Console's skin, the person's <code>mine</code> layout</b> (the file in §2). <span class="diff">Green</span> is what the layout moved: the table first, folders above categories, tags hidden, details at the bottom with trackers before swarm, speeds in the status line. The look is Console's, untouched.</figcaption>
+      </figure>
+    </div>
+    <div class="item"><h3><span class="id">LY8 a</span>Kept apart: a skin can't name a layout, a layout can't name a skin<span class="rec-tag">recommended</span></h3>
+      <p>As option c says. Settings has two rows and the CLI two words, and any skin goes with any layout. The one place they touch is the rail's width: a skin's <code>density.railWidth</code> stays its proportion (Console's rail is wider), and a layout's <code>rail.width</code>, when set, wins over it, as a drag wins today. Every other density token stays the skin's.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY8 b</span>A skin may suggest a layout</h3>
+      <p><code>"layout": "station"</code> in <code>skin.json</code>, applied when the skin is picked. Brings back the arbitration option c removed: which wins when the person's layout says otherwise.</p>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section id="check">
+    <div class="sec-head"><div class="eyebrow">7 · LY9 and LY10 · bad files and the check</div><h2>Read like a skin, checked like a skin</h2></div>
+    <div class="item"><h3><span class="id">LY9 a</span>Drops with why; a file that can't be read draws <code>default</code>, the choice kept<span class="rec-tag">recommended</span></h3>
+      <p>C37's rules, word for word where they fit. A key the reader can't use is a drop <code>{key, value, why}</code> and the rest is drawn: an unknown block (<q>not a column omaseed knows</q>), a block named twice (<q>named twice; the first kept</q>), a guard (<q>needs you is always shown</q>), a width out of range (32 to 1200 units, as the grips). A file that doesn't parse, or has a newer <code>version</code>, is drawn as <code>default</code> with the reason in the Layout row's yellow line; the choice is kept, and the next good save draws it. A chosen folder that is gone does the same and never stops a start.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY9 b</span>Any drop draws <code>default</code></h3>
+      <p>Stricter, and a typo in one column name throws away the whole arrangement.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY10 a</span><code>omaseed check --layout NAME [SKIN]</code>: the verdict and one picture of the window<span class="rec-tag">recommended</span></h3>
+      <p>A sibling of C37 U5, with its rules: no window, no D-Bus, no server; the demo library; the person's theme, base size and fonts. It prints the reader's verdict and <code>dropped</code>, and draws one picture of the whole window as the layout arranges it (rail, the library's display, details open on a demo torrent, the speeds where they go) under the skin in force, or <code>SKIN</code> when given. <code>--display rows|table|space|console</code> draws that display instead. One picture, not a light and a dark: a layout has no colour. Exits as <code>check</code>: 0 drawn, 1 drawn whole as <code>default</code>, 2 usage. The file is <code>~/.cache/omaseed/check/&lt;layout&gt;.layout.png</code>.</p>
+      <pre class="block">$ omaseed check --layout mine
+mine: drawn, 1 dropped
+  rows.hidden "needsYou": needs you is always shown
+picture: ~/.cache/omaseed/check/mine.layout.png (table, Omarchy's skin, tokyo-night)</pre>
+    </div>
+    <div class="item"><h3><span class="id">LY10 b</span>The verdict only</h3>
+      <p>Enough to catch a typo, not enough for an agent to see that the details landed at the bottom.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="words">
+    <div class="sec-head"><div class="eyebrow">8 · LY11 · the words, the guide, the skill</div><h2><code>omaseed layout list|clone|use</code></h2></div>
+    <div class="item"><h3><span class="id">LY11 a</span>The skin's three words, for layouts<span class="rec-tag">recommended</span></h3>
+      <p><code>omaseed layout list [--json]</code>, <code>omaseed layout clone &lt;from&gt; &lt;name&gt;</code> (every key written out, <code>cloned_from</code> recorded, an existing name refused) and <code>omaseed layout use &lt;name&gt;</code> (the running instance over the Agent interface, <code>UseLayout</code>, else the saved choice <code>appearance.layout</code>, every other key kept). Codes as C37: <code>unknown-layout</code>, <code>bad-name</code>, <code>layout-exists</code> exit 2, <code>unreadable</code> 1, <code>not-written</code> 5. <code>OMASEED_LAYOUT=NAME</code> picks one for a run, as <code>OMASEED_SKIN</code>; the walks and ctest pin <code>default</code>, so the person's layout never reaches a test.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY11 b</span>Only <code>layout use</code>; the agent copies files by hand</h3>
+      <p>Fewer words, and no <code>cloned_from</code>, so nobody can tell later what a layout started from.</p>
+    </div>
+    <ul class="facts">
+      <li><b>The guide.</b> <code>AGENTS.md</code> gains a layouts part beside the skins' (the folder, the keys, the guards, <code>check --layout</code>, clone before you change), and <code>layout.schema.json</code> is written beside <code>skin.schema.json</code>.</li>
+      <li><b>The skill.</b> Board 65 (#286), drawn alongside this one, shapes the skill; whatever it rules, the skill gains a layouts page.</li>
+      <li><b>Sharing.</b> A shared layout is a folder with <code>layout.json</code>, <code>RECIPE.md</code> and <code>preview.png</code> (from <code>check --layout</code>), topic <code>omaseed-layout</code>, as U9.</li>
+    </ul>
+  </section>
+
+  <!-- 9 -->
+  <section id="migration">
+    <div class="sec-head"><div class="eyebrow">9 · LY12 · the first start</div><h2>What <code>state.json</code> holds today becomes the person's layout</h2></div>
+    <div class="item"><h3><span class="id">LY12 a</span>A layout called <code>mine</code> only when something differs from the default<span class="rec-tag">recommended</span></h3>
+      <ol class="steps">
+        <li><span>On the first start of the version that reads layouts, omaseed gathers the arrangement in <code>state.json</code>: the three Appearance rows, the Servers group, the rail's width, the library's display, and the table of the server in use (its columns, order, widths, details sizes).</span></li>
+        <li><span>If all of it is the default, nothing is written and the person is on <code>default</code>.</span></li>
+        <li><span>Otherwise omaseed writes <code>layouts/mine/layout.json</code> with only the keys that differ, <code>cloned_from</code> the default, the description <q>Your arrangement before layouts.</q>, and chooses it. A folder <code>mine</code> already there is never touched: <code>mine-2</code>.</span></li>
+        <li><span>The old keys are read no more, left in <code>state.json</code> for one release so going back a version loses nothing, then removed with the dead three (§1).</span></li>
+      </ol>
+      <p class="dim">Other servers' column arrangements are not carried (LY7 a): one table for all.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY12 b</span>Always write <code>mine</code></h3>
+      <p>Everyone gets a file, even with nothing in it but the defaults, and every later default change has to reach it by hand.</p>
+    </div>
+    <div class="item"><h3><span class="id">LY12 c</span>Start everyone on <code>default</code></h3>
+      <p>Simplest, and the person's columns and details placement are lost on the update.</p>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section id="not">
+    <div class="sec-head"><div class="eyebrow">10 · not on this board · what it amends</div><h2>Later, and the rulings it changes</h2></div>
+    <ul class="facts">
+      <li><b>Not here:</b> new blocks and placements (LY4 b), panels as code (the mods board, C37 §8), a station display (C46), a control in Settings for every list (LY5 b).</li>
+      <li><b>C37</b>: "other arrangements of a view (#199)" are answered here as data; its reader, name rule, version rule, guide and <code>check</code> grow a layout side.</li>
+      <li><b>C24 H4</b>: the library's display moves from <code>displays.library</code> to the layout; a scope's own stays.</li>
+      <li><b>The table's column widths</b>: from <code>tables.&lt;server&gt;</code> to the layout, one for every server; units and rules unchanged.</li>
+      <li><b>C47 I14, C32 D2</b>, Details panel, Servers group: same choices, stored in the layout.</li>
+      <li>Under the <code>default</code> layout nothing is drawn differently.</li>
+    </ul>
+  </section>
+
+  <!-- 11 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">11 · building the recommended options</div><h2>Five pieces</h2></div>
+    <ol class="steps">
+      <li><span><b>The reader.</b> <code>LayoutReader</code> beside <code>SkinReader</code>: the default written out in C++, the table of keys and their checks, drops with why, the guards, the folder list and watch. QtTest for every drop.</span></li>
+      <li><span><b>The window reads it.</b> The rail, the rows display, the table, the details tabs and the console take their order and visibility from it; the three placements and the widths too. A test that the default layout draws today's window.</span></li>
+      <li><span><b>Settings writes it.</b> The Layout row, the three groups, the green rows and the palette, grips and split writing one key; clone on the first edit; the migration.</span></li>
+      <li><span><b>The words and the check.</b> <code>layout list|clone|use</code>, <code>UseLayout</code>, <code>OMASEED_LAYOUT</code>, <code>check --layout</code>, the guide's part and the schema.</span></li>
+      <li><span><b>The proof.</b> <code>scripts/dev/layouts-walk.sh</code>: in a box, a row edit makes <code>mine</code>, an agent-style save redraws, a bad key and a broken file, <code>layout use</code> live and quit, check's picture; DECISIONS, the changelog.</span></li>
+    </ol>
+  </section>
+
+  <!-- 12 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">12 · your calls</div><h2>LY1 to LY12</h2></div>
+    <p>Recommended options are preselected. Change what you disagree with and paste the block back into a session, or answer "all as recommended".</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const DEC = [
+  { id: "LY1", s: "§2", q: "The file", opts: [
+    ["a", "layouts/<name>/layout.json, a skin's folder, name and version rules; every list as order + hidden", true],
+    ["b", "layouts/<name>.json, one file each"]] },
+  { id: "LY2", s: "§2", q: "Built-in layouts", opts: [
+    ["a", "One, default: today's arrangement, in C++, never on disk; Console gets none", true],
+    ["b", "default plus a shipped console layout"],
+    ["c", "None built-in"]] },
+  { id: "LY3", s: "§4", q: "A Settings row on a built-in", opts: [
+    ["a", "Rows edit the layout in force; on default the first edit clones it to mine and says so; a broken file is never written", true],
+    ["b", "Rows locked on a built-in (clone to change)"],
+    ["c", "Edit the built-in in place, moved aside later"]] },
+  { id: "LY4", s: "§3", q: "What a layout may say", opts: [
+    ["a", "Order, hide, widths and today's placements; needs you, attention and Name stay shown", true],
+    ["b", "Also new placements (rail right, status line on top)"]] },
+  { id: "LY5", s: "§4", q: "What Settings edits", opts: [
+    ["a", "What it edits today (four rows, columns palette, grips, split); the new lists are file only, with open file", true],
+    ["b", "A new Arrangement pane with a drag list per view"]] },
+  { id: "LY6", s: "§5", q: "Displays", opts: [
+    ["a", "The layout says the library's display; a scope's own pick stays in state.json", true],
+    ["b", "Displays stay out of layouts"],
+    ["c", "The layout holds every scope's display"]] },
+  { id: "LY7", s: "§5", q: "The table per server", opts: [
+    ["a", "One table arrangement for every server; sort and folds stay per server in state.json", true],
+    ["b", "Columns per engine in the layout"]] },
+  { id: "LY8", s: "§6", q: "Skins and layouts", opts: [
+    ["a", "Kept apart; a layout's rail.width wins over the skin's density.railWidth only when set", true],
+    ["b", "A skin may suggest a layout"]] },
+  { id: "LY9", s: "§7", q: "Bad files", opts: [
+    ["a", "Drops with why, the rest drawn; unreadable or newer draws default, the choice kept", true],
+    ["b", "Any drop draws default"]] },
+  { id: "LY10", s: "§7", q: "The check", opts: [
+    ["a", "omaseed check --layout NAME [SKIN]: verdict, dropped, one picture of the window (--display for another)", true],
+    ["b", "The verdict only"]] },
+  { id: "LY11", s: "§8", q: "The words", opts: [
+    ["a", "layout list|clone|use, UseLayout, OMASEED_LAYOUT; walks pin default; the guide and the skill gain a layouts part", true],
+    ["b", "Only layout use"]] },
+  { id: "LY12", s: "§9", q: "Migration", opts: [
+    ["a", "mine written only when state.json differs from the default; old keys kept one release", true],
+    ["b", "Always write mine"],
+    ["c", "Everyone starts on default"]] },
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    const safe = label.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${safe}${rec ? `<span class="rec">recommended</span>` : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q} <span class="dim">${d.s}</span></legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else</label><textarea id="free"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/66 Layouts (2026-11-20):"];
+  for (const d of DEC) { const c = document.querySelector(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); notes.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  try {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select()); else ta.select();
+  } catch { ta.select(); }
+});
+})();
+</script>
+</body>
+</html>
