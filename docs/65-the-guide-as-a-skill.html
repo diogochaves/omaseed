@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board 65 · The guide as a skill</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* ------------------------------------------------------------------
+   docs/65: The guide as a skill (2026-11-20).
+   A proposal for #286. Board 55's page kit and board 62's options and
+   terminals, every colour a Theme role. Everything drawn here is a
+   mock: nothing of it is built.
+   ------------------------------------------------------------------ */
+:root {
+  --accent:#5492f8; --bg:#11111b; --bg-dark:#0d0d14;
+  --fg:#b9c5ef; --fg-dark:#8b94b3; --fg-bright:#cbd4f3;
+  --green:#7dd676; --red:#ee5681; --yellow:#f6d58c; --cyan:#7cd6e8;
+  --f4: color-mix(in srgb, var(--fg) 4%, transparent);
+  --f8: color-mix(in srgb, var(--fg) 8%, transparent);
+  --f18: color-mix(in srgb, var(--fg) 18%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+html { background:var(--bg-dark); }
+body { margin:0; background:var(--bg-dark); color:var(--fg); font:400 13px/1.6 var(--mono); -webkit-font-smoothing:antialiased; }
+body::before { content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:60; background:var(--bg-dark); }
+main { max-width:1180px; margin:0 auto; padding-block:32px 72px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:32px; }
+h1,h2,h3 { margin:0; font-weight:600; color:var(--fg-bright); text-wrap:balance; }
+h1 { font-size:26px; } h2 { font-size:17px; } h3 { font-size:13px; }
+p, li { max-width:88ch; }
+p { margin:0; }
+ul, ol { margin:0; padding-left:20px; display:grid; gap:4px; }
+code, kbd { font:inherit; color:var(--fg-bright); background:var(--f4); padding:0 4px; overflow-wrap:anywhere; }
+b { color:var(--fg-bright); font-weight:600; }
+a { color:var(--accent); }
+.eyebrow { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-dark); }
+.dim { color:var(--fg-dark); }
+.lead { font-size:14px; color:var(--fg); max-width:90ch; }
+section { display:grid; gap:14px; border-top:1px solid var(--hairline); padding-top:22px; min-width:0; }
+.sec-head { display:grid; gap:4px; }
+figure { margin:0; display:grid; gap:6px; align-content:start; min-width:0; }
+figcaption { font-size:11.5px; color:var(--fg-dark); max-width:100ch; }
+figcaption b { color:var(--fg); font-weight:500; }
+.src { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid var(--hairline); color:var(--fg-dark); margin-right:6px; }
+.src.mock { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:22px; align-items:start; }
+.cols > * { min-width:0; }
+.cols.two { grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); }
+.note { border-left:2px solid var(--accent); padding:6px 12px; background:var(--f4); font-size:12px; max-width:100ch; }
+.note.warn { border-color:var(--yellow); }
+.facts li::marker { color:var(--accent); }
+.flags { display:flex; flex-wrap:wrap; gap:8px; }
+.flag { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border:1px solid var(--hairline); padding:2px 9px; }
+.flag.hot { color:var(--yellow); border-color:color-mix(in srgb, var(--yellow) 45%, transparent); }
+.flag.ok { color:var(--green); border-color:color-mix(in srgb, var(--green) 45%, transparent); }
+.item { display:grid; gap:10px; min-width:0; }
+.item h3 .id { color:var(--accent); margin-right:6px; }
+.rec-tag { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; padding:0 5px; border:1px solid color-mix(in srgb, var(--green) 40%, transparent); color:var(--green); margin-left:8px; vertical-align:2px; }
+.scroll { overflow-x:auto; }
+table.t { border-collapse:collapse; width:100%; font-size:12px; min-width:720px; color:var(--fg); }
+.t th, .t td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hairline); vertical-align:top; }
+.t th { font-weight:500; color:var(--fg-dark); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; background:var(--bg-dark); }
+.t td:first-child { color:var(--fg-bright); }
+.t .y { color:var(--green); } .t .n { color:var(--fg-dark); } .t .m { color:var(--yellow); }
+.t td.num { white-space:nowrap; }
+.steps { counter-reset:s; list-style:none; padding:0; gap:10px; }
+.steps li { counter-increment:s; display:grid; grid-template-columns:28px 1fr; gap:8px; max-width:100ch; }
+.steps li::before { content:counter(s); color:var(--accent); font-weight:600; }
+.opts { display:grid; gap:6px; padding-left:0; list-style:none; }
+.opts li { display:grid; grid-template-columns:22px 1fr; gap:6px; }
+.opts li > b:first-child { color:var(--accent); }
+.opts li.rec > b:first-child { color:var(--green); }
+
+/* ---------- terminals and files (mock) ---------- */
+.term { background:var(--bg); border:1px solid var(--hairline); min-width:0; }
+.term .tbar { display:flex; justify-content:space-between; gap:10px; padding:3px 12px; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); border-bottom:1px solid var(--hairline); }
+.term pre { margin:0; padding:10px 12px; font:inherit; font-size:11.5px; line-height:1.55; white-space:pre; overflow-x:auto; color:var(--fg); }
+.term .p { color:var(--fg-dark); } .term .c { color:var(--fg-bright); }
+.term .r { color:var(--red); } .term .y { color:var(--yellow); } .term .g { color:var(--green); }
+.term .a { color:var(--accent); } .term .d { color:var(--fg-dark); } .term .b { color:var(--fg-bright); font-weight:600; }
+.term .k { color:var(--cyan); }
+
+/* ---------- the Settings row, drawn ---------- */
+.pane { display:grid; gap:8px; padding:12px; background:var(--bg); border:1px solid var(--hairline); min-width:0; }
+.pane .cap { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--fg-dark); }
+.srow { display:grid; grid-template-columns:22px minmax(0, 1fr) auto; gap:4px 12px; align-items:center; padding:10px 12px; border:1px solid var(--hairline); min-width:0; }
+.srow .g { color:var(--fg-dark); font-size:12px; text-align:center; }
+.srow .tt { display:grid; gap:2px; min-width:0; }
+.srow .tt b { font-weight:500; color:var(--fg-bright); }
+.srow .tt small { font-size:12px; color:var(--fg-dark); line-height:1.45; }
+.srow .skl { grid-column:2 / -1; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; min-width:0; }
+.srow .skl small.new { font-size:12px; line-height:1.45; color:var(--fg); border-left:2px solid color-mix(in srgb, var(--accent) 55%, transparent); padding-left:8px; flex:1 1 260px; }
+.chips { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; min-width:0; }
+.chip { font-size:12px; padding:1px 8px; border:1px solid var(--hairline); color:var(--fg); white-space:nowrap; }
+.chip.on { background:var(--f18); border-color:transparent; color:var(--fg-bright); }
+.chip.act { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ---------- the decision sheet (board 52's) ---------- */
+.dec { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap:14px; }
+.q { display:grid; gap:8px; border:1px solid var(--hairline); padding:14px; min-width:0; align-content:start; }
+.q fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; min-width:0; }
+.q legend { padding:0; color:var(--fg-bright); font-weight:500; margin-bottom:4px; }
+.q .id { color:var(--accent); font-weight:600; }
+.opt { display:grid; grid-template-columns:18px 1fr; gap:8px; align-items:start; font-size:12.4px; cursor:pointer; }
+.opt input { margin:3px 0 0; accent-color:var(--accent); }
+.opt .rec { color:var(--green); font-size:10px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+.out { display:grid; gap:8px; }
+.out textarea { width:100%; min-height:150px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:10px; resize:vertical; }
+.out button { font:inherit; justify-self:start; color:var(--bg); background:var(--accent); border:0; padding:6px 14px; cursor:pointer; }
+.out .ok { color:var(--green); font-size:12px; }
+#free { width:100%; min-height:70px; font:inherit; font-size:12.4px; color:var(--fg); background:var(--bg); border:1px solid var(--hairline); padding:8px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:12px">
+    <div class="eyebrow">omaseed · board 65 · 2026-11-20 · a proposal · #286</div>
+    <h1>The guide as a skill</h1>
+    <p class="lead">Today omaseed's guide for agents reaches an agent two ways: as <code>AGENTS.md</code> in <code>~/.config/omaseed/</code>, read for free by an agent started there, and as <code>omaseed --skill</code>, which an agent runs only if something tells it to. An agent asked "why didn't my download finish?" in any other folder has neither. #227's trial showed the guide itself works; what it lacked was a way to be found, and a map that keeps an agent out of the 18k-token schema. This board proposes the way omabox does it: <b>one short skill</b>, <code>SKILL.md</code> with the trigger words in its description and the details in <code>ref/</code> pages, shipped in the package and <b>linked into the agents' skill folders by a command the person runs</b>. One source makes the skill, <code>AGENTS.md</code> and <code>--skill</code>, so they can't drift.</p>
+    <div class="flags"><span class="flag hot">a proposal · nothing built</span><span class="flag">/usr/share/omaseed/agents/skill</span><span class="flag">omaseed skill link · unlink · status</span><span class="flag">one source, three prints</span><span class="flag ok">never linked at start</span><span class="flag ok">the words don't change</span></div>
+  </header>
+
+  <!-- 1 -->
+  <section id="today">
+    <div class="sec-head"><div class="eyebrow">1 · today, v0.15.1, and what the trial said</div><h2>A guide that works, where an agent rarely is</h2></div>
+    <ul class="facts">
+      <li><b>One text, two parts.</b> <code>library.md</code> (the four reads, their JSON, the exit codes) and <code>skins.md</code> (the loop, the rules, the tokens, sharing, the files), compiled into the binary. <code>--skill</code> prints both; every primary start writes them as <code>AGENTS.md</code>, with a <code>CLAUDE.md</code> that says <code>@AGENTS.md</code> and <code>skin.schema.json</code> beside them (C37 U4, C45 V19).</li>
+      <li><b>The trial (#227)</b> gave a fresh agent, started in <code>~/.config/omaseed/</code>, two plain requests. "Make omaseed warmer, and rounder": done and correct in 17 turns, but it read the whole schema (~18k tokens against ~1.8k for the guide). "Why didn't this finish?": right first time in a fresh session (<code>status</code>, <code>moves</code>, <code>errors</code> in one call); in a session already about skins it read "this" as its own work and never ran <code>errors</code>.</li>
+      <li><b>v0.15.1 took the trial's text fixes.</b> "didn't finish, stuck, slow, missing: errors first, then moves", <code>needsYou</code> pointing at <code>errors</code>, the wish-to-token map, "grep the schema, don't read it whole", <code>lifted</code> rewritten, the loop cloning the drawn skin. They are in the guide now; this board moves them, it doesn't write them again.</li>
+      <li><b>What the trial couldn't test</b> is the case that matters most: an agent started in a project folder, or in <code>~</code>, asked about a download. It has no <code>AGENTS.md</code> and no reason to run <code>--skill</code>. The help page's last line helps only once the agent already runs <code>omaseed</code>.</li>
+      <li><b>Never used in the trial:</b> the exit-code table, sharing, the omabox check. They belong in pages read on demand, not in what every session loads.</li>
+    </ul>
+    <div class="note">Board 55 left "a skill installed into Omarchy's skills folder" out, because that folder is Omarchy's. That still holds: this board never writes under Omarchy's folder. It links into each agent's own skill folder (<code>~/.claude/skills</code>, <code>~/.agents/skills</code>…), where Omarchy, omabox and a person's own skills already sit side by side.</div>
+  </section>
+
+  <!-- 2 -->
+  <section id="model">
+    <div class="sec-head"><div class="eyebrow">2 · the model</div><h2>How omabox ships its skill</h2></div>
+    <ul class="facts">
+      <li><b>One short <code>SKILL.md</code></b> (81 lines). Its frontmatter: <code>name</code>, a <code>description</code> that says when to load it and lists trigger words, and <code>allowed-tools</code> naming the commands that only read. Agents load the description always and the body only when it matches.</li>
+      <li><b>"ref: FILE" pages</b> in <code>ref/</code> beside it, read only when the task needs one.</li>
+      <li><b><code>omabox setup</code></b> links the skill folder (a link, so an upgrade updates it) wherever Omarchy puts its own skills: <code>~/.agents/skills</code> and <code>~/.claude/skills</code> always; Codex's, pi's and Hermes' folders when those agents are there. <code>setup --remove</code> unlinks only links that point at its own folder. A second skill is opt-in.</li>
+      <li><b>Omarchy's own skills</b> (<code>omarchy</code>, <code>omarchy-app</code>…) live in its package and are linked by its migrations into the same folders, plus Gemini's and every Hermes profile's. A skill of the person's own by that name is left where it is.</li>
+    </ul>
+  </section>
+
+  <!-- 3 -->
+  <section id="shape">
+    <div class="sec-head"><div class="eyebrow">3 · AS1 to AS4 · the skill</div><h2>A map that loads, pages that wait</h2></div>
+
+    <div class="item"><h3><span class="id">AS1</span>One skill or two<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>One skill, <code>omaseed</code></b>: <code>SKILL.md</code> and three pages, <code>ref/library.md</code>, <code>ref/skins.md</code>, <code>ref/files.md</code>. The tokens stay in <code>skin.schema.json</code>, which the skill names and never copies. One description, one link per folder, one name the person sees in their agent's list.</span></li>
+        <li><b>b</b><span>Two skills, <code>omaseed</code> (the library) and <code>omaseed-skins</code>. Each description is sharper, but two links per folder, and a request like "it's slow, and make it calmer" needs both loaded.</span></li>
+        <li><b>c</b><span>One <code>SKILL.md</code> holding the whole guide, no pages. The simplest; every match loads ~2.5k tokens, most of it unused.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">AS2</span>What <code>SKILL.md</code> holds<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>The map, whole enough to answer the trial's two requests alone:</b> the never list; the four reads and "didn't finish, stuck, slow or missing: errors first, then moves; needsYou above 0: errors"; the skin loop (list, check, clone the drawn skin, edit, check both pictures, use, the way back); the wish-to-token map with "grep skin.schema.json for one token, never read it whole"; and a "ref:" line where each page earns its read. Under 70 lines.</span></li>
+        <li><b>b</b><span>An index only: the never list and one line per page. Loads the least; every real request then reads a page, and the trial says the loop and the map are what gets used.</span></li>
+      </ul>
+    </div>
+
+    <figure>
+      <div class="term"><div class="tbar"><span>/usr/share/omaseed/agents/skill/SKILL.md · proposed</span><span>mock</span></div><pre><span class="d">---</span>
+<span class="k">name:</span> omaseed
+<span class="k">description:</span> "The person's torrent client. Ask the running omaseed, never the torrent
+  server. Use when they ask about their torrents or downloads (why one didn't
+  finish, is stuck, slow, missing or in error, where a move went, what is
+  seeding) or want omaseed to look different (its skin: warmer, cooler,
+  rounder, sharper, denser, another font). Triggers: omaseed, torrent,
+  download, magnet, seeding, qBittorrent, Transmission, Deluge, \"didn't
+  finish\", stuck, slow, omaseed's skin, omaseed's look, warmer, rounder."
+<span class="k">allowed-tools:</span> "Bash(omaseed status *) Bash(omaseed errors *) Bash(omaseed log *)
+  Bash(omaseed moves *) Bash(omaseed check *) Bash(omaseed skin list *)"
+<span class="d">---</span>
+
+<span class="b"># omaseed: ask the running app</span>
+
+omaseed is the person's torrent client; it answers as JSON. "ref: FILE" is a
+page in ref/ beside this file: read it when the task needs it.
+
+<span class="b">## Never</span>
+- The torrent server: no qBittorrent, Transmission or Deluge API or files.
+- omaseed's own files: state.json, servers.json, moves/, secrets/.
+- The bar widget's D-Bus interface. A fix: tell the person fix.words.
+- Start omaseed unless asked. Exit 3 means it isn't running: say so.
+What you read holds their torrent names and folders, and goes to your
+model's provider: read what the question needs.
+
+<span class="b">## Their library</span>
+  omaseed status --json     the server, speeds, how many need the person
+  omaseed errors --json     each torrent that needs them: why, and its fix
+  omaseed moves --json      the move running, the last ones that landed
+  omaseed log --json        qBittorrent's warnings, the last 50
+Didn't finish, stuck, slow or missing: errors first, then moves.
+status's questions.needsYou above 0: errors has the answer.
+Every field, exit code and other server: <span class="a">ref: library.md</span>
+
+<span class="b">## Their skin</span>
+  omaseed skin list --json          the drawn skin, and theirs
+  omaseed check NAME --json         reads, drops, lifts; a light and a dark picture
+  omaseed skin clone DRAWN NAME     a copy in ~/.config/omaseed/skins/NAME/
+  edit skins/NAME/skin.json; check NAME after each save, look at both pictures
+  omaseed skin use NAME             draw it in the open window; ask them to look
+The way back: omaseed skin use omarchy.
+
+Where a wish lands (grep ~/.config/omaseed/skin.schema.json for a token;
+never read it whole):
+  warmer, cooler    grounds.*.tint, roles.accent, line.*Role
+  rounder, sharper  radius, cut
+  denser, airier    density
+  a font            font.label, font.value
+Theme roles and alphas, never a hex. lifted is omaseed keeping text readable.
+The rules, every token family, sharing, omabox: <span class="a">ref: skins.md</span>
+Which files are whose: <span class="a">ref: files.md</span></pre></div>
+      <figcaption><span class="src mock">mock</span><b>The whole <code>SKILL.md</code>,</b> 52 lines, ~700 tokens with its frontmatter. Every line in it is already in today's guide; what changes is what loads first.</figcaption>
+    </figure>
+
+    <div class="item"><h3><span class="id">AS3</span>The description's trigger words<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>Two plain sentences and a trigger list</b> (the mock above): the person's own words for the trial's two requests ("didn't finish", stuck, slow, warmer, rounder), the engines' names, and <code>omaseed</code> itself. "Theme" and "look" only as <b>omaseed's</b>: "change my theme" is the desktop's, and belongs to Omarchy's skill.</span></li>
+        <li><b>b</b><span>Only <code>omaseed</code> and <code>torrent</code>. It never takes a request from another skill, and it misses "why didn't my download finish?", the question the skill exists for.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">AS4</span><code>allowed-tools</code><span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>The six that only read:</b> <code>omaseed status</code>, <code>errors</code>, <code>log</code>, <code>moves</code>, <code>check</code> (it writes only its pictures under <code>~/.cache/omaseed/check/</code>) and <code>skin list</code>. <code>skin clone</code> and <code>skin use</code> change the person's files and window, so the agent asks for them as it would for any command. <code>do</code>, when it ships, never goes here: its gate is the Agents row (C45 V16), and the agent's permission prompt shouldn't stand in for it.</span></li>
+        <li><b>b</b><span>None: every call goes through the agent's own permission prompt. Safe, and the reads become a click each.</span></li>
+        <li><b>c</b><span>Every word, <code>skin clone</code> and <code>skin use</code> included. Quicker skin loops; the person's skin folder and open window change without a prompt.</span></li>
+      </ul>
+      <p class="dim">Agents that don't read <code>allowed-tools</code> ignore it; nothing else in the skill depends on it.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section id="source">
+    <div class="sec-head"><div class="eyebrow">4 · AS5 · one source</div><h2>The skill, AGENTS.md and --skill from the same pages</h2></div>
+    <div class="cols two">
+      <figure>
+        <div class="term"><div class="tbar"><span>in the repo, and where each goes</span><span>mock</span></div><pre><span class="b">data/agents/skill/</span>                 <span class="d">the one source</span>
+  SKILL.md
+  ref/library.md                   <span class="d">today's library.md, minus what SKILL.md says</span>
+  ref/skins.md                     <span class="d">today's skins.md, minus the loop and the map</span>
+  ref/files.md                     <span class="d">"The files", grown</span>
+
+<span class="a">→ installed</span>   /usr/share/omaseed/agents/skill/   <span class="d">as is</span>
+<span class="a">→ compiled</span>    :/omaseed/agents/skill/            <span class="d">the same files, a qrc</span>
+<span class="a">→ written</span>     ~/.config/omaseed/AGENTS.md         <span class="d">SKILL.md's body, generated</span>
+              ~/.config/omaseed/CLAUDE.md         <span class="d">@AGENTS.md, as today</span>
+              ~/.config/omaseed/skin.schema.json  <span class="d">as today</span>
+<span class="a">→ printed</span>     omaseed skill [PAGE]                <span class="d">AS9</span></pre></div>
+        <figcaption><span class="src mock">mock</span><b>One folder, four uses.</b> <code>src/integration/resources/agents/</code> goes; <code>skin-check.sh</code> stays beside the skill in <code>/usr/share/omaseed/agents/</code>.</figcaption>
+      </figure>
+      <figure>
+        <div class="term"><div class="tbar"><span>~/.config/omaseed/AGENTS.md · its first lines</span><span>mock</span></div><pre><span class="d">Written by omaseed on every start. Edits here are overwritten.</span>
+
+<span class="b"># omaseed: ask the running app</span>
+
+omaseed is the person's torrent client; it answers as JSON. A page named
+"ref: PAGE" below prints with <span class="c">omaseed skill PAGE</span>: run it when the
+task needs it.
+<span class="d">…</span>
+Every field, exit code and other server: <span class="a">omaseed skill library</span>
+<span class="d">…</span></pre></div>
+        <figcaption><span class="src mock">mock</span><b>The same text as <code>SKILL.md</code></b>, without its frontmatter, each "ref: X.md" written as <code>omaseed skill X</code>: a word that works wherever omaseed is installed, or run from a build.</figcaption>
+      </figure>
+    </div>
+
+    <div class="item"><h3><span class="id">AS5</span>Where it ships, and how <code>AGENTS.md</code> keeps up<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>One folder in the repo, <code>data/agents/skill/</code>, installed as is to <code>/usr/share/omaseed/agents/skill/</code> and compiled into the binary.</b> <code>AGENTS.md</code> is generated from it at start: the header, then <code>SKILL.md</code>'s body with each "ref:" turned into <code>omaseed skill PAGE</code>. An agent started in <code>~/.config/omaseed/</code> loads the same map a skill would, ~600 tokens, and reads a page only when it needs one. A ctest builds <code>AGENTS.md</code> from the folder and checks every "ref:" names a page that is there.</span></li>
+        <li><b>b</b><span><code>AGENTS.md</code> stays the whole guide (the body and every page, ~2.5k tokens). Nothing to run for a page, and the cwd case loads three times what it needs.</span></li>
+        <li><b>c</b><span><code>AGENTS.md</code> becomes a pointer: the never list and "read /usr/share/omaseed/agents/skill/SKILL.md". The shortest; one more read every time, and a path that is wrong for a build.</span></li>
+      </ul>
+      <p><code>skin.schema.json</code> stays where it is: it is generated from the reader's table at run time, and a clone's <code>$schema</code> names it there. The skill points at that path; <code>omaseed skill link</code> also writes the folder's files once (AS6), so the schema is there before omaseed's first start.</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="link">
+    <div class="sec-head"><div class="eyebrow">5 · AS6 to AS8 · linking it</div><h2>One command, asked for, never at start</h2></div>
+
+    <div class="cols two">
+      <figure>
+        <div class="term"><div class="tbar"><span>a terminal</span><span>mock</span></div><pre><span class="p">$</span> <span class="c">omaseed skill link</span>
+<span class="g">linked</span>   ~/.agents/skills/omaseed   <span class="d">→ /usr/share/omaseed/agents/skill</span>
+<span class="g">linked</span>   ~/.claude/skills/omaseed
+<span class="g">linked</span>   ~/.codex/skills/omaseed
+<span class="d">skipped</span>  Gemini, Hermes: not installed
+<span class="y">left</span>     ~/.pi/agent/skills/omaseed: a folder of yours, not a link
+Agents load it when you ask about torrents or omaseed's skin.
+<span class="d">omaseed skill unlink takes it out.</span>
+
+<span class="p">$</span> <span class="c">omaseed skill status</span>
+<span class="g">linked</span>   Claude Code, Codex, the shared ~/.agents
+<span class="y">yours</span>    pi: ~/.pi/agent/skills/omaseed is your own copy;
+         it won't follow omaseed's upgrades
+<span class="p">$</span> <span class="c">omaseed skill status --json</span> <span class="d">| one object, "v": 1, folders[]</span></pre></div>
+        <figcaption><span class="src mock">mock</span><b>link, then status.</b> Each folder is said once; a name that is someone else's is left and named. Exit 0 linked (or nothing to do), 5 not-written when no folder could take the link.</figcaption>
+      </figure>
+      <figure>
+        <div class="pane">
+          <div class="cap">Settings › General</div>
+          <div class="srow">
+            <span class="g">◇</span>
+            <span class="tt"><b>Agents</b><small>Agents can read your library through omaseed's commands (omaseed status, errors…). They can't change anything.</small></span>
+            <span class="chips"><span class="chip on">read only</span><span class="chip">ask me</span><span class="chip">let them fix</span></span>
+            <span class="skl"><small class="new">Skill · linked for Claude Code and Codex. Your agent loads it when you ask about a download or omaseed's look.</small><span class="chip">⋯</span></span>
+          </div>
+          <div class="srow">
+            <span class="g">◇</span>
+            <span class="tt"><b>Agents</b><small>Agents can read your library through omaseed's commands (omaseed status, errors…). They can't change anything.</small></span>
+            <span class="chips"><span class="chip on">read only</span><span class="chip">ask me</span><span class="chip">let them fix</span></span>
+            <span class="skl"><small class="new">Skill · not linked. Linked, an agent started anywhere finds omaseed's guide.</small><span class="chip act">link the skill</span></span>
+          </div>
+        </div>
+        <figcaption><span class="src mock">mock</span><b>The Agents row</b> (C45 V16, ruled, not built yet: it comes with the gate) <b>gains one line</b>, linked and not linked. <b>link the skill</b> runs the same code as the command; once linked the line says where, and the row's ⋯ holds <b>unlink</b>. If the gate is built later than this board, the line comes first, on a row of its own with the same words.</figcaption>
+      </figure>
+    </div>
+
+    <div class="item"><h3><span class="id">AS6</span>The command<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b><code>omaseed skill</code>, a word in C37 U10's family:</b> <code>omaseed skill</code> prints the map, <code>omaseed skill library|skins|files</code> prints a page, <code>omaseed skill link|unlink|status [--json]</code> manage the links. One noun for the whole thing, as <code>skin list|clone|use</code> is for skins. <code>link</code> also writes <code>~/.config/omaseed/</code>'s guide files once, as a start would. No display, bus or server.</span></li>
+        <li><b>b</b><span><code>omaseed agents link|unlink|status</code>. Matches the Settings row's name; a second noun beside <code>--skill</code>, and "agents" reads like the gate's setting.</span></li>
+        <li><b>c</b><span>Options, <code>--link-skill</code> and <code>--unlink-skill</code>, as <code>--install-bar-widget</code> is. U10 turned options down for new commands.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">AS7</span>Which folders, and what unlink takes<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>Omarchy's list, so omaseed's skill is wherever Omarchy's are:</b> <code>~/.agents/skills</code> and <code>~/.claude/skills</code> always (made if missing); <code>~/.codex/skills</code>, <code>~/.pi/agent/skills</code>, <code>~/.gemini/config/skills</code>, <code>~/.hermes/skills</code> and each Hermes profile's only when that agent's folder exists. The link is named <code>omaseed</code>. A file or folder of that name that isn't omaseed's link is left and named. <code>unlink</code> removes only links that point at an omaseed skill folder (the installed one or a build's), and leaves the folders it made.</span></li>
+        <li><b>b</b><span>Only <code>~/.agents/skills</code>, the shared folder. One link; agents that don't read it (Claude Code today) miss it.</span></li>
+        <li><b>c</b><span>Ask per agent (<code>link --claude --codex</code>). Precise; the person has to know where each agent looks, which is what the command is for.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">AS8</span>Who links it, and when<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>The person, by asking:</b> the command, and the line on the Agents row. Never at start, never from the package (a package doesn't write in home folders). Where it is offered: the help page's last line ("Coding agents: omaseed skill link, or omaseed skill to read the guide"), <code>omaseed skill</code>'s own last line when it isn't linked, the package's install message, and README's agents section.</span></li>
+        <li><b>b</b><span>As (a), plus a first-run step, as the bar widget has: "Let your coding agent ask omaseed · link · not now". Found by more people; first run is about getting a library, and most people have no agent.</span></li>
+        <li><b>c</b><span>Linked at every start when an agent's folder exists, <code>unlink</code> to stop it. What #286 rules out: files appear in the person's agent setup without being asked.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="print">
+    <div class="sec-head"><div class="eyebrow">6 · AS9 to AS11 · prints, upgrades, size</div><h2>What --skill says, what an upgrade does, how short it stays</h2></div>
+
+    <div class="item"><h3><span class="id">AS9</span>What <code>--skill</code> prints<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>The map, as <code>omaseed skill</code> does</b>: the same text as <code>AGENTS.md</code> without its header, ending with the pages (<code>omaseed skill library</code>, <code>skins</code>, <code>files</code>) and, when no folder has the link, one line naming <code>omaseed skill link</code>. <code>--skill</code> stays as a spelling of it, so C45 V19's help line and older notes keep working.</span></li>
+        <li><b>b</b><span>Everything, as today: the map and every page, ~2.5k tokens. One call, and most of it unread.</span></li>
+        <li><b>c</b><span><code>--skill</code> goes; only the word. Cleaner, and every place that already says <code>--skill</code> breaks.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">AS10</span>Upgrades, and a person who edits it<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>Links follow the package.</b> An upgrade replaces <code>/usr/share/omaseed/agents/skill/</code> and every linked agent reads the new one, no step. The installed files are root's, so a person who wants their own guide replaces the link with a copy: omaseed then calls it theirs, leaves it alone, and <code>status</code> says it won't follow upgrades. A removed package leaves dead links behind, which agents skip; the remove message says so and where they are (or run <code>omaseed skill unlink</code> before removing), and installing again brings them back to life.</span></li>
+        <li><b>b</b><span>Copies, not links, headed like <code>AGENTS.md</code> and rewritten at start when they differ. Works for an agent that won't follow a link; it is writing into agents' folders at start, which AS8 turns down.</span></li>
+      </ul>
+    </div>
+
+    <div class="item"><h3><span class="id">AS11</span>The size targets<span class="rec-tag">recommended a</span></h3>
+      <ul class="opts">
+        <li class="rec"><b>a</b><span><b>A budget a ctest holds:</b> <code>SKILL.md</code> under 70 lines and 1,000 tokens (counted as bytes / 4), the description under 700 characters, each page under 1,200 tokens. The schema has no budget: it is the reference, reached by grep. The win is the map, not trimming.</span></li>
+        <li><b>b</b><span>Targets written in DECISIONS only. Nothing stops the map from growing back into the manual.</span></li>
+      </ul>
+    </div>
+
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th>What an agent reads</th><th>Today, in ~/.config/omaseed</th><th>Today, elsewhere</th><th>Proposed, anywhere linked</th></tr></thead>
+        <tbody>
+          <tr><td>Always, before a request</td><td class="num">~1.8k (AGENTS.md)</td><td class="num n">0, and no guide</td><td class="num">~0.15k (the description)</td></tr>
+          <tr><td>"Why didn't this finish?"</td><td class="num">~1.8k</td><td class="m">a guess, or --skill if told</td><td class="num y">~0.7k (SKILL.md)</td></tr>
+          <tr><td>"Make it warmer, and rounder"</td><td class="num m">~1.8k + ~18k (the schema)</td><td class="m">a guess</td><td class="num y">~0.7k + ~1.1k (skins page) + a few greps</td></tr>
+          <tr><td>Exit codes, every field</td><td class="num">in the 1.8k</td><td class="n">none</td><td class="num">~0.7k (library page), when needed</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="dim">Tokens are estimates from the files' sizes and #227's run. The skin request's real saving is the schema: the trial read all of it, and the map plus "grep, never whole" is the fix.</p>
+  </section>
+
+  <!-- 7 -->
+  <section id="out">
+    <div class="sec-head"><div class="eyebrow">7 · not on this board</div><h2>Left out, on purpose</h2></div>
+    <ul class="facts">
+      <li><b>The trial's product findings:</b> <code>status --json</code> carrying its own pointer to <code>errors</code>, and which surfaces <code>roles.accent</code> paints. Each is a fix in the code, with an issue of its own, not a guide line.</li>
+      <li><b>Omarchy's own skills folder</b> under <code>/usr/share/omarchy</code>: still Omarchy's (board 55 §8).</li>
+      <li><b>An MCP server</b> for the same words. The words are already a CLI every agent can run; a server is another thing to keep running.</li>
+      <li><b>A skill per agent dialect.</b> One <code>SKILL.md</code>; agents that read <code>AGENTS.md</code> in a folder get the same text there.</li>
+      <li><b><code>do</code> and its tiers.</b> When the actions ship, the skill gains a "ref: acting.md" page and one line in the map; the gate stays omaseed's (AS4).</li>
+    </ul>
+  </section>
+
+  <!-- 8 -->
+  <section id="amends">
+    <div class="sec-head"><div class="eyebrow">8 · what it amends</div><h2>The rulings it changes</h2></div>
+    <ul class="facts">
+      <li><b>C37 U4</b>: <code>AGENTS.md</code> is generated from the skill's map, not the whole guide; <code>--skill</code> prints the map (AS5, AS9). The files written at start and their header rule are unchanged.</li>
+      <li><b>C37's "The guide and the schema"</b>: the two parts become a map and three pages; the files paragraph becomes <code>ref/files.md</code>. U9's sharing moves to the skins page, unchanged.</li>
+      <li><b>C45 V19</b>: "one guide in two parts, <code>AGENTS.md</code> and <code>--skill</code> print both" becomes "one skill, a map and pages; <code>AGENTS.md</code>, <code>--skill</code> and the linked skill print the same map". The help page's last line names <code>omaseed skill link</code>.</li>
+      <li><b>C45 V16</b>: the Agents row gains the skill's line (AS8).</li>
+      <li><b>Board 55 §8</b>, "a skill installed into Omarchy's skills folder": still out; a skill linked into agents' folders, asked for, is in.</li>
+    </ul>
+  </section>
+
+  <!-- 9 -->
+  <section id="build">
+    <div class="sec-head"><div class="eyebrow">9 · building the recommended calls</div><h2>Five pieces, a patch release</h2></div>
+    <ol class="steps">
+      <li><span><b>The pages.</b> <code>data/agents/skill/</code> from today's two parts: <code>SKILL.md</code> as drawn, the three pages, nothing said twice. Installed by <code>data/CMakeLists.txt</code>, compiled as a qrc. The budget ctest (AS11) and the "every ref: is there" ctest.</span></li>
+      <li><span><b><code>AgentGuide</code>.</b> <code>map()</code> and <code>page(name)</code> from the qrc; <code>AGENTS.md</code> generated from <code>map()</code> with each "ref:" rewritten; <code>--skill</code> and <code>omaseed skill [PAGE]</code> print through it. Its QtTest grows the new cases.</span></li>
+      <li><span><b>The links.</b> <code>omaseed skill link|unlink|status [--json]</code> in the words' dispatcher, with a <code>SkillLinker</code> in <code>integration/</code> (the folder list, "ours" as a link into an omaseed skill folder) and a QtTest on a scratch HOME. The help page's last line.</span></li>
+      <li><span><b>The row's line</b>, with the Agents row (C45 V16) or on a row of its own if that row isn't built yet. The package's install and remove messages.</span></li>
+      <li><span><b>The proof.</b> <code>agent-walk.sh</code> gains link, status and unlink on the box's HOME. Then #227's trial again with an agent started in the box's <code>~</code>, not in <code>~/.config/omaseed/</code>, with only the linked skill: the two requests, and what it reads. Released alone (C33).</span></li>
+    </ol>
+  </section>
+
+  <!-- 10 -->
+  <section id="decisions">
+    <div class="sec-head"><div class="eyebrow">10 · your calls</div><h2>AS1 to AS11</h2></div>
+    <p>Recommended options are preselected. Change what you disagree with and paste the block back into a session, or answer "all as recommended".</p>
+    <div class="dec" id="dec"></div>
+    <div class="out">
+      <textarea id="answers" readonly aria-label="Your answers"></textarea>
+      <div style="display:flex;gap:12px;align-items:center"><button type="button" id="copy">Copy answers</button><span class="ok" id="copied" hidden>Copied</span></div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const DEC = [
+  { id: "AS1", s: "§3", q: "One skill or two", opts: [
+    ["a", "One skill, omaseed: SKILL.md and ref/library.md, ref/skins.md, ref/files.md; the tokens stay in skin.schema.json", true],
+    ["b", "Two skills, omaseed and omaseed-skins"],
+    ["c", "One SKILL.md with the whole guide, no pages"]] },
+  { id: "AS2", s: "§3", q: "What SKILL.md holds", opts: [
+    ["a", "The map: never list, the reads and errors-first, the skin loop, the wish-to-token map with grep-the-schema, ref lines; under 70 lines", true],
+    ["b", "An index only: the never list and one line per page"]] },
+  { id: "AS3", s: "§3", q: "The description's trigger words", opts: [
+    ["a", "Two sentences and a trigger list: didn't finish, stuck, slow, warmer, rounder, the engines, omaseed; theme and look only as omaseed's", true],
+    ["b", "Only omaseed and torrent"]] },
+  { id: "AS4", s: "§3", q: "allowed-tools", opts: [
+    ["a", "The six that only read: status, errors, log, moves, check, skin list; never do", true],
+    ["b", "None"],
+    ["c", "Every word, skin clone and skin use included"]] },
+  { id: "AS5", s: "§4", q: "One source", opts: [
+    ["a", "data/agents/skill/ installed to /usr/share/omaseed/agents/skill/ and compiled in; AGENTS.md generated from SKILL.md, ref: as omaseed skill PAGE", true],
+    ["b", "AGENTS.md stays the whole guide"],
+    ["c", "AGENTS.md becomes a pointer to the installed SKILL.md"]] },
+  { id: "AS6", s: "§5", q: "The command", opts: [
+    ["a", "omaseed skill [PAGE] prints; omaseed skill link|unlink|status [--json] manages the links; link also writes the config folder's guide files", true],
+    ["b", "omaseed agents link|unlink|status"],
+    ["c", "Options: --link-skill, --unlink-skill"]] },
+  { id: "AS7", s: "§5", q: "Which folders, what unlink takes", opts: [
+    ["a", "Omarchy's list (~/.agents and ~/.claude always; Codex, pi, Gemini, Hermes when there); unlink only links into an omaseed skill folder", true],
+    ["b", "Only ~/.agents/skills"],
+    ["c", "Per agent, named on the command line"]] },
+  { id: "AS8", s: "§5", q: "Who links it, and when", opts: [
+    ["a", "The person: the command and the Agents row's line; offered by help, omaseed skill, the package message, README; never at start", true],
+    ["b", "As a, plus a first-run step"],
+    ["c", "Linked at every start where an agent is installed"]] },
+  { id: "AS9", s: "§6", q: "What --skill prints", opts: [
+    ["a", "The map, as omaseed skill does, with the pages named and a link hint; --skill stays as its spelling", true],
+    ["b", "Everything, as today"],
+    ["c", "--skill goes; only the word"]] },
+  { id: "AS10", s: "§6", q: "Upgrades and edits", opts: [
+    ["a", "Links follow the package; a copy in its place is the person's, left alone, said by status; dead links after a remove are named", true],
+    ["b", "Copies rewritten at start when they differ"]] },
+  { id: "AS11", s: "§6", q: "The size targets", opts: [
+    ["a", "A ctest budget: SKILL.md under 70 lines and 1,000 tokens, description under 700 characters, each page under 1,200 tokens; the schema reached by grep", true],
+    ["b", "Targets in DECISIONS only"]] },
+];
+const dec = $("#dec");
+for (const d of DEC) {
+  const box = document.createElement("div"); box.className = "q";
+  const inputs = d.opts.map(([v, label, rec]) => {
+    const id = `${d.id}-${v}`;
+    const safe = label.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    return `<label class="opt" for="${id}"><input id="${id}" type="radio" name="${d.id}" value="${v}" ${rec ? "checked" : ""}><span><b>${v}</b> · ${safe}${rec ? `<span class="rec">recommended</span>` : ""}</span></label>`;
+  }).join("");
+  box.innerHTML = `<fieldset><legend><span class="id">${d.id}</span> · ${d.q} <span class="dim">${d.s}</span></legend>${inputs}</fieldset>`;
+  dec.append(box);
+}
+const notes = document.createElement("div"); notes.className = "q";
+notes.innerHTML = `<label for="free" style="color:var(--fg-bright);font-weight:500">Anything else</label><textarea id="free"></textarea>`;
+dec.append(notes);
+function answers() {
+  const lines = ["docs/65 The guide as a skill (2026-11-20):"];
+  for (const d of DEC) { const c = document.querySelector(`input[name="${d.id}"]:checked`); lines.push(`${d.id} ${c ? c.value : "-"}`); }
+  const f = $("#free").value.trim(); if (f) lines.push("notes: " + f);
+  $("#answers").value = lines.join("\n");
+}
+dec.addEventListener("input", answers); notes.addEventListener("input", answers); answers();
+$("#copy").addEventListener("click", () => {
+  const ta = $("#answers");
+  const done = () => { $("#copied").hidden = false; setTimeout(() => $("#copied").hidden = true, 1600); };
+  try {
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => ta.select()); else ta.select();
+  } catch { ta.select(); }
+});
+})();
+</script>
+</body>
+</html>
