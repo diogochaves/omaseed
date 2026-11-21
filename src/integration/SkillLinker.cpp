@@ -71,7 +71,7 @@ QString makeLink(const QString &source, const QString &link)
 }
 
 /// What is at `folder`'s omaseed entry now, as status says it.
-FolderState stateOf(const Folder &folder)
+FolderState stateOf(const Folder &folder, const QString &source)
 {
     FolderState state;
     state.agent = folder.agent;
@@ -79,7 +79,7 @@ FolderState stateOf(const Folder &folder)
     const QFileInfo info(state.path);
     if (info.isSymLink()) {
         state.target = info.readSymLink();
-        if (isOurs(state.path)) {
+        if (isOurs(state.path, source)) {
             state.state = info.exists() ? State::Linked : State::Dead;
             return state;
         }
@@ -177,7 +177,7 @@ QList<Folder> folders()
     return list;
 }
 
-bool isOurs(const QString &linkPath)
+bool isOurs(const QString &linkPath, const QString &source)
 {
     const QFileInfo info(linkPath);
     if (!info.isSymLink())
@@ -185,8 +185,15 @@ bool isOurs(const QString &linkPath)
     QString text = info.readSymLink();
     while (text.size() > 1 && text.endsWith(QLatin1Char('/')))
         text.chop(1);
-    return text.endsWith(QStringLiteral("/omaseed/agents/skill")) ||
-           text.endsWith(QStringLiteral("/data/agents/skill"));
+    if (text.endsWith(QStringLiteral("/omaseed/agents/skill")) ||
+        text.endsWith(QStringLiteral("/data/agents/skill")))
+        return true;
+    // The folder omaseed is using, whatever its path: link writes `source` as the link text.
+    const QString target = QDir::cleanPath(text);
+    const auto names = [&target](const QString &dir) {
+        return !dir.isEmpty() && QDir::cleanPath(QDir(dir).absolutePath()) == target;
+    };
+    return names(source) || names(qEnvironmentVariable("OMASEED_SKILL_DIR"));
 }
 
 QString stateName(State state)
@@ -213,7 +220,7 @@ Report status(const QString &source)
     Report report;
     report.source = source;
     for (const Folder &folder : folders())
-        report.folders.append(stateOf(folder));
+        report.folders.append(stateOf(folder, source));
     return report;
 }
 
@@ -238,13 +245,13 @@ Report link(const QString &source)
     bool linked = false;
     QStringList refused;
     for (const Folder &folder : folders()) {
-        FolderState state = stateOf(folder);
+        FolderState state = stateOf(folder, source);
         const bool ours = state.state == State::Linked || state.state == State::Dead;
         if (state.state == State::Absent || (ours && state.target != source)) {
             const QString why = makeLink(source, state.path);
             if (why.isEmpty()) {
                 report.changed << state.path;
-                state = stateOf(folder);
+                state = stateOf(folder, source);
             } else {
                 state.state = State::Failed;
                 state.why = why;
@@ -273,11 +280,11 @@ Report unlink(const QString &source)
     report.source = source;
     QStringList failed;
     for (const Folder &folder : folders()) {
-        FolderState state = stateOf(folder);
+        FolderState state = stateOf(folder, source);
         if (state.state == State::Linked || state.state == State::Dead) {
             if (QFile::remove(state.path)) {
                 report.changed << state.path;
-                state = stateOf(folder);
+                state = stateOf(folder, source);
             } else {
                 state.state = State::Failed;
                 state.why = QStringLiteral("can't remove it");

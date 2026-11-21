@@ -43,8 +43,9 @@ QList<Folder> folders();
 
 /// True when the entry at `linkPath` is a link omaseed made: its link text (not what it points
 /// at, so a dead link after a package removal is still ours) ends in /omaseed/agents/skill or
-/// /data/agents/skill.
-bool isOurs(const QString &linkPath);
+/// /data/agents/skill, or names the skill folder omaseed is using: `source`, or
+/// $OMASEED_SKILL_DIR wherever it is (a link made from an odd OMASEED_SKILL_DIR is still ours).
+bool isOurs(const QString &linkPath, const QString &source = QString());
 
 /// What one folder holds, or what link did there.
 enum class State {
@@ -77,7 +78,7 @@ struct Report
     QString message;
 };
 
-/// Each folder's state; `source` is said, not used.
+/// Each folder's state; a link to `source` counts as ours (isOurs).
 Report status(const QString &source);
 /// True when at least one folder holds a live link of ours.
 bool anyLinked();

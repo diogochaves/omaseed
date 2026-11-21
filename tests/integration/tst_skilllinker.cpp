@@ -90,6 +90,7 @@ private Q_SLOTS:
     void statusSaysYoursForACopy();
     void findSourceOrder();
     void thePrintedGuideSaysLinkOnlyWhenUnlinked();
+    void anOddSkillDirIsStillOurs();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tmp;
@@ -360,6 +361,40 @@ void TestSkillLinker::thePrintedGuideSaysLinkOnlyWhenUnlinked()
     // AGENTS.md never carries the line.
     QVERIFY(!readFile(home(QStringLiteral(".config/omaseed/AGENTS.md")))
                  .contains(SkillLinker::notLinkedLine().toUtf8()));
+}
+
+// An OMASEED_SKILL_DIR whose path ends in neither /omaseed/agents/skill nor /data/agents/skill:
+// the links link makes to it are omaseed's for status and unlink, not the person's.
+void TestSkillLinker::anOddSkillDirIsStillOurs()
+{
+    const QString odd = makeSkill(path(QStringLiteral("odd")), QStringLiteral("my-skill"));
+    qputenv("OMASEED_SKILL_DIR", odd.toUtf8());
+    const QString source = SkillLinker::findSource();
+    QCOMPARE(source, odd);
+    QVERIFY(SkillLinker::link(source).code.isEmpty());
+    const QString claude = home(QStringLiteral(".claude/skills/omaseed"));
+    QCOMPARE(QFileInfo(claude).readSymLink(), odd);
+    QVERIFY(SkillLinker::isOurs(claude, source));
+    QVERIFY(SkillLinker::isOurs(claude)); // through $OMASEED_SKILL_DIR alone
+
+    const auto status = SkillLinker::status(source);
+    QCOMPARE(stateFor(status, QStringLiteral("Claude Code")).state, State::Linked);
+    QCOMPARE(stateFor(status, QStringLiteral("the shared ~/.agents")).state, State::Linked);
+    QVERIFY(SkillLinker::anyLinked());
+
+    // The same link is the person's once omaseed uses another folder.
+    qunsetenv("OMASEED_SKILL_DIR");
+    QVERIFY(!SkillLinker::isOurs(claude, installed()));
+    QCOMPARE(stateFor(SkillLinker::status(installed()), QStringLiteral("Claude Code")).state,
+             State::Yours);
+
+    // Back to it: unlink takes both out.
+    qputenv("OMASEED_SKILL_DIR", odd.toUtf8());
+    const auto report = SkillLinker::unlink(source);
+    QVERIFY(report.code.isEmpty());
+    QCOMPARE(report.changed.size(), 2);
+    QVERIFY(!QFileInfo(claude).isSymLink());
+    QVERIFY(QFileInfo::exists(odd + QStringLiteral("/SKILL.md")));
 }
 
 QTEST_GUILESS_MAIN(TestSkillLinker)
