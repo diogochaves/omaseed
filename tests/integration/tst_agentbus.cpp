@@ -8,6 +8,7 @@
 #include "integration/AppIdentity.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
+#include <ctime>
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -295,6 +296,17 @@ void TestAgentBus::askingReachesTheCaller()
     QVERIFY2(reply.code.isEmpty(), qPrintable(reply.message));
     QCOMPARE(QString::fromUtf8(reply.answer), QStringLiteral(R"({"v":1,"command":"do"})"));
     QCOMPARE(heard, QStringList{QStringLiteral("Asking in omaseed's window… moves always ask.")});
+
+    // While it waits it sleeps: a do that asks waits up to two minutes, and the wait spun a
+    // core (the agent walk, #293). The handler answers after 150 ms.
+    std::clock_t cpu = std::clock();
+    reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("move")}},
+        5000);
+    const double spent = double(std::clock() - cpu) * 1000.0 / CLOCKS_PER_SEC;
+    QVERIFY(reply.code.isEmpty());
+    QVERIFY2(spent < 75, qPrintable(QStringLiteral("%1 ms of CPU for a 150 ms wait").arg(spent)));
 
     heard.clear();
     reply = omaseed::integration::AgentClient::call(

@@ -10,12 +10,14 @@
 #include <QDBusError>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusReply>
-#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QTimer>
 
 namespace omaseed::integration::AgentClient {
 
@@ -146,11 +148,21 @@ Reply call(const QString &method, const QJsonObject &options, int timeoutMs, con
                 service, AppIdentity::dbusObjectPath(), interfaceName(), method);
             message << QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
             QDBusPendingCall pending = connection.asyncCall(message, timeoutMs);
-            // Pumped, as SingleInstance's hand-off is: no event loop runs yet.
-            QElapsedTimer timer;
-            timer.start();
-            while (!pending.isFinished() && timer.elapsed() < timeoutMs + 500)
-                QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+            // No event loop runs yet: one of its own until the answer or the limit. It sleeps
+            // between events (processEvents with a time limit only returns at once, and spun a
+            // core for the whole of a two-minute ask: the agent walk, #293).
+            if (!pending.isFinished()) {
+                QEventLoop loop;
+                QDBusPendingCallWatcher watcher(pending);
+                QObject::connect(
+                    &watcher, &QDBusPendingCallWatcher::finished, &loop, &QEventLoop::quit);
+                QTimer limit;
+                limit.setSingleShot(true);
+                QObject::connect(&limit, &QTimer::timeout, &loop, &QEventLoop::quit);
+                limit.start(timeoutMs + 500);
+                if (!pending.isFinished())
+                    loop.exec();
+            }
             const QDBusError::ErrorType error =
                 pending.isFinished() ? pending.error().type() : QDBusError::Timeout;
             switch (error) {
