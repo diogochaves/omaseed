@@ -1926,6 +1926,9 @@ public:
         QString word;
         omaseed::core::AgentOrigin origin;
         std::function<void(const omaseed::core::ActionOutcome &)> answered;
+        /// #295 (C50 GT6): a remove's kept entries, hash → RemovedKeep id; the ones the server
+        /// didn't remove are forgotten once it has answered.
+        QHash<QString, QString> kept;
     };
     /// C45 V18: an agent's act that went to the server, said in the journal (`qInfo`) and
     /// saved as the row's last line. `subject` is the torrent's name, "3 torrents" or the
@@ -1952,6 +1955,9 @@ public:
     /// #294 (C50 GT2): `do locate`: re-points `hashes` at `path` (EngineClient::pointAt, nothing
     /// moved), then rechecks them; answered once both went through, or at the first refusal.
     bool locate(const QStringList &hashes, const QString &path, const AgentAct &act);
+    /// #295 (C50 GT1): `do remove`: the torrents only, never their files (no deleteFiles here
+    /// at all), each already kept (`act.kept`). False when nothing was sent.
+    bool removeForAgent(const QStringList &hashes, const AgentAct &act);
     /// What this machine sees of the server's disks (`localPathFor`), for `do locate`'s find.
     const omaseed::core::FreeSpaceProbe &freeSpaceProbe() const { return m_freeSpace; }
     /// dismissFailure for each of `hashes`; answered at once (nothing goes to the server).

@@ -284,6 +284,14 @@ omaseed_add_test(tst_app_agentlocate
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #295 (DECISIONS C50 GT1, GT6): `do remove` against a stand-in qBittorrent whose save path is a
+# temporary folder: the guard, the ask, the keep before the remove, and the add back.
+omaseed_add_test(tst_app_agentremove
+    SOURCES tst_app_agentremove.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
 omaseed_add_test(tst_addroute
     SOURCES tst_addroute.cpp

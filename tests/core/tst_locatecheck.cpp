@@ -1,5 +1,5 @@
 // DECISIONS C50 GT2 (#294): `do locate`'s find, each wanted file's relative path and size in
-// a folder, over a table standing for the disk (PLAN Q9).
+// a folder, over a table standing for the disk (PLAN Q9); and do remove's look for any file.
 
 #include "core/LocateCheck.hpp"
 
@@ -111,6 +111,23 @@ private slots:
             disk({{QStringLiteral("/d/a.bin"), 60}, {QStringLiteral("/d/b.bin"), 120}}));
         QCOMPARE(result.found, 1); // larger than the torrent's: not its file
         QCOMPARE(result.firstMissing, QStringLiteral("b.bin"));
+    }
+
+    // C50 GT1 (#295): do remove's guard counts any file there, at any size, skipped ones too.
+    void presentCountsAnyFile()
+    {
+        const QList<ContentFile> files{file(QStringLiteral("Rec/01.flac"), 100),
+                                       file(QStringLiteral("Rec/02.flac"), 200, 0.5),
+                                       file(QStringLiteral("Rec/extra.nfo"), 10, 0.0, 0)};
+        auto result = LocateCheck::present(files, QStringLiteral("/d"), disk({}));
+        QCOMPARE(result.found, 0);
+        QCOMPARE(result.files, 3);
+        result = LocateCheck::present(files,
+                                      QStringLiteral("/d"),
+                                      disk({{QStringLiteral("/d/Rec/01.flac"), 7},
+                                            {QStringLiteral("/d/Rec/extra.nfo"), 10}}));
+        QCOMPARE(result.found, 2);
+        QCOMPARE(result.firstMissing, QStringLiteral("Rec/02.flac"));
     }
 
     void noWantedFile()

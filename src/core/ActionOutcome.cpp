@@ -97,6 +97,9 @@ Phrases phrases(const QString &action, const QString &target)
         return {tr("moved down the queue"), tr("didn't move in the queue"), tr("queue ↓")};
     if (action == QLatin1String("delete"))
         return {tr("deleted"), tr("didn't delete"), QString()};
+    // #295 (C50 GT1): an agent's remove, the torrent only, kept 30 days to add back (GT6).
+    if (action == QLatin1String("remove"))
+        return {tr("removed · kept 30 days"), tr("didn't remove"), QString()};
     if (action == QLatin1String("deleteWithFiles"))
         return {tr("deleted with its files"), tr("didn't delete"), QString()};
     if (action == QLatin1String("sequential"))

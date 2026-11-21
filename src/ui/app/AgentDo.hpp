@@ -8,7 +8,7 @@
 // 1. the options (usage); `list` answers the gate's lines as they stand, whatever it says;
 // 2. a demo acts on nothing (not-allowed; PLAN Q15);
 // 3. the gate (AgentGate::decide): never, not-allowed (reads off, or the kind's line off);
-// 4. an action not in this build yet (remove: usage);
+// 4. an action not in this build yet (usage);
 // 5. the server, as the reads check it: --server, not-current, first-sync, unreachable;
 // 6. every torrent matched (unknown-torrent, ambiguous) and checked for its action
 //    (start-here, dismiss, resume: refused, with why);
@@ -29,6 +29,12 @@
 // The fixes here: retry, start-here (a start, for a torrent the engine stopped after a failed
 // move; on an engine that pauses on error, recheck first), recheck, reannounce, dismiss, and
 // pause and resume (C36 M10's hold, the whole server).
+//
+// Remove (#295, C50 GT1, GT6): `remove <hash…>`, the torrent only, never its files (the CLI
+// takes no --delete-files), and only one whose files are gone: the engine says so, and where
+// omaseed sees the disk none of its files is at its save path (LocateCheck::present); else
+// not-removable. It always asks. Allowed, each torrent is kept first (App::keepRemoved, 30
+// days to add back); a keep that fails refuses the remove.
 
 #include "core/ProcParent.hpp"
 #include "core/engines/DetailsData.hpp"
@@ -42,6 +48,7 @@
 #include <QVariantMap>
 
 #include <functional>
+#include <memory>
 
 namespace omaseed::app {
 
@@ -109,6 +116,31 @@ private:
                      const QString &to,
                      const QString &localTo,
                      const QHash<QString, QList<core::ContentFile>> &files);
+    /// A remove (#295, C50 GT1): the engine's word that the files are gone, then every
+    /// torrent's file list read from the server, then removeChecked.
+    void proceedRemove(const QString &json,
+                       const core::ProcParent::Caller &caller,
+                       const Reply &reply,
+                       bool asked,
+                       bool dryRun,
+                       const QStringList &hashes);
+    /// Where omaseed sees the disk, none of the files at the save path (LocateCheck::present);
+    /// then the dry run's answer, the ask (always, GT1), or the keep (GT6) and the remove.
+    void removeChecked(const QString &json,
+                       const core::ProcParent::Caller &caller,
+                       const Reply &reply,
+                       bool asked,
+                       bool dryRun,
+                       const QStringList &hashes,
+                       const QHash<QString, QList<core::ContentFile>> &files);
+    /// Keeps `hashes` one after another (App::keepRemoved), then removes them; the first keep
+    /// that fails refuses the whole remove, and what was kept for it goes.
+    void keepThenRemove(const core::ProcParent::Caller &caller,
+                        const Reply &reply,
+                        bool asked,
+                        const QStringList &hashes);
+    struct KeepRun;
+    void keepNext(const std::shared_ptr<KeepRun> &run);
     /// MoveController's plan (`make`), once it has every check in (`pending` false), or after
     /// a while with what it has: `done` gets it.
     void whenPlanned(const std::function<QVariantMap()> &make,

@@ -4,20 +4,24 @@
 
 namespace omaseed::core::LocateCheck {
 
-Result check(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat)
+namespace {
+
+/// The one walk both share: `any` counts a file there at any size, skipped ones included.
+Result walk(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat, bool any)
 {
     Result result;
     QString folder = localFolder;
     while (folder.size() > 1 && folder.endsWith(QLatin1Char('/')))
         folder.chop(1);
     for (const ContentFile &file : files) {
-        if (file.priority && *file.priority == 0)
+        if (!any && file.priority && *file.priority == 0)
             continue; // Q9: a skipped file isn't required
         ++result.files;
         const std::optional<qint64> size =
             stat ? stat(folder + QLatin1Char('/') + file.path) : std::nullopt;
         const bool complete = file.progress >= 1.0;
-        const bool fits = size.has_value() && (complete ? *size == file.size : *size <= file.size);
+        const bool fits =
+            size.has_value() && (any || (complete ? *size == file.size : *size <= file.size));
         if (fits) {
             ++result.found;
             result.bytes += *size;
@@ -26,6 +30,18 @@ Result check(const QList<ContentFile> &files, const QString &localFolder, const 
         }
     }
     return result;
+}
+
+} // namespace
+
+Result check(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat)
+{
+    return walk(files, localFolder, stat, false);
+}
+
+Result present(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat)
+{
+    return walk(files, localFolder, stat, true);
 }
 
 std::optional<qint64> statLocal(const QString &localPath)

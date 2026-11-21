@@ -35,6 +35,11 @@ struct Result
 /// `files` looked for under `localFolder` (no trailing '/' needed).
 Result check(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat);
 
+/// `do remove`'s guard (C50 GT1): which of `files` are under `localFolder` at all, whatever
+/// their size, skipped ones too (`found` of `files`; `firstMissing` stays the first absent).
+/// Any found means the torrent still has files there.
+Result present(const QList<ContentFile> &files, const QString &localFolder, const Stat &stat);
+
 /// QFileInfo on this machine's disk.
 std::optional<qint64> statLocal(const QString &localPath);
 

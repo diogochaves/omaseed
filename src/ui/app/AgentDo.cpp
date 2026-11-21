@@ -12,6 +12,7 @@
 #include "core/MoveJob.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/SharedData.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
@@ -22,6 +23,7 @@
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
 
+#include <QDate>
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -92,6 +94,10 @@ DoOptions parseOptions(const QString &json)
                 options.move = text;
             else
                 options.server = text;
+        } else if (key == QLatin1String("plan")) {
+            // C50 GT4's plan comes with S11; the CLI says so before it calls.
+            options.usage = AgentWords::notYet(QStringLiteral("do --plan"));
+            return options;
         } else {
             good = false;
         }
@@ -259,9 +265,9 @@ void AgentDo::proceed(const QString &json,
                                    QStringLiteral("resume"),
                                    QStringLiteral("move"),
                                    QStringLiteral("move-back"),
-                                   QStringLiteral("locate")};
+                                   QStringLiteral("locate"),
+                                   QStringLiteral("remove")};
     if (!built.contains(action)) {
-        // remove (S10).
         fail(QStringLiteral("usage"), AgentWords::notYet(QStringLiteral("do ") + action));
         return;
     }
@@ -373,6 +379,12 @@ void AgentDo::proceed(const QString &json,
                       decision == AgentGate::Decision::Ask,
                       hashes,
                       options.to.trimmed());
+        return;
+    }
+
+    // Remove looks at the disk first (#295, C50 GT1).
+    if (action == QLatin1String("remove")) {
+        proceedRemove(json, caller, reply, asked, options.dryRun, hashes);
         return;
     }
 
@@ -1386,6 +1398,372 @@ void AgentDo::locateFound(const QString &json,
             kCommand,
             QStringLiteral("failed"),
             QStringLiteral("omaseed couldn't send locate to %1.").arg(current.name)));
+}
+
+// ---- remove (#295, C50 GT1, GT6) -------------------------------------------------------------
+
+namespace {
+
+/// GT1: the engine's own word that a torrent's files are gone (its missing state, a missing
+/// files cause). A failed move is not that: its files are somewhere (assumed, S10).
+bool goneByState(const core::Torrent &torrent, const core::TorrentProblem &problem)
+{
+    return torrent.status.phase == core::TorrentPhase::Missing || problem.missingFiles ||
+           problem.causeKey == QLatin1String("missingFiles") ||
+           problem.causeKey == QLatin1String("missing");
+}
+
+/// docs/67 §2's second line under a not-removable.
+const QString kOnlyGone =
+    QStringLiteral("\nomaseed do removes only a torrent whose files are gone. Try recheck.");
+
+/// The day a kept torrent goes (GT6), as the answer's `kept` says it.
+QString keptDay()
+{
+    return QDate::currentDate().addDays(core::RemovedKeep::kDays).toString(Qt::ISODate);
+}
+
+} // namespace
+
+void AgentDo::proceedRemove(const QString &json,
+                            const core::ProcParent::Caller &caller,
+                            const Reply &reply,
+                            bool asked,
+                            bool dryRun,
+                            const QStringList &hashes)
+{
+    const Answers::Server current = m_service->currentServer();
+    const core::TorrentModel *model = m_app->engine()->torrents();
+    const core::ProblemLog *problems = m_app->engine()->problems();
+    for (const QString &hash : hashes) {
+        const core::Torrent &torrent = model->torrent(hash);
+        const core::TorrentProblem problem =
+            problems != nullptr ? problems->problem(hash) : core::TorrentProblem();
+        if (!goneByState(torrent, problem)) {
+            reply(AgentService::failure(
+                kCommand,
+                QStringLiteral("not-removable"),
+                core::AnnounceMask::maskText(
+                    QStringLiteral("Not removed: %1 doesn't say %2's files are gone (it is %3).")
+                        .arg(current.name, torrent.name, torrent.stateText().toLower()) +
+                    kOnlyGone)));
+            return;
+        }
+    }
+
+    // Every torrent's file list, as the server has it, to look for them on the disk.
+    struct Gather
+    {
+        qsizetype left = 0;
+        QHash<QString, QList<core::ContentFile>> files;
+        QString error;
+    };
+    auto gather = std::make_shared<Gather>();
+    gather->left = hashes.size();
+    QPointer<AgentDo> self(this);
+    const QString serverName = current.name;
+    for (const QString &hash : hashes) {
+        m_app->client()->files(hash)->then(
+            this,
+            [self, gather, hash, json, caller, reply, asked, dryRun, hashes, serverName](
+                const core::Result<QList<core::ContentFile>> &result) {
+                if (result.isError()) {
+                    if (gather->error.isEmpty())
+                        gather->error = result.error().toString();
+                } else {
+                    gather->files.insert(hash, result.value());
+                }
+                if (--gather->left > 0 || self.isNull())
+                    return;
+                if (!gather->error.isEmpty()) {
+                    reply(AgentService::failure(
+                        kCommand,
+                        QStringLiteral("failed"),
+                        core::AnnounceMask::maskText(
+                            QStringLiteral("omaseed couldn't read the torrents' files from %1: %2")
+                                .arg(serverName, gather->error))));
+                    return;
+                }
+                self->removeChecked(json, caller, reply, asked, dryRun, hashes, gather->files);
+            });
+    }
+}
+
+void AgentDo::removeChecked(const QString &json,
+                            const core::ProcParent::Caller &caller,
+                            const Reply &reply,
+                            bool asked,
+                            bool dryRun,
+                            const QStringList &hashes,
+                            const QHash<QString, QList<core::ContentFile>> &files)
+{
+    const Answers::Server current = m_service->currentServer();
+    const core::TorrentModel *model = m_app->engine()->torrents();
+    const core::FreeSpaceProbe &probe = m_app->freeSpaceProbe();
+
+    struct Look
+    {
+        QString hash;
+        QString name;
+        bool seen = false; ///< omaseed looked on the disk (else the server's word alone)
+    };
+    QList<Look> looks;
+    for (const QString &hash : hashes) {
+        if (model->indexOfHash(hash) < 0) {
+            reply(AgentService::failure(
+                kCommand,
+                QStringLiteral("unknown-torrent"),
+                QStringLiteral("%1 has no torrent %2 any more.").arg(current.name, hash)));
+            return;
+        }
+        const core::Torrent &torrent = model->torrent(hash);
+        const QList<core::ContentFile> list = files.value(hash);
+        // GT1: none of its files at its save path (nor in qBittorrent's incomplete folder,
+        // while it isn't complete), wherever this machine sees them (C14 E11).
+        QStringList folders{torrent.savePath};
+        if (!torrent.downloadPath.isEmpty() && !torrent.isComplete())
+            folders << torrent.downloadPath;
+        Look look{hash, torrent.name, false};
+        for (const QString &folder : std::as_const(folders)) {
+            const QString local = probe.localPathFor(folder);
+            if (local.isEmpty())
+                continue;
+            look.seen = true;
+            const core::LocateCheck::Result there =
+                core::LocateCheck::present(list, local, core::LocateCheck::statLocal);
+            if (there.found > 0) {
+                reply(AgentService::failure(
+                    kCommand,
+                    QStringLiteral("not-removable"),
+                    core::AnnounceMask::maskText(
+                        QStringLiteral("Not removed: %1 has its files (%2 of %3 at %4).")
+                            .arg(torrent.name)
+                            .arg(there.found)
+                            .arg(there.files)
+                            .arg(folder) +
+                        kOnlyGone)));
+                return;
+            }
+        }
+        looks.append(look);
+    }
+
+    const qsizetype unseen =
+        std::count_if(looks.cbegin(), looks.cend(), [](const Look &l) { return !l.seen; });
+    const QString subject =
+        looks.size() == 1
+            ? looks.constFirst().name
+            : countOf(looks.size(), QStringLiteral("torrent"), QStringLiteral("torrents"));
+    // The ask's and the dry run's word on how omaseed knows (GT1).
+    const QString how =
+        unseen == 0
+            ? (looks.size() == 1 ? QStringLiteral("none of its files is on disk (checked)")
+                                 : QStringLiteral("none of their files is on disk (checked)"))
+        : unseen == looks.size()
+            ? QStringLiteral("omaseed can't see %1's disks: the server's word alone")
+                  .arg(current.name)
+            : QStringLiteral("none on disk where omaseed sees it; the server's word alone for "
+                             "%1")
+                  .arg(unseen);
+
+    if (dryRun) {
+        // GT5: every check made, the disk's too; nothing asked, kept or removed. A remove
+        // always asks (GT1).
+        QJsonArray torrents;
+        for (const Look &l : std::as_const(looks))
+            torrents.append(QJsonObject{{QStringLiteral("hash"), l.hash},
+                                        {QStringLiteral("name"), l.name},
+                                        {QStringLiteral("checked"), l.seen}});
+        auto fields = envelope(QStringLiteral("remove"));
+        fields.append({QStringLiteral("dryRun"), true});
+        fields.append({QStringLiteral("would"), QStringLiteral("ask")});
+        fields.append({QStringLiteral("torrents"), torrents});
+        fields.append({QStringLiteral("outcome"),
+                       core::AnnounceMask::maskText(
+                           QStringLiteral("remove would ask in omaseed's window · %1 · %2")
+                               .arg(subject, how))});
+        reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+        return;
+    }
+
+    if (!asked) {
+        // C45 V17, C50 GT1: a remove always asks, whatever the line says.
+        constexpr qsizetype kShown = 4;
+        QVariantMap request;
+        request.insert(QStringLiteral("action"), QStringLiteral("remove"));
+        request.insert(
+            QStringLiteral("head"),
+            looks.size() == 1
+                ? QStringLiteral("An agent asks to remove a torrent")
+                : QStringLiteral("An agent asks to remove %1 torrents").arg(looks.size()));
+        QVariantList torrents;
+        for (const Look &l : std::as_const(looks)) {
+            if (torrents.size() == kShown)
+                break;
+            const core::Torrent &torrent = model->torrent(l.hash);
+            QStringList line;
+            if (!torrent.savePath.isEmpty())
+                line << QStringLiteral("was in %1").arg(torrent.savePath);
+            line << core::Format::size(torrent.size)
+                 << (l.seen ? QStringLiteral("files gone (checked)")
+                            : QStringLiteral("files gone, the server says"));
+            torrents.append(
+                QVariantMap{{QStringLiteral("name"), l.name},
+                            {QStringLiteral("line"), line.join(QStringLiteral(" · "))}});
+        }
+        request.insert(QStringLiteral("torrents"), torrents);
+        request.insert(QStringLiteral("more"),
+                       looks.size() > kShown
+                           ? QStringLiteral("and %1 more").arg(looks.size() - kShown)
+                           : QString());
+        request.insert(
+            QStringLiteral("where"),
+            QStringLiteral("%1 · %2 30 days to add back")
+                .arg(how,
+                     looks.size() == 1 ? QStringLiteral("kept") : QStringLiteral("each kept")));
+        request.insert(QStringLiteral("note"),
+                       QStringLiteral("omaseed takes the torrent off %1's list, never a file. Add "
+                                      "it back, paused where it was, from the outcome strip or "
+                                      "Settings › General › Agents.")
+                           .arg(current.name));
+        addCaller(&request, caller);
+        request.insert(QStringLiteral("allowText"), QStringLiteral("allow the remove"));
+        askFirst(json, caller, reply, QStringLiteral("remove"), subject, request);
+        return;
+    }
+
+    QStringList sending;
+    for (const Look &l : std::as_const(looks))
+        sending << l.hash;
+    keepThenRemove(caller, reply, asked, sending);
+}
+
+/// One `do remove` on its way: what is left to keep, and what was kept (GT6).
+struct AgentDo::KeepRun
+{
+    core::ProcParent::Caller caller;
+    Reply reply;
+    bool asked = false;
+    QStringList hashes;
+    QString serverName;
+    qsizetype next = 0;
+    QHash<QString, QString> kept; ///< hash → RemovedKeep id
+};
+
+void AgentDo::keepThenRemove(const core::ProcParent::Caller &caller,
+                             const Reply &reply,
+                             bool asked,
+                             const QStringList &hashes)
+{
+    auto run = std::make_shared<KeepRun>();
+    run->caller = caller;
+    run->reply = reply;
+    run->asked = asked;
+    run->hashes = hashes;
+    run->serverName = m_service->currentServer().name;
+    keepNext(run);
+}
+
+void AgentDo::keepNext(const std::shared_ptr<KeepRun> &run)
+{
+    // GT6: the way back first, one torrent at a time (each its own export); then the remove.
+    if (run->next < run->hashes.size()) {
+        const QString hash = run->hashes.at(run->next++);
+        QPointer<AgentDo> self(this);
+        m_app->keepRemoved(hash, [self, run, hash](const QString &id, const QString &error) {
+            if (id.isEmpty()) {
+                // Q11: no way back, no remove; what was kept for it goes.
+                for (const QString &kept : std::as_const(run->kept))
+                    core::RemovedKeep::forget(kept);
+                run->reply(AgentService::failure(
+                    kCommand,
+                    QStringLiteral("not-removable"),
+                    core::AnnounceMask::maskText(
+                        QStringLiteral("Not removed: %1%2 omaseed keeps a way back before "
+                                       "every remove.")
+                            .arg(error,
+                                 error.endsWith(QLatin1Char('.')) ? QString()
+                                                                  : QStringLiteral(".")))));
+                return;
+            }
+            run->kept.insert(hash, id);
+            if (self.isNull()) {
+                core::RemovedKeep::forget(id);
+                return;
+            }
+            // Out of the keep's own callback before the next export starts.
+            QTimer::singleShot(0, self, [self, run]() {
+                if (!self.isNull())
+                    self->keepNext(run);
+            });
+        });
+        return;
+    }
+
+    App::AgentAct act;
+    act.word = QStringLiteral("remove");
+    act.origin = originOf(run->caller, run->asked);
+    act.kept = run->kept;
+    const QString day = keptDay();
+    QHash<QString, QString> names;
+    const core::TorrentModel *model = m_app->engine()->torrents();
+    for (const QString &hash : std::as_const(run->hashes))
+        names.insert(hash, model->torrent(hash).name);
+    const QString answered = run->asked ? QStringLiteral("allowed") : QStringLiteral("not-asked");
+    QPointer<AgentDo> self(this);
+    act.answered = [self, run, names, answered, day](const core::ActionOutcome &outcome) {
+        if (self.isNull())
+            return;
+        const QString &serverName = run->serverName;
+        const QString refusedBy = outcome.cause.isEmpty()
+                                      ? QStringLiteral("%1 refused it").arg(serverName)
+                                      : outcome.cause;
+        QJsonArray done;
+        QJsonArray failed;
+        for (const QString &hash : std::as_const(run->hashes)) {
+            if (!outcome.failedHashes.contains(hash)) {
+                done.append(QJsonObject{{QStringLiteral("hash"), hash},
+                                        {QStringLiteral("name"), names.value(hash)},
+                                        {QStringLiteral("kept"), day}});
+                continue;
+            }
+            failed.append(QJsonObject{{QStringLiteral("hash"), hash},
+                                      {QStringLiteral("name"), names.value(hash)},
+                                      {QStringLiteral("code"), QStringLiteral("failed")},
+                                      {QStringLiteral("message"), refusedBy}});
+        }
+        // docs/67 §2: "Removed from attic · Night Market Field Recordings · its files were
+        // already gone".
+        QString said;
+        if (done.isEmpty())
+            said = QStringLiteral("Not removed: %1").arg(refusedBy);
+        else if (done.size() == 1)
+            said = QStringLiteral("Removed from %1 · %2 · its files were already gone. Kept until "
+                                  "%3 to add back in omaseed's window.")
+                       .arg(serverName,
+                            done.first().toObject().value(QLatin1String("name")).toString(),
+                            day);
+        else
+            said = QStringLiteral("Removed %1 torrents from %2 · their files were already gone. "
+                                  "Each kept until %3 to add back in omaseed's window.")
+                       .arg(done.size())
+                       .arg(serverName, day);
+        auto fields = envelope(QStringLiteral("remove"));
+        fields.append({QStringLiteral("asked"), run->asked});
+        fields.append({QStringLiteral("answer"), answered});
+        fields.append({QStringLiteral("done"), done});
+        fields.append({QStringLiteral("failed"), failed});
+        fields.append({QStringLiteral("outcome"), core::AnnounceMask::maskText(said)});
+        run->reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+    };
+    if (!m_app->removeForAgent(run->hashes, act)) {
+        for (const QString &kept : std::as_const(run->kept))
+            core::RemovedKeep::forget(kept);
+        run->reply(AgentService::failure(
+            kCommand,
+            QStringLiteral("failed"),
+            QStringLiteral("omaseed couldn't send remove to %1.").arg(run->serverName)));
+    }
 }
 
 } // namespace omaseed::app

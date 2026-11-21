@@ -3844,6 +3844,12 @@ std::function<void(const Result<Done> &)> App::tableAnswer(const QString &action
                                       : words.line + QStringLiteral("\n\n") + words.details;
             }
             outcome.byAgent = agent.has_value(); // C45 V18
+            if (agent) {
+                // C50 GT6: what the server didn't remove needs no way back.
+                for (const QString &hash : outcome.failedHashes)
+                    if (const QString id = agent->kept.value(hash); !id.isEmpty())
+                        RemovedKeep::forget(id);
+            }
             m_outcomes->report(outcome);
             if (agent) {
                 noteAgentAct(*agent,
@@ -3964,6 +3970,16 @@ bool App::locate(const QStringList &hashes, const QString &path, const AgentAct 
         m_engine->problems()->noteRechecked(hashes);
         m_client->recheck(hashes)->then(this, answer);
     });
+    return true;
+}
+
+bool App::removeForAgent(const QStringList &hashes, const AgentAct &act)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("remove"), hashes.size()) || !m_hasServer)
+        return false;
+    // C50 GT1: the torrent only; a remove through `do` never deletes a file.
+    m_client->remove(hashes, false)
+        ->then(this, tableAnswer(QStringLiteral("remove"), hashes, QString(), 1, agentOrNone(act)));
     return true;
 }
 
