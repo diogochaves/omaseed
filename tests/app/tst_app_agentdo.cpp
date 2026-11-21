@@ -642,10 +642,10 @@ void TestAppAgentDo::notYetAndBusUsage()
     m_app->setAgentFixes(QStringLiteral("allow"));
     m_app->setAgentMoves(QStringLiteral("ask"));
     m_app->setAgentRemove(QStringLiteral("ask"));
-    // C50 GT4's plan comes with S11.
+    // C50 GT4: a plan with no lines doesn't read (tst_app_agentplan runs real ones).
     QJsonObject object = run(*m_service, QStringLiteral(R"({"plan":"{}"})"));
     QCOMPARE(codeOf(object), QStringLiteral("usage"));
-    QVERIFY(messageOf(object).contains(QStringLiteral("do --plan isn't in this omaseed yet")));
+    QVERIFY(messageOf(object).contains(QStringLiteral("do --plan takes a JSON plan")));
     // #294: locate takes --to.
     object = run(*m_service, QStringLiteral(R"({"action":"locate","torrents":["3f9a1c0ea"]})"));
     QCOMPARE(codeOf(object), QStringLiteral("usage"));

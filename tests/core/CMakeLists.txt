@@ -859,6 +859,12 @@ omaseed_add_test(tst_locatecheck
     LIBRARIES omaseed::core
 )
 
+# #296 (DECISIONS C50 GT4): an agent's plan read: usage, a never word kept, groups, last line.
+omaseed_add_test(tst_agentplan
+    SOURCES tst_agentplan.cpp
+    LIBRARIES omaseed::core
+)
+
 # DECISIONS C45 V4, V6, V7, V8 (#163): the envelope, the options, --server's match, the reads'
 # JSON from plain inputs.
 omaseed_add_test(tst_agentanswers

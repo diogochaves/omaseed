@@ -30,6 +30,7 @@ qt_add_library(omaseed-app STATIC
     AgentAsk.cpp
     AgentAsk.hpp
     AgentDo.cpp
+    AgentDoPlan.cpp
     AgentDo.hpp
     AgentService.cpp
     AgentService.hpp

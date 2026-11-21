@@ -292,6 +292,14 @@ omaseed_add_test(tst_app_agentremove
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #296 (DECISIONS C50 GT4, GT5): `do --plan` against tst_app_agentremove's stand-in: one off or
+# refused line runs none, one ask for the lot, unticked lines, a line refused as it runs, dry run.
+omaseed_add_test(tst_app_agentplan
+    SOURCES tst_app_agentplan.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
 omaseed_add_test(tst_addroute
     SOURCES tst_addroute.cpp

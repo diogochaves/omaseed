@@ -35,6 +35,11 @@
 // omaseed sees the disk none of its files is at its save path (LocateCheck::present); else
 // not-removable. It always asks. Allowed, each torrent is kept first (App::keepRemoved, 30
 // days to add back); a keep that fails refuses the remove.
+//
+// A plan (#296, C50 GT4, GT5): `{plan: TEXT}`, the file's text as the CLI read it; see
+// AgentDoPlan.cpp. Its lines run through proceed with two keys only the app itself sets
+// (`probe`: answer the ask's map instead of opening it; `inPlan`: a line Settings allowed that
+// would ask now is refused, not asked); the bus refuses both.
 
 #include "core/ProcParent.hpp"
 #include "core/engines/DetailsData.hpp"
@@ -159,6 +164,25 @@ private:
                            const QStringList &hashes,
                            const QString &serverName,
                            const core::ProcParent::Caller &caller) const;
+
+    /// A plan (#296, C50 GT4, GT5; AgentDoPlan.cpp): every line checked as a dry run, one ask
+    /// for the lines that ask, then each line run in turn as a `do` of its own.
+    void runPlan(const QString &text,
+                 const QString &server,
+                 bool dryRun,
+                 const core::ProcParent::Caller &caller,
+                 const Reply &reply);
+    struct PlanRun;
+    void planCheckNext(const std::shared_ptr<PlanRun> &run);
+    void planChecked(const std::shared_ptr<PlanRun> &run);
+    /// The dry run's answer, or the failure of a plan with a line off or refused.
+    QString planChecks(const std::shared_ptr<PlanRun> &run) const;
+    void planProbeNext(const std::shared_ptr<PlanRun> &run);
+    /// The `omaseed · agent` window's map for a plan (board 67 §4): its groups.
+    QVariantMap planRequest(const std::shared_ptr<PlanRun> &run) const;
+    void planAsk(const std::shared_ptr<PlanRun> &run);
+    void planRunNext(const std::shared_ptr<PlanRun> &run);
+    void planDone(const std::shared_ptr<PlanRun> &run);
 
     QString m_procRoot = QStringLiteral("/proc");
     App *m_app;

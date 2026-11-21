@@ -54,7 +54,10 @@ struct DoOptions
     QString to;
     QString move;
     QString server;
-    QString usage; ///< "" when the options are good
+    QString plan;        ///< a plan's text (#296)
+    bool probe = false;  ///< the app's own: answer the ask's map, open nothing (a plan's)
+    bool inPlan = false; ///< the app's own: a plan's line, never asked on its own
+    QString usage;       ///< "" when the options are good
 };
 
 DoOptions parseOptions(const QString &json)
@@ -73,9 +76,13 @@ DoOptions parseOptions(const QString &json)
         const QString key = it.key();
         const QJsonValue value = it.value();
         bool good = true;
-        if (key == QLatin1String("list") || key == QLatin1String("dryRun")) {
+        if (key == QLatin1String("list") || key == QLatin1String("dryRun") ||
+            key == QLatin1String("probe") || key == QLatin1String("inPlan")) {
             good = value.isBool();
-            (key == QLatin1String("list") ? options.list : options.dryRun) = value.toBool();
+            (key == QLatin1String("list")     ? options.list
+             : key == QLatin1String("dryRun") ? options.dryRun
+             : key == QLatin1String("probe")  ? options.probe
+                                              : options.inPlan) = value.toBool();
         } else if (key == QLatin1String("torrents")) {
             good = value.isArray();
             for (const QJsonValue &hash : value.toArray()) {
@@ -95,9 +102,9 @@ DoOptions parseOptions(const QString &json)
             else
                 options.server = text;
         } else if (key == QLatin1String("plan")) {
-            // C50 GT4's plan comes with S11; the CLI says so before it calls.
-            options.usage = AgentWords::notYet(QStringLiteral("do --plan"));
-            return options;
+            // C50 GT4: the plan's text, as the CLI read it (PLAN Q13).
+            good = value.isString() && !value.toString().trimmed().isEmpty();
+            options.plan = value.toString();
         } else {
             good = false;
         }
@@ -105,6 +112,14 @@ DoOptions parseOptions(const QString &json)
             options.usage = AgentWords::doesNotTake(kCommand, key);
             return options;
         }
+    }
+    if (!options.plan.isEmpty()) {
+        // A plan names its own actions, torrents and folders.
+        if (options.list || !options.action.isEmpty() || !options.torrents.isEmpty() ||
+            !options.to.isEmpty() || !options.move.isEmpty())
+            options.usage = QStringLiteral("omaseed: do --plan takes the plan alone, with "
+                                           "--dry-run or --server: its lines name the actions.");
+        return options;
     }
     if (!options.list && options.action.isEmpty())
         options.usage = QStringLiteral("omaseed: do takes an action and its torrents: omaseed do "
@@ -186,6 +201,14 @@ AgentDo::AgentDo(App *app, AgentService *service)
 
 void AgentDo::run(const QString &json, uint callerPid, const Reply &reply)
 {
+    // probe and inPlan are the plan's own (AgentDoPlan.cpp): never from the bus.
+    const QJsonObject given = QJsonDocument::fromJson(json.toUtf8()).object();
+    for (const QString &key : {QStringLiteral("probe"), QStringLiteral("inPlan")})
+        if (given.contains(key)) {
+            reply(AgentService::failure(
+                kCommand, QStringLiteral("usage"), AgentWords::doesNotTake(kCommand, key)));
+            return;
+        }
     // V17: who asked, read once: the word's process as the bus named it, and its parent.
     proceed(json, core::ProcParent::callerOf(callerPid, m_procRoot), reply, false);
 }
@@ -214,6 +237,12 @@ void AgentDo::proceed(const QString &json,
         fields.append(
             {QStringLiteral("never"), QJsonArray::fromStringList(AgentGate::neverActions())});
         reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+        return;
+    }
+
+    // C50 GT4: a plan, each of its lines a do of its own (AgentDoPlan.cpp).
+    if (!options.plan.isEmpty()) {
+        runPlan(options.plan, options.server, options.dryRun, caller, reply);
         return;
     }
 
@@ -636,6 +665,24 @@ void AgentDo::askFirst(const QString &json,
     // V17: the person answers in the `omaseed · agent` window. Refused or unanswered, the
     // answer says so and nothing runs; allowed, every check is made again (a setting turned
     // off meanwhile wins, a torrent gone is unknown) and it runs as asked.
+    // A plan's (AgentDoPlan.cpp): its check keeps the map for the plan's one window; a line
+    // Settings allowed when the window was drawn, asking now, wasn't asked: refused alone.
+    const DoOptions given = parseOptions(json);
+    if (given.probe) {
+        reply(QString::fromUtf8(QJsonDocument(QJsonObject{{QStringLiteral("probe"),
+                                                           QJsonObject::fromVariantMap(request)}})
+                                    .toJson(QJsonDocument::Compact)));
+        return;
+    }
+    if (given.inPlan) {
+        reply(AgentService::failure(
+            kCommand,
+            QStringLiteral("refused"),
+            QStringLiteral("Not run: Settings › General › Agents asks for %1 now, and the plan's "
+                           "window didn't ask for it.")
+                .arg(action)));
+        return;
+    }
     const core::AgentOrigin origin = originOf(caller, false);
     QPointer<AgentDo> self(this);
     const bool opened = m_app->agentAsk()->ask(

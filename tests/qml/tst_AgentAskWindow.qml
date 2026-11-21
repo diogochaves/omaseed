@@ -10,7 +10,8 @@ import Omaseed.Views
 // the sheet's; what it says (head, names, "and N more", who, the yellow line); no key allows:
 // ↵ with no button focused does nothing, tab then ↵ answers on the button it reached; esc,
 // refuse and the window's close refuse; the ask closing (two minutes) hides it; the Console
-// skin's kana on the head.
+// skin's kana on the head. #296 (C50 GT4, board 67 §4): a plan's groups, boxes only on the
+// lines that ask, space ticks the row with the cursor, "allow these" answers with the ticks.
 TestCase {
     id: testCase
 
@@ -30,8 +31,10 @@ TestCase {
             property var request: ({})
             property int allowed: 0
             property int refused: 0
+            property var ticks: null
 
             function allow(ticks) {
+                ask.ticks = ticks;
                 ask.allowed += 1;
                 ask.open = false;
             }
@@ -235,6 +238,92 @@ TestCase {
         compare(opened.window.visible, false);
         compare(opened.window.sheet.opened, false);
         compare(opened.ask.refused, 0);
+    }
+
+    function planRequest() {
+        return {
+            "action": "plan",
+            "plan": true,
+            "head": "An agent asks to run a plan",
+            "groups": [
+                {
+                    "action": "recheck",
+                    "asks": false,
+                    "head": "Recheck 20",
+                    "more": "Harbour Bells, Lantern Festival…"
+                },
+                {
+                    "action": "remove",
+                    "asks": true,
+                    "head": "Remove 2 from attic",
+                    "more": "none of their files is on disk (checked) · each kept 30 days to add back",
+                    "checks": [],
+                    "rows": [
+                        {
+                            "key": "1:aaaa",
+                            "name": "Night Market",
+                            "line": "/data/archive/field · 2.1 GB"
+                        },
+                        {
+                            "key": "1:bbbb",
+                            "name": "Public Domain Reel 03",
+                            "line": "/data/archive/films · 1.4 GB"
+                        }
+                    ]
+                }
+            ],
+            "word": "omaseed do --plan",
+            "wordPid": 900,
+            "parent": "claude",
+            "parentPid": 48213,
+            "at": "15:19",
+            "allowText": "allow these"
+        };
+    }
+
+    function test_a_plan_lists_groups_and_boxes() {
+        const opened = testCase.makeOpen(testCase.planRequest());
+        const window = opened.window;
+        const sheet = window.sheet;
+        compare(sheet.title, "An agent asks to run a plan");
+        compare(findChild(sheet, "askNames").visible, false);
+        compare(findChild(sheet, "askPlan").visible, true);
+        compare(sheet.note, "space ticks · tab · ↵ on a button · esc refuses");
+        const allowed = findChild(sheet, "askGroupAllowed");
+        compare(findChild(allowed, "askGroupSide").text, "allowed in Settings");
+        compare(findChild(allowed, "askTick-1:aaaa"), null, "an allowed line has no box");
+        const asking = findChild(sheet, "askGroup");
+        compare(findChild(asking, "askGroupHead").text, "Remove 2 from attic");
+        compare(findChild(asking, "askGroupSide").text, "2 ticked");
+        verify(findChild(asking, "askTick-1:aaaa") !== null);
+
+        // tab reaches the first box; space unticks it; ↵ there allows nothing.
+        keyClick(Qt.Key_Tab);
+        compare(sheet.focusables()[sheet.focusedIndex()].objectName, "askTick-1:aaaa");
+        keyClick(Qt.Key_Space);
+        compare(window.isTicked("1:aaaa"), false);
+        compare(findChild(asking, "askGroupSide").text, "1 ticked");
+        keyClick(Qt.Key_Return);
+        compare(opened.ask.allowed, 0, "↵ on a box allowed it");
+        // A click ticks it back, and again off.
+        mouseClick(findChild(asking, "askTick-1:aaaa"));
+        compare(window.isTicked("1:aaaa"), true);
+        mouseClick(findChild(asking, "askTick-1:aaaa"));
+
+        // tab past the second box and refuse to "allow these", then ↵.
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_Tab);
+        keyClick(Qt.Key_Tab);
+        compare(testCase.buttonText(sheet.focusables()[sheet.focusedIndex()]), "allow these");
+        keyClick(Qt.Key_Return);
+        compare(opened.ask.allowed, 1);
+        compare(opened.ask.ticks, ["1:bbbb"]);
+        compare(opened.window.visible, false);
+
+        // Opened again, every box starts ticked.
+        const again = testCase.makeOpen(testCase.planRequest());
+        compare(again.window.ticks(), ["1:aaaa", "1:bbbb"]);
+        again.window.refuse();
     }
 
     function test_the_real_ask_is_apps() {

@@ -689,6 +689,11 @@ QString deleteFilesWords()
                           "and nothing else.");
 }
 
+bool isNeverWord(const QString &action)
+{
+    return neverWords().contains(action);
+}
+
 QString notYet(const QString &word)
 {
     return QStringLiteral(

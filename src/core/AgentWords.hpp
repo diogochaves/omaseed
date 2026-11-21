@@ -98,6 +98,8 @@ QString wordPage(const QString &word);
 QString doesNotTake(const QString &word, const QString &argument);
 QString noSuchWord(const QString &argument);
 QString notYet(const QString &word);
+/// True for a word `do` never runs as an agent may spell it (C45 V14: delete, rename, tags…).
+bool isNeverWord(const QString &action);
 /// `do … --delete-files`'s usage words (C50 GT1).
 QString deleteFilesWords();
 
