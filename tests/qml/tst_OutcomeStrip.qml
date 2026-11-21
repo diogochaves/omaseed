@@ -282,6 +282,35 @@ TestCase {
         verify(!findChild(strip, "outcomeMove").visible);
     }
 
+    // C45 V18 (board 62 §5): an agent's act says so after the headline, dim; the window's own
+    // acts say nothing more.
+    function test_an_agents_act_says_by_an_agent() {
+        strip.outcome = testCase.done;
+        verify(!findChild(strip, "outcomeAgent").visible);
+        strip.outcome = Object.assign({}, testCase.done, {
+                                          "agent": "by an agent"
+                                      });
+        const agent = findChild(strip, "outcomeAgent");
+        verify(agent.visible);
+        compare(agent.text, "· by an agent");
+        verify(agent.dim);
+        const headline = findChild(strip, "outcomeHeadline");
+        compare(headline.text, "Arcade Set 01 moved to /srv/library/archive");
+        verify(headline.Accessible.name.indexOf("by an agent") > 0);
+        laidOut();
+        verify(agent.x >= headline.x + headline.width, "the suffix follows the headline");
+        // A long headline gives way; the suffix stays whole and × stays on.
+        strip.outcome = Object.assign({}, testCase.failed, {
+                                          "agent": "by an agent",
+                                          "headline": "y".repeat(400)
+                                      });
+        laidOut();
+        verify(strip.width <= strip.availableWidth);
+        compare(findChild(strip, "outcomeAgent").width, findChild(strip, "outcomeAgent").implicitWidth);
+        const close = findChild(strip, "outcomeClose");
+        verify(close.mapToItem(strip, close.width, 0).x <= strip.width, "× fell off the end");
+    }
+
     function test_it_never_grows_past_its_room() {
         strip.outcome = Object.assign({}, testCase.failed, {
                                           "line": "x".repeat(400)

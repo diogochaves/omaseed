@@ -52,6 +52,9 @@ Phrases phrases(const QString &action, const QString &target)
         return {tr("sent to recheck"), tr("didn't recheck"), tr("rechecking")};
     if (action == QLatin1String("reannounce"))
         return {tr("reannounced"), tr("didn't reannounce"), tr("reannounced")};
+    // #292: an agent's dismiss through `do` (the window's own dismiss puts no strip up).
+    if (action == QLatin1String("dismiss"))
+        return {tr("cleared"), tr("didn't clear"), tr("cleared")};
     if (action == QLatin1String("category")) {
         if (target.isEmpty())
             return {
@@ -126,6 +129,11 @@ QString kindName(ActionOutcome::Kind kind)
 
 } // namespace
 
+QString ActionOutcome::byAnAgent()
+{
+    return tr("by an agent");
+}
+
 ActionOutcome::Kind ActionOutcome::kind() const
 {
     if (failedHashes.isEmpty())
@@ -193,6 +201,7 @@ QVariantMap ActionOutcome::words() const
         {QStringLiteral("failedRow"), words.failed},
         {QStringLiteral("startHere"), startHere && k != Kind::Done},
         {QStringLiteral("recheckFirst"), recheckFirst && k != Kind::Done},
+        {QStringLiteral("agent"), byAgent ? byAnAgent() : QString()},
     };
 }
 
@@ -209,6 +218,7 @@ ActionOutcome ActionOutcome::fromMap(const QVariantMap &map)
     outcome.details = map.value(QStringLiteral("details")).toString();
     outcome.startHere = map.value(QStringLiteral("startHere")).toBool();
     outcome.recheckFirst = map.value(QStringLiteral("recheckFirst")).toBool();
+    outcome.byAgent = map.value(QStringLiteral("byAgent")).toBool();
     return outcome;
 }
 

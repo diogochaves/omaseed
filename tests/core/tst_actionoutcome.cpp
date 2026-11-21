@@ -112,6 +112,38 @@ private Q_SLOTS:
         QCOMPARE(w.value(QStringLiteral("line")).toString(), QStringLiteral("no room on /tmp"));
     }
 
+    // C45 V18: an agent's act says so beside the headline, whatever came of it; the headline
+    // itself stays the window's words.
+    void byAnAgent_data()
+    {
+        QTest::addColumn<QStringList>("failed");
+        QTest::addColumn<QString>("kind");
+        QTest::addColumn<QString>("headline");
+
+        QTest::newRow("done") << QStringList() << QStringLiteral("done")
+                              << QStringLiteral("2 sent to recheck");
+        QTest::newRow("failed") << QStringList({QStringLiteral("a"), QStringLiteral("b")})
+                                << QStringLiteral("failed") << QStringLiteral("2 didn't recheck");
+        QTest::newRow("mixed") << QStringList({QStringLiteral("b")}) << QStringLiteral("mixed")
+                               << QStringLiteral("1 sent to recheck, 1 didn't");
+    }
+
+    void byAnAgent()
+    {
+        QFETCH(QStringList, failed);
+        QFETCH(QString, kind);
+        QFETCH(QString, headline);
+        ActionOutcome o =
+            outcome(QStringLiteral("recheck"), {QStringLiteral("a"), QStringLiteral("b")}, failed);
+        QCOMPARE(o.words().value(QStringLiteral("agent")).toString(), QString());
+        o.byAgent = true;
+        const QVariantMap w = o.words();
+        QCOMPARE(w.value(QStringLiteral("kind")).toString(), kind);
+        QCOMPARE(w.value(QStringLiteral("headline")).toString(), headline);
+        QCOMPARE(w.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
+        QVERIFY(ActionOutcome::fromMap({{QStringLiteral("byAgent"), true}}).byAgent);
+    }
+
     // D2: every action on torrents from the table has its words.
     void everyTableAction_data()
     {
@@ -171,6 +203,10 @@ private Q_SLOTS:
         QTest::newRow("back") << QStringLiteral("moveBack") << QStringLiteral("")
                               << QStringLiteral("Arcade Set 01 moved back")
                               << QStringLiteral("3 moved back") << QStringLiteral("moved back");
+        // #292: an agent's dismiss through `do`.
+        QTest::newRow("dismiss") << QStringLiteral("dismiss") << QStringLiteral("")
+                                 << QStringLiteral("Arcade Set 01 cleared")
+                                 << QStringLiteral("3 cleared") << QStringLiteral("cleared");
         QTest::newRow("delete") << QStringLiteral("delete") << QStringLiteral("")
                                 << QStringLiteral("Arcade Set 01 deleted")
                                 << QStringLiteral("3 deleted") << QStringLiteral("");
