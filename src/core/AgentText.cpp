@@ -580,6 +580,98 @@ QString moves(const QJsonObject &answer, const TextStyle &style)
     return out;
 }
 
+QString doAnswer(const QJsonObject &answer, const TextStyle &style)
+{
+    QString out;
+    QString outcome = answer.value(QLatin1String("outcome")).toString();
+    // docs/62 §5: "Allowed." shows only when it asked.
+    if (answer.value(QLatin1String("asked")).toBool() &&
+        answer.value(QLatin1String("answer")).toString() == QLatin1String("allowed"))
+        outcome = QStringLiteral("Allowed. ") + outcome;
+    const QJsonArray failed = answer.value(QLatin1String("failed")).toArray();
+    const QJsonArray done = answer.value(QLatin1String("done")).toArray();
+    const QString head = wrap(outcome, style.width, QString(), QStringLiteral("  "));
+    out += failed.isEmpty()
+               ? head
+               : paint(head.chopped(1), done.isEmpty() ? Colour::Red : Colour::Yellow, style) +
+                     QLatin1Char('\n');
+    for (const QJsonValue &value : failed) {
+        const QJsonObject torrent = value.toObject();
+        const QString line =
+            wrap(QStringLiteral("%1: %2").arg(torrent.value(QLatin1String("name")).toString(),
+                                              torrent.value(QLatin1String("message")).toString()),
+                 style.width,
+                 QStringLiteral("  "),
+                 QStringLiteral("    "));
+        out += paint(line.chopped(1), Colour::Red, style) + QLatin1Char('\n');
+    }
+    return out;
+}
+
+QString doList(const QJsonObject &answer, const TextStyle &style)
+{
+    // C50 GT3: one line per kind, as the Agents row draws them.
+    const auto said = [](const QString &kind, const QString &level) {
+        if (kind == QLatin1String("reads"))
+            return level == QLatin1String("off") ? QStringLiteral("agents get nothing")
+                                                 : QStringLiteral("agents read the library");
+        if (level == QLatin1String("allow"))
+            return QStringLiteral("run at once");
+        if (level == QLatin1String("ask"))
+            return QStringLiteral("ask each time");
+        return QStringLiteral("not allowed");
+    };
+    const auto spelled = [](const QString &action) {
+        if (action == QLatin1String("move"))
+            return QStringLiteral("move --to FOLDER");
+        if (action == QLatin1String("move-back"))
+            return QStringLiteral("move-back MOVE");
+        return action;
+    };
+    QString out = paint(QStringLiteral("Settings › General › Agents"), Colour::Bold, style) +
+                  QLatin1Char('\n');
+    const QString indent(17, QLatin1Char(' '));
+    for (const QJsonValue &value : answer.value(QLatin1String("lines")).toArray()) {
+        const QJsonObject line = value.toObject();
+        const QString kind = line.value(QLatin1String("kind")).toString();
+        const QString level = line.value(QLatin1String("level")).toString();
+        const QString name = kind.left(1).toUpper() + kind.mid(1);
+        QStringList actions;
+        for (const QJsonValue &action : line.value(QLatin1String("actions")).toArray())
+            actions << spelled(action.toString());
+        const QString levelWord = level.leftJustified(6);
+        const QString painted =
+            level == QLatin1String("allow") ? paint(levelWord, Colour::Green, style)
+            : level == QLatin1String("ask") ? paint(levelWord, Colour::Yellow, style)
+                                            : levelWord;
+        out += QStringLiteral("  ") + name.leftJustified(9) + painted + said(kind, level) +
+               QLatin1Char('\n');
+        out += wrap(actions.join(QStringLiteral(" · ")), style.width, indent, indent);
+    }
+    QStringList never;
+    for (const QJsonValue &value : answer.value(QLatin1String("never")).toArray())
+        never << value.toString();
+    if (!never.isEmpty())
+        out += wrap(
+            QStringLiteral("Never through omaseed do: %1.").arg(never.join(QStringLiteral(", "))),
+            style.width,
+            QString(),
+            QString());
+    return out;
+}
+
+QString doDryRun(const QJsonObject &answer, const TextStyle &style)
+{
+    // C50 GT5: say first, then do.
+    const bool asks = answer.value(QLatin1String("would")).toString() == QLatin1String("ask");
+    const QString line = wrap(QStringLiteral("Dry run, nothing done: ") +
+                                  answer.value(QLatin1String("outcome")).toString(),
+                              style.width,
+                              QString(),
+                              QStringLiteral("  "));
+    return paint(line.chopped(1), asks ? Colour::Yellow : Colour::Green, style) + QLatin1Char('\n');
+}
+
 QString lines(const QJsonObject &answer, const TextStyle &style)
 {
     const QString command = answer.value(QLatin1String("command")).toString();
@@ -591,6 +683,13 @@ QString lines(const QJsonObject &answer, const TextStyle &style)
         return log(answer, style);
     if (command == QLatin1String("moves"))
         return moves(answer, style);
+    if (command == QLatin1String("do")) {
+        if (answer.value(QLatin1String("list")).toBool())
+            return doList(answer, style);
+        if (answer.value(QLatin1String("dryRun")).toBool())
+            return doDryRun(answer, style);
+        return doAnswer(answer, style);
+    }
     return QString();
 }
 

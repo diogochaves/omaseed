@@ -3,7 +3,10 @@
 // when asked, and the free text wrapped at the width.
 
 #include "core/AgentAnswers.hpp"
+#include "core/AgentGate.hpp"
 #include "core/AgentText.hpp"
+
+#include <QJsonArray>
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -212,6 +215,10 @@ private slots:
     void logAsTheBoard();
     void movesAsTheBoard();
     void pausedSaysTheBand();
+    void doAnswerSaysTheOutcome();
+    void doAnswerSaysWhatFailed();
+    void doListSaysTheLines();
+    void doDryRunSaysWhatWould();
 };
 
 void TestAgentText::statusLinesAsTheBoard()
@@ -498,6 +505,101 @@ void TestAgentText::pausedSaysTheBand()
     QVERIFY(lines(input, true)
                 .startsWith(QStringLiteral(
                     "\x1b[1mattic\x1b[0m · 1 running · none landed\n\n\x1b[33mpaused \x1b[0m")));
+}
+
+namespace {
+
+QJsonObject doJson(const char *json)
+{
+    return QJsonDocument::fromJson(QByteArray(json)).object();
+}
+
+QString doLines(const QJsonObject &answer, bool colour = false, int width = 80)
+{
+    return Text::lines(answer, Text::TextStyle{colour, width, kNow});
+}
+
+} // namespace
+
+// C45 V15, docs/62 §5: the outcome strip's words; "Allowed." only when it asked.
+void TestAgentText::doAnswerSaysTheOutcome()
+{
+    QJsonObject answer = doJson(
+        R"({"v":1,"command":"do","action":"recheck","asked":false,"answer":"not-asked",
+            "done":[{"hash":"3f9a","name":"Lantern Festival"}],"failed":[],
+            "outcome":"Lantern Festival sent to recheck"})");
+    QCOMPARE(doLines(answer), QStringLiteral("Lantern Festival sent to recheck\n"));
+    QCOMPARE(doLines(answer, true), QStringLiteral("Lantern Festival sent to recheck\n"));
+    answer.insert(QStringLiteral("asked"), true);
+    answer.insert(QStringLiteral("answer"), QStringLiteral("allowed"));
+    QCOMPARE(doLines(answer), QStringLiteral("Allowed. Lantern Festival sent to recheck\n"));
+}
+
+void TestAgentText::doAnswerSaysWhatFailed()
+{
+    const QJsonObject mixed = doJson(
+        R"({"v":1,"command":"do","action":"recheck","asked":false,"answer":"not-asked",
+            "done":[{"hash":"3f9a","name":"Lantern Festival"}],
+            "failed":[{"hash":"5b17","name":"Harbour Bells","code":"failed",
+                       "message":"attic refused: Conflict"}],
+            "outcome":"1 sent to recheck, 1 didn't"})");
+    QCOMPARE(doLines(mixed),
+             QStringLiteral("1 sent to recheck, 1 didn't\n"
+                            "  Harbour Bells: attic refused: Conflict\n"));
+    QCOMPARE(doLines(mixed, true),
+             QStringLiteral("\x1b[33m1 sent to recheck, 1 didn't\x1b[0m\n"
+                            "\x1b[31m  Harbour Bells: attic refused: Conflict\x1b[0m\n"));
+    QJsonObject failed = mixed;
+    failed.insert(QStringLiteral("done"), QJsonArray());
+    failed.insert(QStringLiteral("outcome"), QStringLiteral("Harbour Bells didn't recheck"));
+    QVERIFY(doLines(failed, true).startsWith(QStringLiteral("\x1b[31mHarbour Bells didn't")));
+}
+
+// C50 GT3: the four lines as they stand, the never line last.
+void TestAgentText::doListSaysTheLines()
+{
+    omaseed::core::AgentGate gate;
+    gate.setLevel(omaseed::core::AgentGate::Kind::Fixes, QStringLiteral("allow"));
+    gate.setLevel(omaseed::core::AgentGate::Kind::Moves, QStringLiteral("ask"));
+    QJsonObject answer{{QStringLiteral("v"), 1},
+                       {QStringLiteral("command"), QStringLiteral("do")},
+                       {QStringLiteral("list"), true},
+                       {QStringLiteral("lines"), gate.listLines()},
+                       {QStringLiteral("never"),
+                        QJsonArray::fromStringList(omaseed::core::AgentGate::neverActions())}};
+    QCOMPARE(doLines(answer),
+             QStringLiteral(
+                 "Settings › General › Agents\n"
+                 "  Reads    on    agents read the library\n"
+                 "                 status · errors · log · moves · do\n"
+                 "  Fixes    allow run at once\n"
+                 "                 retry · start-here · recheck · reannounce · pause · resume ·\n"
+                 "                 dismiss · locate\n"
+                 "  Moves    ask   ask each time\n"
+                 "                 move --to FOLDER · move-back MOVE\n"
+                 "  Remove   off   not allowed\n"
+                 "                 remove\n"
+                 "Never through omaseed do: delete, rename, categories and tags, adds, settings,\n"
+                 "servers, quit.\n"));
+    const QString coloured = doLines(answer, true);
+    QVERIFY(coloured.contains(QStringLiteral("\x1b[32mallow \x1b[0m")));
+    QVERIFY(coloured.contains(QStringLiteral("\x1b[33mask   \x1b[0m")));
+}
+
+void TestAgentText::doDryRunSaysWhatWould()
+{
+    QJsonObject answer = doJson(
+        R"({"v":1,"command":"do","action":"recheck","dryRun":true,"would":"run",
+            "torrents":[{"hash":"3f9a","name":"Lantern Festival"}],
+            "outcome":"recheck would run · Lantern Festival"})");
+    QCOMPARE(doLines(answer),
+             QStringLiteral("Dry run, nothing done: recheck would run · Lantern Festival\n"));
+    answer.insert(QStringLiteral("would"), QStringLiteral("ask"));
+    answer.insert(QStringLiteral("outcome"),
+                  QStringLiteral("recheck would ask in omaseed's window · Lantern Festival"));
+    QCOMPARE(doLines(answer, true, 60),
+             QStringLiteral("\x1b[33mDry run, nothing done: recheck would ask in omaseed's "
+                            "window\n  · Lantern Festival\x1b[0m\n"));
 }
 
 QTEST_GUILESS_MAIN(TestAgentText)

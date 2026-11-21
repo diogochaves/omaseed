@@ -41,6 +41,14 @@ QString log(const QJsonObject &answer, const TextStyle &style);
 /// words, each landed one with what a move back would do, and how many more are kept.
 QString moves(const QJsonObject &answer, const TextStyle &style);
 
+/// do's answer (C45 V15, docs/62 §5's mock): "Allowed." when it asked, the outcome strip's
+/// words, and a line per torrent the server refused (red).
+QString doAnswer(const QJsonObject &answer, const TextStyle &style);
+/// `do --list` (C50 GT3): the Agents row's lines as they stand, then what is never done.
+QString doList(const QJsonObject &answer, const TextStyle &style);
+/// `do --dry-run` (C50 GT5): what would happen, nothing done.
+QString doDryRun(const QJsonObject &answer, const TextStyle &style);
+
 /// A failure's words for stderr, wrapped at the width.
 QString failure(const QString &message, const TextStyle &style);
 

@@ -146,6 +146,7 @@ private slots:
     void tooOldExits3();
     void aFileNamedStatusOpensAsDotSlash();
     void statusFromARunningOmaseed();
+    void doOnARunningOmaseed();
 
     // The skins' words (DECISIONS C37 U3, U6; #223).
     void aFileNamedCheckOpensAsDotSlash();
@@ -577,6 +578,78 @@ void TestWords::statusFromARunningOmaseed()
              qPrintable(m_out));
     QVERIFY(m_out.contains(QStringLiteral("\n  1 torrent: 1 giving back\n")));
     QVERIFY(!m_out.contains(QLatin1Char('\x1b')));
+}
+
+// #292 (C45 V13, V15): do through the real binary on a running omaseed whose Agents row lets
+// fixes run: the fix answered (0), never (5), an unknown torrent (4), the list, the lines.
+void TestWords::doOnARunningOmaseed()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    SeedServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    writeState(R"({"agents":{"reads":"on","fixes":"allow","moves":"off","remove":"off"}})");
+
+    QProcess app;
+    QProcessEnvironment env = environment(bus);
+    env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    env.insert(QStringLiteral("OMASEED_SERVER_URL"),
+               QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()));
+    app.setProcessEnvironment(env);
+    app.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    app.start(QStringLiteral(OMASEED_BINARY), QStringList());
+    QVERIFY(app.waitForStarted(5000));
+    struct Stop
+    {
+        QProcess &app;
+        ~Stop()
+        {
+            app.terminate();
+            if (!app.waitForFinished(10000))
+                app.kill();
+            app.waitForFinished(2000);
+        }
+    } stop{app};
+
+    // Asked until the first sync is done: before it, do answers first-sync (4).
+    const QStringList recheck{
+        QStringLiteral("do"), QStringLiteral("recheck"), QStringLiteral("cccccccc")};
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 30000) {
+        QVERIFY(run(recheck + QStringList{QStringLiteral("--json")}, bus));
+        if (m_exitCode == 0)
+            break;
+        QTest::qWait(300);
+    }
+    QVERIFY2(m_exitCode == 0, qPrintable(m_out + m_err));
+    QJsonObject object = json();
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("do"));
+    QCOMPARE(object.value(QLatin1String("answer")).toString(), QStringLiteral("not-asked"));
+    QCOMPARE(object.value(QLatin1String("done")).toArray().size(), 1);
+
+    QVERIFY(run(recheck, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out, QStringLiteral("t sent to recheck\n"));
+
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("delete"), QStringLiteral("cccccccc")}, bus));
+    QCOMPARE(m_exitCode, 5);
+    QVERIFY2(m_err.contains(QLatin1String("doesn't delete, rename or change settings")),
+             qPrintable(m_err));
+
+    QVERIFY(
+        run({QStringLiteral("do"), QStringLiteral("recheck"), QStringLiteral("deadbeef")}, bus));
+    QCOMPARE(m_exitCode, 4);
+
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("--list")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(QStringLiteral("Settings › General › Agents\n")), qPrintable(m_out));
+    QVERIFY(m_out.contains(QLatin1String("  Fixes    allow run at once\n")));
+
+    QVERIFY(run(recheck + QStringList{QStringLiteral("--dry-run")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out, QStringLiteral("Dry run, nothing done: recheck would run · t\n"));
 }
 
 void TestWords::aFileNamedCheckOpensAsDotSlash()
