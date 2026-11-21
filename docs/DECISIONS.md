@@ -3040,3 +3040,16 @@ The builders' calls, for Diogo to see in the Gate's look:
   drive's used part at 22 %, promised room in yellow at 18 %, this torrent's need solid in the
   accent or the line's colour. A stage's words wrap, two lines at most in the 440 px column,
   rather than elide.
+
+## C48 — The guide as a skill (board 65, ruled 2026-11-20)
+
+Board [65](65-the-guide-as-a-skill.html), #286, AS1–AS11 all as recommended. omaseed ships one
+agent skill, `omaseed`: a short `SKILL.md` (the never list, errors first, the skin loop, a map
+from a wish to its tokens, "grep skin.schema.json, never read it whole") and `ref/` pages
+(library, skins, files), its `allowed-tools` the six read-only words, `do` never among them.
+One source, `data/agents/skill/`: `AGENTS.md` is generated from it. `omaseed skill [PAGE] |
+link | unlink | status` prints a page or links the skill where Omarchy's own skills are linked;
+the person links it (the word, or a line on the Agents row), never omaseed at start; `unlink`
+removes only links to omaseed's skill folder; `--skill` prints the map. **Amends** C37 U4 (the
+guide's home and its printing) and C45 V19 (what `--skill` prints). Found by the agent trial
+of #227 (`.local` report, not public): the schema, not the guide, was the cost.
