@@ -173,14 +173,14 @@ Answers::MovesInput movesBoard()
     games.nowName = QStringLiteral("Arcade Set 02");
     input.running = {games};
     Answers::LandedMove music;
-    music.id = QStringLiteral("m-09ae");
+    music.id = QStringLiteral("09ae4c1b-77d2-4e0a-9b1e-5f3c2a8d6e10");
     music.kind = QStringLiteral("selection");
     music.title = QStringLiteral("3 torrents");
     music.to = QStringLiteral("/data/music");
     music.finished = QDateTime(QDate(2026, 11, 12), QTime(12, 10, 19));
     music.back = Answers::MoveBack{3, 0, 0, 0, {}};
     Answers::LandedMove night;
-    night.id = QStringLiteral("m-07f1");
+    night.id = QStringLiteral("07f1d2e3-1a4b-4c5d-8e6f-90a1b2c3d4e5");
     night.kind = QStringLiteral("selection");
     night.title = QStringLiteral("Night Market Field Recordings");
     night.to = QStringLiteral("/data/archive");
@@ -444,7 +444,8 @@ void TestAgentText::logAsTheBoard()
 
 void TestAgentText::movesAsTheBoard()
 {
-    // docs/62 V11: the band's figures, each landed one's move back, how many more are kept.
+    // docs/62 V11: the band's figures, each landed one's move back, how many more are kept;
+    // each landed one's id first, its first 8 characters, for do move-back (#297).
     QCOMPARE(lines(movesBoard()),
              QStringLiteral("attic · 1 running · 5 landed\n"
                             "\n"
@@ -452,10 +453,11 @@ void TestAgentText::movesAsTheBoard()
                             "         5 of 12 there · 20.0 of 48.0 GB · moving Arcade Set 02\n"
                             "\n"
                             "landed   3 torrents → /data/music               today 12:10\n"
-                            "         move back: all 3 go back\n"
+                            "         id 09ae4c1b · move back: all 3 go back\n"
                             "landed   Night Market Field Recordings → /data/archive\n"
                             "                                                yesterday 21:10\n"
-                            "         move back: it stays; moved again by today 12:10's move\n"
+                            "         id 07f1d2e3 · move back: it stays; moved again by today "
+                            "12:10's move\n"
                             "… 3 more: omaseed moves --landed 20\n"));
 
     // Nothing: the head alone.

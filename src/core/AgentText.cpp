@@ -569,11 +569,16 @@ QString moves(const QJsonObject &answer, const TextStyle &style)
                         move,
                         landedWhen(move.value(QLatin1String("finished")), style),
                         style);
-        out += wrap(QStringLiteral("move back: ") +
-                        backWords(move.value(QLatin1String("back")).toObject(), name, style),
-                    style.width,
-                    kMoveIndent,
-                    kMoveIndent);
+        // The move's id, its first 8 characters (as a torrent's hash is named): what do
+        // move-back takes, for an agent that reads the lines without --json (C45 V15).
+        const QString id = move.value(QLatin1String("id")).toString().left(8);
+        out +=
+            wrap((id.isEmpty() ? QString() : QStringLiteral("id ") + id + QStringLiteral(" · ")) +
+                     QStringLiteral("move back: ") +
+                     backWords(move.value(QLatin1String("back")).toObject(), name, style),
+                 style.width,
+                 kMoveIndent,
+                 kMoveIndent);
     }
     if (kept > landed.size())
         out += QStringLiteral("… %1 more: omaseed moves --landed 20\n").arg(kept - landed.size());
