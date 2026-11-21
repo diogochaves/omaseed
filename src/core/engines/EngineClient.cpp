@@ -9,6 +9,11 @@ Reply<QList<LogEntry>> *EngineClient::log(int, bool)
     return unsupported<QList<LogEntry>>(QStringLiteral("the engine's log"));
 }
 
+Reply<Done> *EngineClient::pointAt(const QStringList &, const QString &)
+{
+    return unsupported<Done>(QStringLiteral("re-pointing a torrent without moving its files"));
+}
+
 Reply<FetchedMetadata> *EngineClient::fetchMetadata(const QString &, const QString &)
 {
     return unsupported<FetchedMetadata>(QStringLiteral("files before the add"));

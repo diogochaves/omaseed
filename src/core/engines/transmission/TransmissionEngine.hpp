@@ -91,6 +91,7 @@ public:
     /// K22: torrent_set_location with `move`, which holds every other answer until the copy
     /// ends: busyMoving() names its torrents until it answers.
     Reply<Done> *setLocation(const QStringList &hashes, const QString &path) override;
+    Reply<Done> *pointAt(const QStringList &hashes, const QString &path) override;
     QStringList busyMoving() const override;
     void releaseBusyMoving() override;
     /// free_space, on `path` or, while Transmission says it isn't there, its parents.

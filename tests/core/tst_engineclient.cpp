@@ -182,6 +182,11 @@ void TestEngineClient::theOptionalCallsAreNotSupportedByDefault()
     const Result<FetchedMetadata> metadata = await(engine.fetchMetadata(QStringLiteral("magnet:")));
     QVERIFY(metadata.isError());
     QCOMPARE(metadata.error().kind(), ApiError::Kind::NotFound);
+    // Re-pointing over files already there is refused until an engine proves it (C50 GT2).
+    const Result<Done> pointed =
+        await(engine.pointAt({QStringLiteral("aa")}, QStringLiteral("/srv")));
+    QVERIFY(pointed.isError());
+    QCOMPARE(pointed.error().kind(), ApiError::Kind::NotFound);
     // A folder listing answers all the same: this engine can't list folders (C16 L13).
     const Result<ServerFolder> folder = await(engine.folderContent(QStringLiteral("/srv")));
     QVERIFY(!folder.isError());

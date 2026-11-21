@@ -77,6 +77,7 @@ public:
     Reply<Done> *reannounce(const QStringList &hashes) override;
     Reply<Done> *rename(const QString &hash, const QString &name) override;
     Reply<Done> *setLocation(const QStringList &hashes, const QString &path) override;
+    Reply<Done> *pointAt(const QStringList &hashes, const QString &path) override;
     Reply<Done> *
     renameFile(const QString &hash, const QString &oldPath, const QString &newPath) override;
     Reply<Done> *

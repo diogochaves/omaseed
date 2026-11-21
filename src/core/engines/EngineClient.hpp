@@ -178,6 +178,12 @@ public:
     virtual Reply<Done> *reannounce(const QStringList &hashes) = 0;
     virtual Reply<Done> *rename(const QString &hash, const QString &name) = 0;
     virtual Reply<Done> *setLocation(const QStringList &hashes, const QString &path) = 0;
+    /// Re-points the torrents at `path`, a folder that already holds their files, moving
+    /// nothing: no file at the old place or at `path` is copied, replaced or deleted
+    /// (DECISIONS C50 GT2, `do locate`). The engine's progress is not trusted afterwards: a
+    /// recheck follows. Each engine's was proved on its playground first
+    /// (scripts/dev/research/294-locate); one that can't is refused (the default).
+    virtual Reply<Done> *pointAt(const QStringList &hashes, const QString &path);
     /// Moves a file (or, with renameFolder, a folder) of the torrent's content; paths are
     /// relative to its save path.
     virtual Reply<Done> *

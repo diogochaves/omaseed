@@ -658,6 +658,14 @@ omaseed_add_test(tst_delugeengine
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #294, C50 GT2: pointAt, re-pointing a torrent over files already there, per engine against
+# the fakes (setLocation, torrent_set_location move:false, core.move_storage).
+omaseed_add_test(tst_pointat
+    SOURCES tst_pointat.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 # The same against the real deluge-web test server (:8086, test-server.sh --deluge;
 # DELUGE_TEST_PASS from dev.env in the environment).
 omaseed_add_test(tst_delugeengine_live LIVE

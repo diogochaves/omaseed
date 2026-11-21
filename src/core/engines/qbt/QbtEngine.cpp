@@ -464,6 +464,15 @@ Reply<Done> *QbtEngine::setLocation(const QStringList &hashes, const QString &pa
     return done(m_client->torrentsSetLocation(hashes, path));
 }
 
+Reply<Done> *QbtEngine::pointAt(const QStringList &hashes, const QString &path)
+{
+    // The same call as a move: libtorrent's move keeps a file already at the destination
+    // and skips a source that is gone, so over files already there it only re-points
+    // (research/294-locate: missing at the old place, or present at both, nothing copied,
+    // replaced or deleted). Like any setLocation it turns automatic management off.
+    return setLocation(hashes, path);
+}
+
 Reply<Done> *
 QbtEngine::renameFile(const QString &hash, const QString &oldPath, const QString &newPath)
 {

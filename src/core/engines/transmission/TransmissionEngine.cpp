@@ -603,6 +603,16 @@ Reply<Done> *TransmissionEngine::setLocation(const QStringList &hashes, const QS
     return done(sent);
 }
 
+Reply<Done> *TransmissionEngine::pointAt(const QStringList &hashes, const QString &path)
+{
+    // `move: false` only sets the folder (rpc-spec §3.6): it answers at once, so none of
+    // K22's busy-moving wait. It also clears a "No data found" error; the progress it keeps
+    // is the old one until the verify that follows (research/294-locate).
+    return forTorrents(QStringLiteral("torrent_set_location"),
+                       hashes,
+                       {{QStringLiteral("location"), path}, {QStringLiteral("move"), false}});
+}
+
 QStringList TransmissionEngine::busyMoving() const
 {
     QStringList hashes;
