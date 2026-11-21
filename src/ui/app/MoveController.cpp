@@ -693,13 +693,11 @@ void MoveController::rememberDestination(const QString &path)
 
 QString MoveController::recordIdOfJob() const
 {
-    if (m_job == nullptr || !m_job->startedAt().isValid())
+    // The id recordFinished gave the job: two moves of one title that start in the same
+    // instant (a test's clock, a queued move that lands at once) are two records.
+    if (m_job == nullptr || m_job->recordId().isEmpty())
         return {};
-    for (const core::MoveRecord &record : m_history.records()) {
-        if (record.startedAt == m_job->startedAt() && record.title == m_job->title())
-            return record.id;
-    }
-    return {};
+    return m_history.find(m_job->recordId()) != nullptr ? m_job->recordId() : QString();
 }
 
 void MoveController::recordFinished()
@@ -721,7 +719,8 @@ void MoveController::recordFinished()
             saveHistory();
         return;
     }
-    if (from.isEmpty() || !recordIdOfJob().isEmpty())
+    // Once per job, even when it ends again after being read back from its file.
+    if (from.isEmpty() || !m_job->recordId().isEmpty())
         return;
     core::MoveRecord record;
     record.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -749,6 +748,7 @@ void MoveController::recordFinished()
         if (!at.isEmpty())
             record.carriedFiles = core::LooseCarry::asCarried(at, m_carryResult.files);
     }
+    m_job->setRecordId(record.id);
     m_history.add(std::move(record), now());
     saveHistory();
 }

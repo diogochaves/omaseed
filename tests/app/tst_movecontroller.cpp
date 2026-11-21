@@ -835,6 +835,33 @@ private slots:
         QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
     }
 
+    // Two moves of the same torrent (one title) that start at the same instant are two
+    // records: the history knows a job's record by the id it gave it, not by its start and
+    // title (the second was taken for the first's and never recorded), and keeps knowing it
+    // after the job is read back from its file.
+    void twoMovesInOneInstantAreTwoRecords()
+    {
+        m_at = QDateTime::currentDateTime();
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/shooters"),
+                                       QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QCOMPARE(m_move->history().records().size(), 1);
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/other"),
+                                       QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        const QList<omaseed::core::MoveRecord> records = m_move->history().records();
+        QCOMPARE(records.size(), 2);
+        QCOMPARE(records.at(0).newPath, QStringLiteral("/mnt/fast/other"));
+        QCOMPARE(records.at(1).newPath, QStringLiteral("/mnt/fast/shooters"));
+        QVERIFY(records.at(0).id != records.at(1).id);
+    }
+
     void ownsAMoveWhileRunningAndAMinuteAfter()
     {
         // DECISIONS C43 Y6: the save path a move changes is the move's story, not an outside
