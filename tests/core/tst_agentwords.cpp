@@ -38,6 +38,13 @@ private slots:
     void exitForEveryCode_data();
     void exitForEveryCode();
     void failureObjectShape();
+    void skillIsAWord();
+    void skillTakesAPageOrLinkWords();
+    void skillTakesOnlyOne();
+    void anUnknownPageIsUsage();
+    void helpPageNamesSkillLink();
+    void wordPagesPointAtTheLibraryPage();
+    void skillHasAWordPage();
 };
 
 void TestAgentWords::aWordIsAWordOnlyFirst()
@@ -393,7 +400,8 @@ void TestAgentWords::helpPageSplicesAboveOptions()
         QVERIFY(page.contains(QStringLiteral("\n  %1 ").arg(QString::fromLatin1(word))));
     QVERIFY(
         page.contains(QStringLiteral("Every word takes --json. omaseed help <word> says more.")));
-    QVERIFY(page.contains(QStringLiteral("Coding agents: omaseed --skill prints your guide.")));
+    QVERIFY(page.contains(
+        QStringLiteral("Coding agents: omaseed skill link, or omaseed skill to read the guide.")));
     // Qt's options and arguments as they are, after the block.
     QVERIFY(page.endsWith(QStringLiteral(
         "Options:\n  -h, --help   Displays help on commandline options.\n\nArguments:\n"
@@ -405,7 +413,7 @@ void TestAgentWords::helpPageSplicesAboveOptions()
 
 void TestAgentWords::wordPagesHaveUsageAndExit()
 {
-    for (const char *w : {"help", "status", "errors", "log", "moves", "check", "skin"}) {
+    for (const char *w : {"help", "status", "errors", "log", "moves", "check", "skin", "skill"}) {
         const QString word = QString::fromLatin1(w);
         const QString page = AgentWords::wordPage(word);
         QVERIFY2(page.startsWith(QStringLiteral("Usage: omaseed %1").arg(word)), w);
@@ -424,7 +432,7 @@ void TestAgentWords::wordPagesHaveUsageAndExit()
                  "\"needs you\". The running omaseed answers, for the server it is on.\n"
                  "  --server NAME   a server by its name or id; only the one omaseed is on can\n"
                  "                  answer (omaseed status lists them)\n"
-                 "  --json          one JSON object; omaseed --skill describes its fields\n"
+                 "  --json          one JSON object; omaseed skill library describes its fields\n"
                  "Exit: 0 answered (whatever it found) · 2 usage · 3 omaseed isn't running ·\n"
                  "      4 that server can't answer now\n"));
     QVERIFY(AgentWords::wordPage(QStringLiteral("do")).isEmpty());
@@ -492,6 +500,128 @@ void TestAgentWords::failureObjectShape()
             R"({"v":1,"command":"log","at":"2026-11-12T14:05:40Z","omaseed":"0.14.0","error":)"),
         app.constData());
     QVERIFY(!app.contains('\n'));
+}
+
+// DECISIONS C48 (docs/65 §5): the word skill. Its pages come from AgentGuide::pages(), which
+// core can't read, so the parser takes them.
+static const QStringList kPages{
+    QStringLiteral("library"), QStringLiteral("skins"), QStringLiteral("files")};
+
+void TestAgentWords::skillIsAWord()
+{
+    QVERIFY(AgentWords::isWord(QStringLiteral("skill")));
+    QVERIFY(!AgentWords::isReserved(QStringLiteral("skill")));
+    QVERIFY(!AgentWords::isWord(QStringLiteral("./skill")));
+    QVERIFY(!AgentWords::isWord(QStringLiteral("--skill")));
+    const auto request = AgentWords::parse({QStringLiteral("skill")}, kPages);
+    QCOMPARE(request.kind, Kind::Local);
+    QCOMPARE(request.word, QStringLiteral("skill"));
+    QCOMPARE(request.command(), QStringLiteral("skill"));
+    QVERIFY(request.subword.isEmpty());
+    QVERIFY(!request.json);
+    QVERIFY(AgentWords::isSkillPrint(request));
+    QCOMPARE(AgentWords::parse({QStringLiteral("help"), QStringLiteral("skill")}).page,
+             QStringLiteral("skill"));
+    QCOMPARE(AgentWords::parse({QStringLiteral("skill"), QStringLiteral("--help")}, kPages).kind,
+             Kind::Page);
+}
+
+void TestAgentWords::skillTakesAPageOrLinkWords()
+{
+    for (const QString &page : kPages) {
+        const auto request =
+            AgentWords::parse({QStringLiteral("skill"), page, QStringLiteral("--json")}, kPages);
+        QCOMPARE(request.kind, Kind::Local);
+        QCOMPARE(request.subword, page);
+        QCOMPARE(request.command(), QStringLiteral("skill ") + page);
+        QVERIFY(request.json);
+        QVERIFY(AgentWords::isSkillPrint(request));
+    }
+    for (const char *w : {"link", "unlink", "status"}) {
+        const QString word = QString::fromLatin1(w);
+        const auto request = AgentWords::parse({QStringLiteral("skill"), word}, kPages);
+        QCOMPARE(request.kind, Kind::Local);
+        QCOMPARE(request.command(), QStringLiteral("skill ") + word);
+        QVERIFY(!AgentWords::isSkillPrint(request));
+    }
+    // A page that is only a file in ref/ is a page (C49's layouts): the list decides.
+    const auto layouts = AgentWords::parse({QStringLiteral("skill"), QStringLiteral("layouts")},
+                                           kPages + QStringList{"layouts"});
+    QCOMPARE(layouts.kind, Kind::Local);
+    QCOMPARE(layouts.subword, QStringLiteral("layouts"));
+}
+
+void TestAgentWords::skillTakesOnlyOne()
+{
+    auto request = AgentWords::parse(
+        {QStringLiteral("skill"), QStringLiteral("library"), QStringLiteral("skins")}, kPages);
+    QCOMPARE(request.kind, Kind::Usage);
+    QCOMPARE(request.message,
+             QStringLiteral("omaseed: skill library doesn't take \"skins\". omaseed help skill "
+                            "library says what it takes."));
+    request = AgentWords::parse(
+        {QStringLiteral("skill"), QStringLiteral("--server"), QStringLiteral("x")}, kPages);
+    QCOMPARE(request.kind, Kind::Usage);
+    request = AgentWords::parse({QStringLiteral("skill"),
+                                 QStringLiteral("link"),
+                                 QStringLiteral("--json"),
+                                 QStringLiteral("now")},
+                                kPages);
+    QCOMPARE(request.kind, Kind::Usage);
+    QVERIFY(request.json);
+}
+
+void TestAgentWords::anUnknownPageIsUsage()
+{
+    const QString takes = QStringLiteral(
+        "omaseed: skill takes a page (library, skins, files), link, unlink or status. omaseed "
+        "help skill says how.");
+    for (const char *w : {"layouts", "Library", "library.md", "ref/skins.md", "map"}) {
+        const auto request =
+            AgentWords::parse({QStringLiteral("skill"), QString::fromLatin1(w)}, kPages);
+        QCOMPARE(request.kind, Kind::Usage);
+        QCOMPARE(request.message, takes);
+    }
+}
+
+void TestAgentWords::helpPageNamesSkillLink()
+{
+    const QString page = AgentWords::helpPage(
+        QStringLiteral("Usage: omaseed [options]\nomaseed — torrents.\n\nOptions:\n  -h\n"));
+    const QStringList lines = page.split(QLatin1Char('\n'));
+    const qsizetype every =
+        lines.indexOf(QStringLiteral("Every word takes --json. omaseed help <word> says more."));
+    QVERIFY(every > 0);
+    // AS8: the block's last line, the link first.
+    QCOMPARE(lines.at(every + 1),
+             QStringLiteral("Coding agents: omaseed skill link, or omaseed skill to read the "
+                            "guide."));
+    QCOMPARE(lines.at(every + 2), QString());
+    QVERIFY(!page.contains(QStringLiteral("--skill")));
+}
+
+void TestAgentWords::wordPagesPointAtTheLibraryPage()
+{
+    for (const char *w : {"status", "errors", "log", "moves", "check", "skin"}) {
+        const QString page = AgentWords::wordPage(QString::fromLatin1(w));
+        QVERIFY2(page.contains(QStringLiteral(
+                     "  --json          one JSON object; omaseed skill library describes its "
+                     "fields\n")),
+                 w);
+        QVERIFY2(!page.contains(QStringLiteral("--skill")), w);
+    }
+}
+
+void TestAgentWords::skillHasAWordPage()
+{
+    const QString page = AgentWords::wordPage(QStringLiteral("skill"));
+    QVERIFY(page.startsWith(QStringLiteral("Usage: omaseed skill [page] [--json]\n")));
+    for (const char *w : {"link", "unlink", "status", "--json"})
+        QVERIFY2(page.contains(QStringLiteral("  %1 ").arg(QString::fromLatin1(w))), w);
+    QVERIFY(page.contains(QStringLiteral("No one answers")));
+    QVERIFY(page.endsWith(QStringLiteral("Exit: 0 done · 2 usage · 5 not written\n")));
+    for (const QString &line : page.split(QLatin1Char('\n')))
+        QVERIFY2(line.size() <= 80, qPrintable(line));
 }
 
 QTEST_GUILESS_MAIN(TestAgentWords)

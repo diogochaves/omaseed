@@ -6,10 +6,12 @@
 //
 // - Only the first argument can be a word (C37 U10): `omaseed ./status`, a magnet or
 //   `--hidden status` are links and options, as they always were.
-// - `help`, `status`, `errors`, `log`, `moves`, `check` and `skin` are built. `do` is
+// - `help`, `status`, `errors`, `log`, `moves`, `check`, `skin` and `skill` (C48) are built. `do`
+// is
 //   reserved: it answers usage until its word exists (the actions patch).
 // - `check <skin>` and `skin list | clone <from> <name> | use <name>` take positionals
-//   (C37 U3, U5, U6); every other word takes options only.
+//   (C37 U3, U5, U6), `skill [page | link | unlink | status]` one (C48); every other word
+//   takes options only.
 // - The parser turns a word's arguments into the options JSON the Agent interface takes
 //   (C45 V3): only what was given; the running omaseed fills in the defaults.
 // - Every answer and failure is one JSON object led by v, command, at (and omaseed when the
@@ -51,7 +53,7 @@ struct Request
         Call,  ///< ask the running omaseed: `method` with `options`
         Page,  ///< print `page` (empty: the help page) and exit 0
         Usage, ///< print `message` as a usage failure and exit 2
-        Local, ///< the CLI answers itself (check, skin list, skin clone; C37 U3, U5)
+        Local, ///< the CLI answers itself (check, skin list, skin clone, skill; C37 U3, U5, C48)
     };
     Kind kind = Kind::Usage;
     QString word;            ///< the word ("skin" for every skin subword)
@@ -59,15 +61,20 @@ struct Request
     QString page;            ///< Page: the word whose page, or "" for the help page
     QJsonObject options;     ///< Call, Local: server, level, … theme, name, as given
     QString message;         ///< Usage: the words
-    QString subword;         ///< skin's: list, clone or use; "" for every other word
+    QString subword;         ///< skin's: list, clone or use; skill's page or link, unlink,
+                             ///< status; "" for every other word
     QStringList positionals; ///< check's skin; clone's from and name; use's name
 
     /// The envelope's "command": the word, then its subword ("skin list").
     QString command() const { return subword.isEmpty() ? word : word + QLatin1Char(' ') + subword; }
 };
 
-/// `arguments` are the command line after the program, the word first.
-Request parse(const QStringList &arguments);
+/// `arguments` are the command line after the program, the word first. `skillPages` are the
+/// pages `skill` takes (integration::AgentGuide::pages(); core reads no resource, C48).
+Request parse(const QStringList &arguments, const QStringList &skillPages = {});
+/// True for `skill` and `skill PAGE`, the prints; false for link, unlink, status and any
+/// other word (C48).
+bool isSkillPrint(const Request &request);
 
 /// The options a word takes, by name without "--" (C45 design 3): server, level, lines,
 /// since, torrent, landed, as each word has them; none for status and help.

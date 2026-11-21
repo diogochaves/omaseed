@@ -134,6 +134,7 @@ QtObject {
     readonly property string scrollHint: g("scrollHint", "icon:scroll") // Appearance › scroll hint
     readonly property string host: g("host", "icon:globe") // Appearance › tracker hosts
     readonly property string omarchyMenu: g("omarchyMenu", "☰") // Appearance › In the Omarchy menu (board 53 §6)
+    readonly property string agents: g("agents", "◇") // General › Agents (board 65 §5)
 
     // ---- settings nav, spec §5 Fig. 16 `.settings .nav .it .g` ------------------------
     // also the server sheet's head, Fig. 9

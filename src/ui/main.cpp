@@ -18,6 +18,7 @@
 #include "integration/Notifier.hpp"
 #include "integration/QuitSignals.hpp"
 #include "integration/SingleInstance.hpp"
+#include "integration/SkillLinker.hpp"
 #include "integration/StatusBus.hpp"
 #include "integration/StatusWriter.hpp"
 #include "integration/Theme.hpp"
@@ -356,6 +357,16 @@ QString devPluginDir()
 #endif
 }
 
+/// The source tree's data/agents/skill in a development build; empty in a release.
+QString devSkillDir()
+{
+#ifdef OMASEED_SOURCE_SKILL_DIR
+    return QStringLiteral(OMASEED_SOURCE_SKILL_DIR);
+#else
+    return QString();
+#endif
+}
+
 /// `--install-bar-widget` (#17): what Settings › Appearance's switch does, from a terminal:
 /// links the packaged bar widget into the shell's plugins folder and puts it in the bar. Runs
 /// on a QCoreApplication, so it needs no display, and before anything else: it never starts
@@ -443,11 +454,11 @@ struct CommandLine
         QStringLiteral("With --theme-roles: resolve the grounds in this skin (omarchy, "
                        "console) instead of OMASEED_SKIN's."),
         QStringLiteral("name")};
-    // DECISIONS C45 V19: printed before any GUI exists (runPrintOnly).
+    // DECISIONS C45 V19, C48 (AS9 a): printed before any GUI exists (runPrintOnly); a
+    // spelling of the word omaseed skill.
     QCommandLineOption skill{
         QStringList{QStringLiteral("skill")},
-        QStringLiteral("Print the guide for coding agents (the words, their JSON, your skins) "
-                       "and exit.")};
+        QStringLiteral("Print the guide for coding agents (as omaseed skill does) and exit.")};
     // Handled before the application starts (runInstallBarWidget); listed for --help.
     QCommandLineOption installBarWidget{
         QStringList{QStringLiteral("install-bar-widget")},
@@ -550,10 +561,11 @@ int runPrintOnly(int argc, char *argv[])
             QTextStream(stdout) << omaseed::core::AgentWords::helpPage(parser.helpText());
             return 0;
         }
-        // DECISIONS C45 V19: the guide, with no display; --help and --version win over it.
+        // DECISIONS C45 V19, C48: the skill's map as printed, then the pages line (and the
+        // link line while nothing is linked), with no display; --help and --version win over it.
         if (parser.isSet(options.skill) && !parser.isSet(QStringLiteral("help")) &&
             !parser.isSet(QStringLiteral("help-all")) && !parser.isSet(QStringLiteral("version"))) {
-            QTextStream(stdout) << omaseed::integration::AgentGuide::text();
+            QTextStream(stdout) << omaseed::integration::SkillLinker::printedGuide();
             return 0;
         }
         // --help-all and --version print and end the process here, as they always have.
@@ -747,6 +759,7 @@ int main(int argc, char *argv[])
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
     omaseedApp.barWidget()->setDevSourceDir(devPluginDir());
+    omaseedApp.agentSkill()->setDevSourceDir(devSkillDir());
     // Main.qml reads it for its first `visible`; a demo always shows its window.
     omaseedApp.setLaunchHidden(demo.isEmpty() && parser.isSet(options.hidden));
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in

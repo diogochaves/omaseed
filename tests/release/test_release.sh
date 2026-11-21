@@ -124,6 +124,8 @@ printf '%s\n' "\$*" >>"$WORK/makepkg.log"
 . ./PKGBUILD
 src="\$SRCDEST/\$pkgname-\$pkgver.tar.gz"
 [[ "\$(sha256sum "\$src" | cut -d' ' -f1)" == "\${sha256sums[0]}" ]] || { echo "makepkg stub: checksum" >&2; exit 1; }
+# As makepkg: an install= file must be beside the PKGBUILD.
+[[ -z "\${install:-}" || -f "\$install" ]] || { echo "makepkg stub: no \$install" >&2; exit 1; }
 cp PKGBUILD "$WORK/makepkg-PKGBUILD"
 cp "\$src" "$WORK/makepkg-source.tar.gz"
 printf '%s\n' "\$SOURCE_DATE_EPOCH" >"$WORK/makepkg-epoch"

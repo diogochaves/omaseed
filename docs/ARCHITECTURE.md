@@ -180,9 +180,20 @@ Three static libraries and the executable. Each layer only depends on the ones a
   `AgentBus` exports `io.github.diogochaves.omaseed.Agent` (`Status`, `Errors`, `Log`, `Moves`:
   a JSON string in, one out) beside `Status`, answered by `app/AgentService`, which builds plain
   inputs from App's models for `core/AgentAnswers` (pure: the JSON). `core/AgentText` turns an
-  answer into the lines printed without `--json`. `AgentGuide` is the guide `--skill` prints
-  and every start writes to `~/.config/omaseed/AGENTS.md`; its text is the resource
-  `src/integration/resources/agents/library.md`.
+  answer into the lines printed without `--json`. The guide is a skill
+  ([DECISIONS.md](DECISIONS.md) C48, board 65): one source, `data/agents/skill/` (`SKILL.md`,
+  the map, and `ref/library.md`, `skins.md`, `files.md`, the pages), installed as is to
+  `share/omaseed/agents/skill/` and compiled as the resource `:/omaseed/agents/skill/`.
+  `AgentGuide` is its generator: `map()`, `pages()`, `page(name)`, and `printedMap()` (each
+  `ref: X.md` as `omaseed skill X`), which every start writes to `~/.config/omaseed/AGENTS.md`
+  under omaseed's header and which `omaseed skill`, `skill PAGE` and `--skill` print.
+  `SkillLinker` (pure file work) finds the skill folder (`$OMASEED_SKILL_DIR`, the XDG data
+  dirs, beside the binary, a build's source tree) and answers `skill link|unlink|status`: a
+  link named `omaseed` in each agent's skill folder (Omarchy's list: `~/.agents/skills`,
+  `~/.claude/skills`, and Codex, pi, Gemini, Hermes when installed), "ours" by its link text,
+  never a folder or link of the person's; `SkillWords` gives its JSON and lines. `AgentSkill`
+  runs it on a worker thread for Settings › General › Agents (`App.agentSkill`, the row's
+  Skill line under `SettingsRow.below`). Nothing links at start or from the package.
 
 **`omaseed-app`** (`src/ui/app/`): `App`, the one object QML talks to. It owns the servers, the
 engine client, the sync engine and the models, and turns key presses and clicks into engine
@@ -319,9 +330,9 @@ equal to the fallbacks.
   table, a menu, a sheet, a notice, each seam in each state) grabbed after two frames into
   `~/.cache/omaseed/check/NAME[@THEME].png`. `ThemeInk::lifts` gives what C30's floor lifted;
   check reports only the lifts Omarchy's skin in the same theme doesn't need.
-- The guide is two parts, `AgentGuide::libraryPart()` and `skinsPart()`
-  (`integration/resources/agents/library.md`, `skins.md`), written as one `AGENTS.md`.
-  `SkinReader::schema()` is `skin.schema.json` beside it (JSON Schema 2020-12, one `$defs`
+- The skin half of the guide is the skill's `ref/skins.md` (`omaseed skill skins`), its loop
+  and wish map in `SKILL.md`; see the agent's way in above.
+  `SkinReader::schema()` is `~/.config/omaseed/skin.schema.json`, beside `AGENTS.md` (JSON Schema 2020-12, one `$defs`
   entry per kind, each token a `$ref` with Omarchy's value as `default`), rewritten only while
   its first key is omaseed's `$comment`; `tests/SchemaCheck.hpp` validates against it in tests.
 - `data/agents/skin-check.sh`, installed to `share/omaseed/agents/`, is a scenario for

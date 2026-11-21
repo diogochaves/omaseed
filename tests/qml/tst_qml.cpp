@@ -16,6 +16,20 @@
 
 #include <memory>
 
+namespace {
+
+/// The Agents row's link the skill (#286) writes links under $HOME. ctest points it at the
+/// build's qml-env; run directly, a run would link into the person's ~/.claude and ~/.agents,
+/// so a home outside the build tree is pointed at the tests' own here, before anything reads
+/// it (as tests/OffscreenDefault.cpp does for the XDG homes).
+const bool homeInsideBuild = [] {
+    if (!qgetenv("HOME").startsWith(QByteArrayLiteral(OMASEED_TEST_BUILD_DIR)))
+        qputenv("HOME", QByteArrayLiteral(OMASEED_TEST_XDG_DIR "/home"));
+    return true;
+}();
+
+} // namespace
+
 /// Files on disk for the QML tests, as `TestFiles` (a context property): a private temporary
 /// folder, gone when the run ends, and a way to put a file in it. #64's rename guard reads a
 /// real folder.

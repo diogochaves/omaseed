@@ -127,15 +127,16 @@ TestCase {
                                      });
     }
 
-    // The plan's inventory: 31 rows, 12 switches, 11 choices, 3 numbers, 5 actions.
+    // The plan's inventory: 32 rows, 12 switches, 11 choices, 3 numbers, 6 actions (the Agents
+    // row, #286, is the sixth).
     function test_the_own_rows_per_pane_and_control() {
         const table = createTemporaryObject(tableComponent, testCase);
         const count = (pane, control) => table.ownRows.filter(row => row.pane === pane && row.control === control).length;
-        compare(table.ownRows.length, 31);
+        compare(table.ownRows.length, 32);
         compare(table.panes.map(pane => pane.id), ["general", "servers", "notifications", "keybindings", "appearance",
                                                    "backup", "about"]);
         const expected = {
-            "general": [3, 1, 0, 1],
+            "general": [3, 1, 0, 2],
             "servers": [0, 0, 0, 0],
             "notifications": [6, 0, 1, 0],
             "keybindings": [0, 0, 0, 0],
@@ -148,7 +149,7 @@ TestCase {
                     expected[pane], pane);
         }
         const all = control => table.ownRows.filter(row => row.control === control).length;
-        compare([all("switch"), all("choice"), all("number"), all("action")], [12, 11, 3, 5]);
+        compare([all("switch"), all("choice"), all("number"), all("action")], [12, 11, 3, 6]);
         // Every row is in a pane there is, and titled.
         for (const row of table.ownRows) {
             verify(table.panes.some(pane => pane.id === row.pane), row.id);
@@ -174,7 +175,7 @@ TestCase {
     function test_the_cursor_counts_follow_what_a_pane_shows() {
         const table = createTemporaryObject(tableComponent, testCase);
         compare(["general", "servers", "notifications", "keybindings", "backup", "about"].map(pane => table.count(pane)),
-                [5, 0, 7, 0, 3, 1]);
+                [6, 0, 7, 0, 3, 1]);
         compare(table.count("appearance"), 14);
         compare(table.cursorOf("appearance.window"), 3);
         compare(table.cursorOf("appearance.windowAlpha"), -1);
@@ -183,7 +184,7 @@ TestCase {
         compare(table.cursorOf("appearance.speedsPlace"), 13);
         compare(table.rowAt("appearance", 5), "appearance.inTheBar");
         verify(table.row("appearance.windowAlpha") === null);
-        compare(table.rows().filter(row => !row.server).length, 30);
+        compare(table.rows().filter(row => !row.server).length, 31);
 
         App.windowGround = "translucent";
         compare(table.count("appearance"), 15);
@@ -193,7 +194,7 @@ TestCase {
         compare(table.cursorOf("appearance.speedsPlace"), 14);
         compare(table.rowAt("appearance", 4), "appearance.windowAlpha");
         compare(table.row("appearance.windowAlpha").kind, "go");
-        compare(table.rows().filter(row => !row.server).length, 31);
+        compare(table.rows().filter(row => !row.server).length, 32);
 
         // Each pane's places are 0…count-1, in the table's order.
         for (const pane of table.panes) {
@@ -376,7 +377,7 @@ TestCase {
                                                 "connected": false
                                             });
         compare(table.serverRows().length, 0);
-        compare(table.rows().length, 30);
+        compare(table.rows().length, 31);
         verify(table.row("server.speed.dl_limit") === null);
         table.connected = true;
         verify(table.serverRows().length > 0);

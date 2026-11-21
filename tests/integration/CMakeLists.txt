@@ -126,6 +126,27 @@ omaseed_add_test(tst_agentguide
     LIBRARIES omaseed::integration
 )
 
+# DECISIONS C48 (#286, docs/65 §3–4): the skill's pages in data/agents/skill/, their budget.
+omaseed_add_test(tst_skillpages
+    SOURCES tst_skillpages.cpp
+    LIBRARIES Qt6::Core
+    DEFINES OMASEED_SOURCE_SKILL_DIR="${PROJECT_SOURCE_DIR}/data/agents/skill"
+)
+
+# DECISIONS C48 AS6–AS8, AS10 (#286, docs/65 §5): `omaseed skill link | unlink | status`'s
+# links into each agent's skill folder, every case in a temporary HOME.
+omaseed_add_test(tst_skilllinker
+    SOURCES tst_skilllinker.cpp
+    LIBRARIES omaseed::integration
+)
+
+# DECISIONS C48 AS8 a (#286, docs/65 §5): Settings › General's Skill line, SkillLinker's status,
+# link and unlink on a worker thread, every case in a temporary HOME.
+omaseed_add_test(tst_agentskill
+    SOURCES tst_agentskill.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration

@@ -5,6 +5,33 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## Unreleased
+
+### Added
+
+- **omaseed's agent guide is a skill.** A short map (the words, the JSON, the exit codes, how
+  to make a skin) with three pages an agent reads when the task needs them: `omaseed skill`
+  prints the map, `omaseed skill library|skins|files` a page, and `--json` gives either as
+  JSON. `omaseed --skill` is another spelling of `omaseed skill`. The same files are installed
+  in `/usr/share/omaseed/agents/skill/`. (#286)
+- **`omaseed skill link`** links the skill where coding agents look for skills:
+  `~/.agents/skills/omaseed` and `~/.claude/skills/omaseed`, and Codex's, pi's, Gemini's and
+  Hermes' folders when those are installed, so an agent started anywhere loads it when you ask
+  about a download or omaseed's look. `skill status` says which agents have it, `skill unlink`
+  takes out only omaseed's links. A folder or a link of yours named `omaseed` is never
+  touched, and nothing is linked at start or by the package. (#286)
+- **Settings › General › Agents** says whether the skill is linked, and for which agents,
+  with **link the skill** or unlink. (#286)
+- The package says how to link the skill when it is installed (and on the upgrade to 0.16.0),
+  and before it is removed, how to take the links out. (#286)
+
+### Changed
+
+- **`~/.config/omaseed/AGENTS.md` is the skill's map**, about a third of the old guide's size,
+  with each page named as the command that prints it; omaseed rewrites it once on the first
+  start of this version. The help page's last line and each word's `--json` line point at
+  `omaseed skill`. (#286)
+
 ## v0.15.1 — 2026-11-20
 
 ### Changed

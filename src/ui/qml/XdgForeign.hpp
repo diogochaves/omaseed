@@ -1,5 +1,6 @@
 #pragma once
 
+#include "integration/AgentSkill.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Xdg.hpp"
 
@@ -43,4 +44,14 @@ struct BarWidgetForeign
     QML_FOREIGN(omaseed::integration::BarWidget)
     QML_NAMED_ELEMENT(BarWidget)
     QML_UNCREATABLE("BarWidget is App.barWidget; it is not created from QML.")
+};
+
+/// `App.agentSkill` (#286, DECISIONS C48): registered so qmllint type-checks
+/// `App.agentSkill.linked` and friends. It is App's; QML never creates one.
+struct AgentSkillForeign
+{
+    Q_GADGET
+    QML_FOREIGN(omaseed::integration::AgentSkill)
+    QML_NAMED_ELEMENT(AgentSkill)
+    QML_UNCREATABLE("AgentSkill is App.agentSkill; it is not created from QML.")
 };

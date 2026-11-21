@@ -19,7 +19,8 @@ const QStringList &builtWords()
                                    QStringLiteral("log"),
                                    QStringLiteral("moves"),
                                    QStringLiteral("check"),
-                                   QStringLiteral("skin")};
+                                   QStringLiteral("skin"),
+                                   QStringLiteral("skill")};
     return words;
 }
 
@@ -41,6 +42,21 @@ int positionalsOf(const QString &subword)
     if (subword == QLatin1String("use"))
         return 1;
     return -1;
+}
+
+/// skill's words besides a page (DECISIONS C48, docs/65 §5).
+const QStringList &skillWords()
+{
+    static const QStringList words{
+        QStringLiteral("link"), QStringLiteral("unlink"), QStringLiteral("status")};
+    return words;
+}
+
+QString skillTakes(const QStringList &pages)
+{
+    return QStringLiteral("omaseed: skill takes a page (%1), link, unlink or status. omaseed "
+                          "help skill says how.")
+        .arg(pages.join(QStringLiteral(", ")));
 }
 
 QString skinTakes()
@@ -160,7 +176,7 @@ bool isReserved(const QString &word)
     return reservedWords().contains(word);
 }
 
-Request parse(const QStringList &arguments)
+Request parse(const QStringList &arguments, const QStringList &skillPages)
 {
     const QString word = arguments.value(0);
     const QStringList rest = arguments.mid(1);
@@ -195,8 +211,10 @@ Request parse(const QStringList &arguments)
     if (rest.contains(QLatin1String("--help")) || rest.contains(QLatin1String("-h")))
         return page(word, json, word);
 
-    // C37 U3, U5, U6: check and skin take positionals; any other word, none.
-    const bool takesPositionals = word == QLatin1String("check") || word == QLatin1String("skin");
+    // C37 U3, U5, U6: check and skin take positionals, and skill its page or link words (C48);
+    // any other word, none.
+    const bool takesPositionals = word == QLatin1String("check") || word == QLatin1String("skin") ||
+                                  word == QLatin1String("skill");
     const QStringList takes = optionsOf(word);
     QJsonObject options;
     QStringList positionals;
@@ -264,8 +282,24 @@ Request parse(const QStringList &arguments)
         } else {
             request.kind = Request::Kind::Local;
         }
+    } else if (word == QLatin1String("skill")) {
+        // DECISIONS C48 (docs/65 §5): none is the map, one is a page or link, unlink, status.
+        // Every form reads or writes files: no display, bus or running omaseed.
+        const QString subword = positionals.value(0);
+        if (!subword.isEmpty() && !skillPages.contains(subword) && !skillWords().contains(subword))
+            return usage(word, json, skillTakes(skillPages));
+        request.subword = subword;
+        if (positionals.size() > 1)
+            return usage(
+                request.command(), json, doesNotTake(request.command(), positionals.at(1)));
+        request.kind = Request::Kind::Local;
     }
     return request;
+}
+
+bool isSkillPrint(const Request &request)
+{
+    return request.word == QLatin1String("skill") && !skillWords().contains(request.subword);
 }
 
 QString method(const QString &word)
@@ -310,7 +344,10 @@ QString helpPage(const QString &qtHelp)
                            "no display")
          << QStringLiteral("  skin use     draw it in the open window, and keep it") << QString()
          << QStringLiteral("Every word takes --json. omaseed help <word> says more.")
-         << QStringLiteral("Coding agents: omaseed --skill prints your guide.") << QString();
+         // DECISIONS C48 AS8: the link first, the reading second.
+         << QStringLiteral("Coding agents: omaseed skill link, or omaseed skill to read the "
+                           "guide.")
+         << QString();
     if (options >= 0)
         page << lines.mid(options);
     QString text = page.join(QLatin1Char('\n'));
@@ -324,7 +361,8 @@ QString wordPage(const QString &word)
     // C45 V2 (docs/62 §2): one shape for every word: Usage, what it is, who answers, its
     // options, its exits (V13).
     static const QString json =
-        QStringLiteral("  --json          one JSON object; omaseed --skill describes its fields\n");
+        QStringLiteral("  --json          one JSON object; omaseed skill library describes its "
+                       "fields\n");
     static const QString onlyCurrent =
         QStringLiteral("  --server NAME   a server by its name or id; only the one omaseed is on "
                        "can\n"
@@ -421,6 +459,21 @@ QString wordPage(const QString &word)
                               "a bad name or\n"
                               "      one taken · 3 an omaseed that can't answer · 5 not "
                               "written\n");
+    if (word == QLatin1String("skill"))
+        return QStringLiteral(
+                   "Usage: omaseed skill [page] [--json]\n"
+                   "       omaseed skill link | unlink | status [--json]\n"
+                   "omaseed's guide for coding agents, a skill: the map, then a page of it "
+                   "when the\n"
+                   "task needs one (the map's last line names them). No one answers: it reads "
+                   "and\n"
+                   "writes files, with no display and no running omaseed.\n"
+                   "  link            put the skill where coding agents look for one\n"
+                   "  unlink          take out only the links omaseed made\n"
+                   "  status          where it is linked, for each agent\n") +
+               QStringLiteral("  --json          one JSON object: the page as text, or each "
+                              "agent's folder\n") +
+               QStringLiteral("Exit: 0 done · 2 usage · 5 not written\n");
     return QString();
 }
 
