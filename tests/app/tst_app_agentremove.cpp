@@ -420,7 +420,7 @@ void TestAppAgentRemove::alwaysAsksThenKeepsAndRemoves()
              QStringLiteral("allow the remove"));
     const QString line =
         request.value(QStringLiteral("torrents")).toList().first().toMap().value("line").toString();
-    QVERIFY2(line.endsWith(QStringLiteral("files gone (checked)")), qPrintable(line));
+    QVERIFY2(line.endsWith(QStringLiteral(" · files gone")), qPrintable(line));
     QCOMPARE(sent("/api/v2/torrents/export"), 0); // nothing kept before the answer
     QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^removed: .* kept for 30")));
     QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^removed: .* kept for 30")));

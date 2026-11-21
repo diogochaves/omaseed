@@ -2410,7 +2410,9 @@ Item {
                                     RowLayout {
                                         Layout.fillWidth: true
                                         spacing: Theme.space(12)
-                                        visible: agentLastLine.visible || agentAddBack.visible
+                                        // Not the children's own visible: those read false while
+                                        // this row is hidden, so it would never show.
+                                        visible: (App.agentLast.text ?? "").length > 0 || App.removedKept.length > 0
 
                                         Label {
                                             id: agentLastLine
@@ -2429,7 +2431,7 @@ Item {
 
                                         Item {
                                             Layout.fillWidth: true
-                                            visible: !agentLastLine.visible
+                                            visible: agentLastLine.text.length === 0
                                         }
 
                                         Chip {

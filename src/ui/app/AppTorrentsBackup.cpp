@@ -1261,7 +1261,7 @@ QVariantList App::removedKept() const
             {QStringLiteral("here"), m_hasServer && entry.serverUrl == here},
             {QStringLiteral("removed"), Format::relativeTime(entry.removedAt.toLocalTime())},
             {QStringLiteral("until"),
-             QLocale().toString(entry.keptUntil.toLocalTime().date(), QStringLiteral("d MMM"))},
+             QLocale::c().toString(entry.keptUntil.toLocalTime().date(), QStringLiteral("d MMM"))},
         });
     return out;
 }

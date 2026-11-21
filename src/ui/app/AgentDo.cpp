@@ -1605,7 +1605,7 @@ void AgentDo::removeChecked(const QString &json,
             if (!torrent.savePath.isEmpty())
                 line << QStringLiteral("was in %1").arg(torrent.savePath);
             line << core::Format::size(torrent.size)
-                 << (l.seen ? QStringLiteral("files gone (checked)")
+                 << (l.seen ? QStringLiteral("files gone")
                             : QStringLiteral("files gone, the server says"));
             torrents.append(
                 QVariantMap{{QStringLiteral("name"), l.name},
