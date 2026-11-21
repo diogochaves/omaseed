@@ -1,10 +1,13 @@
 #include "ui/Words.hpp"
 
+#include "core/AgentDeny.hpp"
 #include "core/AgentText.hpp"
 #include "core/AgentWords.hpp"
+#include "core/Paths.hpp"
 #include "core/Version.hpp"
 #include "integration/AgentClient.hpp"
 #include "integration/AgentGuide.hpp"
+#include "integration/AppIdentity.hpp"
 #include "integration/SkillLinker.hpp"
 #include "integration/SkillWords.hpp"
 #include "integration/SkinReader.hpp"
@@ -264,6 +267,43 @@ int skill(const AgentWords::Request &request)
     return 0;
 }
 
+/// `help agents [--for AGENT]` (C50 GT7): the deny rules, filled with the address of the
+/// server the running omaseed is on, asked through Status; with none running (or one that
+/// won't say), printed with placeholders and a line saying so. Never a file read, never a
+/// file written: exit 0 either way.
+int helpAgents(const AgentWords::Request &request)
+{
+    namespace AgentDeny = core::AgentDeny;
+    AgentDeny::Target target;
+    target.busName = integration::AppIdentity::dbusServiceName();
+    target.configDir = core::paths::configDir();
+    target.home = QDir::homePath();
+    const integration::AgentClient::Reply reply =
+        integration::AgentClient::call(QStringLiteral("Status"), QJsonObject{}, 5000);
+    const QJsonObject object = QJsonDocument::fromJson(reply.answer).object();
+    const QString failed =
+        object.value(QStringLiteral("error")).toObject().value(QStringLiteral("code")).toString();
+    const QJsonObject server = object.value(QStringLiteral("server")).toObject();
+    const QString address = server.value(QStringLiteral("address")).toString();
+    if (!reply.code.isEmpty() || !failed.isEmpty() || address.isEmpty()) {
+        target.unknownWhy = !reply.code.isEmpty() ? reply.code
+                            : !failed.isEmpty()   ? failed
+                                                  : QStringLiteral("no-server");
+    } else {
+        const qsizetype colon = address.lastIndexOf(QLatin1Char(':'));
+        const bool hasPort = colon > 0 && !address.mid(colon + 1).contains(QLatin1Char(']'));
+        target.host = hasPort ? address.left(colon) : address;
+        target.port = hasPort ? address.mid(colon + 1) : QString();
+        target.serverName = server.value(QStringLiteral("name")).toString();
+    }
+    const AgentDeny::Rules rules =
+        AgentDeny::rulesFor(request.options.value(QStringLiteral("for")).toString(), target);
+    write(stdout,
+          request.json ? AgentDeny::json(rules, target, QDateTime::currentDateTimeUtc())
+                       : rules.text.toUtf8());
+    return 0;
+}
+
 } // namespace
 
 int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
@@ -291,6 +331,8 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
     case AgentWords::Request::Kind::Local:
         if (request.word == QLatin1String("skill"))
             return skill(request);
+        if (request.word == QLatin1String("help"))
+            return helpAgents(request);
         return local(request);
     case AgentWords::Request::Kind::Call:
         break;

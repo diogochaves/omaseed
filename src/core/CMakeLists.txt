@@ -7,6 +7,8 @@ qt_add_library(omaseed-core STATIC
     AgentAnswers.cpp
     AgentAnswers.hpp
     AgentGate.cpp
+    AgentDeny.cpp
+    AgentDeny.hpp
     AgentPlan.cpp
     AgentPlan.hpp
     AgentGate.hpp

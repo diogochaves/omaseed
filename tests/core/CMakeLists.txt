@@ -859,6 +859,12 @@ omaseed_add_test(tst_locatecheck
     LIBRARIES omaseed::core
 )
 
+# #297 (DECISIONS C50 GT7): help agents' deny rules, each agent's syntax, the rules left out.
+omaseed_add_test(tst_agentdeny
+    SOURCES tst_agentdeny.cpp
+    LIBRARIES omaseed::core
+)
+
 # #296 (DECISIONS C50 GT4): an agent's plan read: usage, a never word kept, groups, last line.
 omaseed_add_test(tst_agentplan
     SOURCES tst_agentplan.cpp

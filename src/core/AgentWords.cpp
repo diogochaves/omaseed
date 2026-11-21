@@ -1,5 +1,7 @@
 #include "core/AgentWords.hpp"
 
+#include "core/AgentDeny.hpp"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTimeZone>
@@ -159,6 +161,41 @@ const QStringList &neverWords()
                                    QStringLiteral("credentials"),
                                    QStringLiteral("quit")};
     return words;
+}
+
+/// `help agents [--for AGENT] [--json]` (C50 GT7): answered by the CLI (Words.cpp), which
+/// asks the running omaseed for its server's address.
+Request parseHelpAgents(const QStringList &rest, bool json)
+{
+    const QString command = QStringLiteral("help agents");
+    const QString takes =
+        QStringLiteral("omaseed: help agents takes --for %1. omaseed help help says how.")
+            .arg(AgentDeny::agents().join(QLatin1Char('|')));
+    QJsonObject options;
+    for (qsizetype i = 0; i < rest.size(); ++i) {
+        const QString argument = rest.at(i);
+        if (argument == QLatin1String("--json"))
+            continue;
+        if (argument == QLatin1String("--help") || argument == QLatin1String("-h"))
+            return page(QStringLiteral("help"), json, QStringLiteral("help"));
+        QString value;
+        if (argument == QLatin1String("--for") && i + 1 < rest.size())
+            value = rest.at(++i);
+        else if (argument.startsWith(QLatin1String("--for=")))
+            value = argument.mid(6);
+        else
+            return usage(command, json, takes);
+        if (options.contains(QStringLiteral("for")) || !AgentDeny::agents().contains(value))
+            return usage(command, json, takes);
+        options.insert(QStringLiteral("for"), value);
+    }
+    Request request;
+    request.kind = Request::Kind::Local;
+    request.word = QStringLiteral("help");
+    request.subword = QStringLiteral("agents");
+    request.json = json;
+    request.options = options;
+    return request;
 }
 
 QString doTakes()
@@ -368,6 +405,9 @@ Request parse(const QStringList &arguments, const QStringList &skillPages)
         if (rest.size() == 1 &&
             (rest.first() == QLatin1String("--help") || rest.first() == QLatin1String("-h")))
             return page(word, false, word);
+        // C50 GT7: `help agents [--for AGENT]`, the deny rules for an agent's own settings.
+        if (rest.first() == QLatin1String("agents"))
+            return parseHelpAgents(rest.mid(1), json);
         if (rest.size() == 1 && !rest.first().startsWith(QLatin1Char('-'))) {
             const QString which = rest.first();
             if (!isWord(which))
@@ -550,7 +590,15 @@ QString wordPage(const QString &word)
                        "                  answer (omaseed status lists them)\n");
     if (word == QLatin1String("help"))
         return QStringLiteral("Usage: omaseed help [word]\n"
-                              "This page, or one word's.\n"
+                              "       omaseed help agents [--for claude|codex|pi|gemini] "
+                              "[--json]\n"
+                              "This page, or one word's. help agents prints deny rules for a "
+                              "coding\n"
+                              "agent's own settings (Claude Code's by default), filled with the "
+                              "server\n"
+                              "omaseed is on: omaseed's Agents settings bind only its own words. "
+                              "It\n"
+                              "prints them and never writes them.\n"
                               "Exit: 0 printed · 2 usage\n");
     if (word == QLatin1String("status"))
         return QStringLiteral("Usage: omaseed status [--json]\n"

@@ -147,6 +147,7 @@ private slots:
     void aFileNamedStatusOpensAsDotSlash();
     void statusFromARunningOmaseed();
     void doOnARunningOmaseed();
+    void helpAgentsWithNoneRunning();
 
     // The skins' words (DECISIONS C37 U3, U6; #223).
     void aFileNamedCheckOpensAsDotSlash();
@@ -427,6 +428,41 @@ void TestWords::notRunningExits3()
     QVERIFY(!QFile::exists(m_home->filePath(QStringLiteral("runtime/omaseed/status.json"))));
 }
 
+void TestWords::helpAgentsWithNoneRunning()
+{
+    // C50 GT7: no omaseed to say its server: the rules with <host>:<port>, a line saying so,
+    // exit 0; nothing is written anywhere.
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    QVERIFY(run({QStringLiteral("help"), QStringLiteral("agents")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY(m_out.startsWith(QLatin1String("A wall, not a gate\n")));
+    QVERIFY(m_out.contains(QLatin1String("\"Bash(*<host>:<port>*)\"")));
+    QVERIFY(m_out.contains(QLatin1String("omaseed isn't running, so it can't say its server")));
+    QVERIFY(m_err.isEmpty());
+    QVERIFY(!QFile::exists(m_home->filePath(QStringLiteral("config/omaseed"))));
+
+    QVERIFY(run({QStringLiteral("help"),
+                 QStringLiteral("agents"),
+                 QStringLiteral("--for=gemini"),
+                 QStringLiteral("--json")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(json().value(QLatin1String("agent")).toString(), QStringLiteral("gemini"));
+    QVERIFY(json().value(QLatin1String("server")).isNull());
+
+    QVERIFY(run({QStringLiteral("help"),
+                 QStringLiteral("agents"),
+                 QStringLiteral("--for"),
+                 QStringLiteral("cursor")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QCOMPARE(m_err.trimmed(),
+             QStringLiteral("omaseed: help agents takes --for claude|codex|pi|gemini. omaseed "
+                            "help help says how."));
+}
+
 void TestWords::noBusExits3()
 {
     QVERIFY(run({QStringLiteral("errors")}, QString()));
@@ -578,6 +614,17 @@ void TestWords::statusFromARunningOmaseed()
              qPrintable(m_out));
     QVERIFY(m_out.contains(QStringLiteral("\n  1 torrent: 1 giving back\n")));
     QVERIFY(!m_out.contains(QLatin1Char('\x1b')));
+
+    // C50 GT7: help agents fills its rules with the server on show, asked through Status.
+    QVERIFY(run({QStringLiteral("help"), QStringLiteral("agents"), QStringLiteral("--json")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    const QJsonObject deny = json();
+    QCOMPARE(deny.value(QLatin1String("server")).toString(), address);
+    QCOMPARE(deny.value(QLatin1String("agent")).toString(), QStringLiteral("claude"));
+    QVERIFY(deny.value(QLatin1String("rules"))
+                .toArray()
+                .contains(QStringLiteral("Bash(*%1*)").arg(address)));
+    QVERIFY(!deny.value(QLatin1String("text")).toString().contains(QLatin1String("<port>")));
 }
 
 // #292 (C45 V13, V15): do through the real binary on a running omaseed whose Agents row lets

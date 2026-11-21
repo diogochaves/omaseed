@@ -495,6 +495,36 @@ void TestAgentWords::helpAndPages()
     request = AgentWords::parse(
         {QStringLiteral("help"), QStringLiteral("errors"), QStringLiteral("log")});
     QCOMPARE(request.kind, Kind::Usage);
+
+    // C50 GT7: `help agents [--for AGENT]` is the CLI's own, its agent checked.
+    request = AgentWords::parse({QStringLiteral("help"), QStringLiteral("agents")});
+    QCOMPARE(request.kind, Kind::Local);
+    QCOMPARE(request.command(), QStringLiteral("help agents"));
+    QVERIFY(request.options.isEmpty());
+    for (const QStringList &given : {QStringList{"help", "agents", "--for", "codex", "--json"},
+                                     QStringList{"help", "agents", "--json", "--for=codex"}}) {
+        request = AgentWords::parse(given);
+        QCOMPARE(request.kind, Kind::Local);
+        QVERIFY(request.json);
+        QCOMPARE(request.options.value(QStringLiteral("for")).toString(), QStringLiteral("codex"));
+    }
+    for (const QStringList &given : {QStringList{"help", "agents", "--for", "cursor"},
+                                     QStringList{"help", "agents", "--for"},
+                                     QStringList{"help", "agents", "--for", "pi", "--for", "pi"},
+                                     QStringList{"help", "agents", "claude"},
+                                     QStringList{"help", "agents", "--server", "attic"}}) {
+        request = AgentWords::parse(given);
+        QCOMPARE(request.kind, Kind::Usage);
+        QCOMPARE(request.message,
+                 QStringLiteral("omaseed: help agents takes --for claude|codex|pi|gemini. "
+                                "omaseed help help says how."));
+    }
+    request = AgentWords::parse(
+        {QStringLiteral("help"), QStringLiteral("agents"), QStringLiteral("--help")});
+    QCOMPARE(request.kind, Kind::Page);
+    QCOMPARE(request.page, QStringLiteral("help"));
+    QVERIFY(AgentWords::wordPage(QStringLiteral("help"))
+                .contains(QStringLiteral("omaseed help agents [--for claude|codex|pi|gemini]")));
 }
 
 void TestAgentWords::helpPageSplicesAboveOptions()
