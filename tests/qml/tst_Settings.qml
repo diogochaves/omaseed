@@ -1780,7 +1780,7 @@ TestCase {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         compare(modal.paneIndex, 0);
-        compare(modal.paneRowCount, 5);
+        compare(modal.paneRowCount, 6);
 
         const row = testCase.childNamed(modal, "deleteFilesRow");
         verify(row, "the General pane has no delete-files row");
@@ -1811,6 +1811,103 @@ TestCase {
             modal.activateRow();
             compare(App.startAtLogin, want);
         }
+    }
+
+    // Board 65 §5 (DECISIONS C48 AS8 a, #286): Settings › General › Agents, the skill's line.
+    // The harness's HOME is the build's qml-env (tests/qml/CMakeLists.txt, tst_qml.cpp), so
+    // the links it makes and takes out are never the person's.
+    function agentsRowSettled(modal) {
+        verify(StandardPaths.writableLocation(StandardPaths.HomeLocation).toString().indexOf("/tests/qml-env") >= 0,
+               "HOME is not the tests' own");
+        tryVerify(() => !App.agentSkill.busy, 5000);
+        return testCase.childNamed(modal, "agentsRow");
+    }
+
+    function unlinkTheSkill() {
+        tryVerify(() => !App.agentSkill.busy, 5000);
+        App.agentSkill.unlink();
+        tryVerify(() => !App.agentSkill.busy && !App.agentSkill.linked, 5000);
+    }
+
+    function test_the_agents_row_not_linked() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const row = testCase.agentsRowSettled(modal);
+        verify(row, "the General pane has no Agents row");
+        compare(row.title, "Agents");
+        compare(row.description, "Agents can read your library through omaseed's commands (omaseed status, errors…). They can't change anything.");
+        // After Start at login.
+        verify(row.y > testCase.childNamed(modal, "startAtLoginRow").y);
+        verify(!App.agentSkill.linked);
+        compare(testCase.childNamed(modal, "agentSkillLine").text,
+                "Skill · not linked. Linked, an agent started anywhere finds omaseed's guide.");
+        const link = testCase.childNamed(modal, "agentSkillLink");
+        const more = testCase.childNamed(modal, "agentSkillMore");
+        verify(link.visible && link.enabled);
+        compare(link.text, "link the skill");
+        verify(!more.visible);
+
+        mouseClick(link);
+        tryVerify(() => !App.agentSkill.busy && App.agentSkill.linked, 5000);
+        compare(App.agentSkill.message, "");
+        verify(!link.visible);
+        verify(more.visible);
+        testCase.unlinkTheSkill();
+        verify(link.visible);
+    }
+
+    function test_the_agents_row_linked() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        testCase.agentsRowSettled(modal);
+        App.agentSkill.link();
+        tryVerify(() => !App.agentSkill.busy && App.agentSkill.linked, 5000);
+        // The two folders always linked are the shared ~/.agents and Claude Code's: the line
+        // names the agent, not the shared folder.
+        compare(App.agentSkill.agents, ["Claude Code"]);
+        compare(testCase.childNamed(modal, "agentSkillLine").text,
+                "Skill · linked for Claude Code. Your agent loads it when you ask about a download or omaseed's look.");
+        compare(modal._joinedAgents(["Claude Code", "Codex"]), "Claude Code and Codex");
+        compare(modal._joinedAgents(["Claude Code", "Codex", "pi"]), "Claude Code, Codex and pi");
+
+        // Settings opening again reads the folders again: still linked.
+        modal.open();
+        tryVerify(() => !App.agentSkill.busy, 5000);
+        verify(App.agentSkill.linked);
+
+        // ⋯ holds unlink.
+        const more = testCase.childNamed(modal, "agentSkillMore");
+        verify(more.visible);
+        mouseClick(more);
+        const menu = testCase.childNamed(modal, "agentSkillMenu");
+        verify(menu.opened);
+        compare(menu.items.map(item => item.text), ["unlink"]);
+        keyClick(Qt.Key_Return);
+        verify(!menu.opened);
+        tryVerify(() => !App.agentSkill.busy && !App.agentSkill.linked, 5000);
+        verify(testCase.childNamed(modal, "agentSkillLink").visible);
+    }
+
+    // The everything palette reaches a row by its id (C42 Z7): enter there links the skill,
+    // and once linked opens ⋯.
+    function test_link_the_skill_from_the_palette() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        verify(modal.openOn("general.agents"));
+        compare(modal.paneIndex, 0);
+        compare(modal.paneCursor, 5);
+        const row = testCase.agentsRowSettled(modal);
+        verify(row.hasCursor);
+        verify(!App.agentSkill.linked);
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !App.agentSkill.busy && App.agentSkill.linked, 5000);
+        keyClick(Qt.Key_Return);
+        const menu = testCase.childNamed(modal, "agentSkillMenu");
+        verify(menu.opened);
+        keyClick(Qt.Key_Escape);
+        verify(!menu.opened);
+        verify(modal.opened);
+        verify(App.agentSkill.linked);
+        testCase.unlinkTheSkill();
     }
 
     function test_the_keybindings_pane_is_the_help_sheets_own_rows() {

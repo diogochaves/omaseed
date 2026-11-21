@@ -48,12 +48,18 @@ foreach(skin omarchy console)
         "OMASEED_OMARCHY=omaseed-tests-have-no-omarchy"
         "OMASEED_OMARCHY_SHELL=omaseed-tests-have-no-omarchy"
         "OMASEED_PLUGIN_DIR=${PROJECT_SOURCE_DIR}/plugin"
+        "HOME=${qml_env}/home"
+        "OMASEED_SKILL_DIR=${PROJECT_SOURCE_DIR}/data/agents/skill"
         ${qml_skin_env}
     )
+    # The Agents row's link the skill (#286, DECISIONS C48) links into the agents' folders
+    # under HOME: the tests' own home, never the person's (tst_qml.cpp checks it too), with the
+    # source tree's skill to link.
     # Switching the widget off keeps its link (BarWidget::remove), so a run would leave one
     # in its folder for the next: every run starts without the tests' plugins folder.
     add_test(NAME ${qml_test}_env_clean
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${qml_env}/omarchy/plugins" "${qml_env}/omaseed/skins")
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${qml_env}/omarchy/plugins" "${qml_env}/omaseed/skins"
+                "${qml_env}/home")
     set_tests_properties(${qml_test}_env_clean PROPERTIES FIXTURES_SETUP ${qml_test}_env)
     set_property(TEST ${qml_test} APPEND PROPERTY FIXTURES_REQUIRED ${qml_test}_env)
 endforeach()

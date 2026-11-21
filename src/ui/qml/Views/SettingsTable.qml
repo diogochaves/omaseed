@@ -148,6 +148,14 @@ QtObject {
             "read": () => App.startAtLogin,
             "write": value => App.startAtLogin = value
         },
+        {
+            // DECISIONS C48 AS8 a (docs/65 §5): the Agents row, its Skill line for now; #163's
+            // gate (C45 V16) joins this row. enter links the skill, or opens ⋯ once linked.
+            "id": "general.agents",
+            "pane": "general",
+            "title": qsTr("Agents"),
+            "control": "action"
+        },
         root._notification("completed", qsTr("Torrent completed")),
         root._notification("added", qsTr("Torrent added")),
         root._notification("errored", qsTr("Torrent errored")),

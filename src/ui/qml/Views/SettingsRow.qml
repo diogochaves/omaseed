@@ -19,6 +19,9 @@ import Omaseed.Kit
 // `lead` (docs/57 §3, DECISIONS C40 X3) is what the description opens with when the row has
 // something wrong to say before it says what to do: the same line, in the warning colour.
 //
+// `below` (docs/65 §5, the Agents row's Skill line) is a line of the caller's under the text
+// and the control, across both: words and a control of their own.
+//
 // `warning` (docs/32 E1, #55) is a fault in what the row sets, found elsewhere (qBittorrent's
 // log): a yellow line under the text and the control, behind a 1 px yellow rule.
 Rectangle {
@@ -33,6 +36,8 @@ Rectangle {
 
     /// The control at the right of the row.
     default property alias control: controlHolder.data
+    /// A line under the text and the control, across both; empty draws none.
+    property alias below: belowHolder.data
 
     signal clicked
 
@@ -174,11 +179,23 @@ Rectangle {
         }
 
         Item {
+            id: belowHolder
+
+            Layout.column: 1
+            Layout.columnSpan: 2
+            Layout.fillWidth: true
+            Layout.preferredHeight: childrenRect.height
+            Layout.row: 2
+            objectName: "settingsRowBelow"
+            visible: belowHolder.children.length > 0
+        }
+
+        Item {
             Layout.column: 1
             Layout.columnSpan: 2
             Layout.fillWidth: true
             Layout.preferredHeight: warningText.implicitHeight
-            Layout.row: 2
+            Layout.row: 3
             objectName: "settingsRowWarning"
             visible: root.warning.length > 0
 

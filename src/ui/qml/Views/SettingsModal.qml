@@ -352,6 +352,8 @@ Item {
             root.area = "pane";
         // The bar can change outside omaseed (`omarchy plugin disable`, the shell's own menu).
         App.barWidget.refresh();
+        // The skill's links change outside omaseed too (`omaseed skill link|unlink`).
+        App.agentSkill.refresh();
         sheet.open();
         if (root.inQbt)
             root._readQbt();
@@ -819,6 +821,7 @@ Item {
         } else if (control === "action") {
             ({
                     "general.handler": () => Xdg.registerAsDefaultHandler(),
+                    "general.agents": () => App.agentSkill.linked ? root.openAgentSkillMenu() : App.agentSkill.link(),
                     "appearance.widget": () => root.customizeBarWidget(),
                     "backup.backUp": () => root.backUp(),
                     "backup.restore": () => root.chooseRestore(),
@@ -1049,6 +1052,20 @@ Item {
         const at = anchor.mapToItem(root, 0, anchor.height + Theme.space(4));
         skinMenu.openAt(Math.round(at.x), Math.round(at.y));
         skinMenu.cursorIndex = Math.max(0, names.indexOf(App.skinChoice));
+    }
+
+    /// The Agents row's agents in words: "Claude Code", "Claude Code and Codex", "Claude
+    /// Code, Codex and pi" (docs/65 §5).
+    function _joinedAgents(names: list<string>): string {
+        if (names.length < 2)
+            return names.length === 1 ? names[0] : "";
+        return qsTr("%1 and %2").arg(names.slice(0, -1).join(", ")).arg(names[names.length - 1]);
+    }
+
+    /// The Agents row's ⋯: unlink, in a menu under the chip (docs/65 §5).
+    function openAgentSkillMenu(): void {
+        const at = agentSkillMore.mapToItem(root, 0, agentSkillMore.height + Theme.space(4));
+        agentSkillMenu.openAt(Math.round(at.x), Math.round(at.y));
     }
 
     /// The id of the server the Servers pane's cursor is on, or "" on the add row.
@@ -1649,7 +1666,7 @@ Item {
         if (event.key !== Qt.Key_Escape
                 && (sheet.opened || serverSheet.opened || confirm.opened || qbtConfirm.opened
                     || qbtListSheet.opened || qbtMenu.opened || serverSelect.listOpen
-                    || copyMenu.opened || skinMenu.opened))
+                    || copyMenu.opened || skinMenu.opened || agentSkillMenu.opened))
             event.accepted = true;
     }
 
@@ -2291,6 +2308,69 @@ Item {
 
                                             onClicked: App.startAtLogin = loginChip.modelData[0]
                                         }
+                                    }
+                                }
+                            }
+
+                            // Board 65 §5 (DECISIONS C48 AS8 a): the Agents row, on a row of its
+                            // own until #163's gate (C45 V16) joins it with its chips. Its Skill
+                            // line says what `omaseed skill status` says; link the skill runs
+                            // what `omaseed skill link` does, and ⋯ holds unlink once linked.
+                            SettingsRow {
+                                id: agentsRow
+
+                                Layout.fillWidth: true
+                                description: qsTr("Agents can read your library through omaseed's commands (omaseed status, errors…). They can't change anything.")
+                                glyph: Glyphs.agents
+                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.agents")
+                                objectName: "agentsRow"
+                                title: root.settings.own("general.agents").title
+                                warning: App.agentSkill.message
+
+                                onClicked: {
+                                    root.paneCursor = root.settings.cursorOf("general.agents");
+                                    root.area = "pane";
+                                    root.activateOwn("general.agents");
+                                }
+
+                                below: RowLayout {
+                                    spacing: Theme.space(12)
+                                    width: parent ? parent.width : 0
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        ink: agentsRow.ink
+                                        objectName: "agentSkillLine"
+                                        size: "small"
+                                        text: App.agentSkill.linked ? qsTr("Skill · linked for %1. Your agent loads it when you ask about a download or omaseed's look.").arg(
+                                                                          root._joinedAgents(App.agentSkill.agents)) : qsTr(
+                                                                          "Skill · not linked. Linked, an agent started anywhere finds omaseed's guide.")
+                                        wrapMode: Text.Wrap
+                                    }
+
+                                    Chip {
+                                        block: agentsRow.ground
+                                        enabled: !App.agentSkill.busy
+                                        objectName: "agentSkillLink"
+                                        opacity: enabled ? 1 : 0.45
+                                        text: qsTr("link the skill")
+                                        visible: !App.agentSkill.linked
+
+                                        onClicked: App.agentSkill.link()
+                                    }
+
+                                    Chip {
+                                        id: agentSkillMore
+
+                                        block: agentsRow.ground
+                                        enabled: !App.agentSkill.busy
+                                        glyph: Glyphs.more
+                                        objectName: "agentSkillMore"
+                                        opacity: enabled ? 1 : 0.45
+                                        tooltip: qsTr("unlink")
+                                        visible: App.agentSkill.linked
+
+                                        onClicked: root.openAgentSkillMenu()
                                     }
                                 }
                             }
@@ -4171,6 +4251,31 @@ Item {
 
         onActivated: action => {
             App.skinChoice = action;
+            bodyItem.forceActiveFocus();
+        }
+        onRejected: bodyItem.forceActiveFocus()
+    }
+
+    // Board 65 §5: the Agents row's ⋯, the skill's unlink (DECISIONS C48 AS8 a).
+    Menu {
+        id: agentSkillMenu
+
+        anchors.fill: parent
+        dimmed: false
+        items: [
+            {
+                "text": qsTr("unlink"),
+                "action": "unlink"
+            }
+        ]
+        menuWidth: Theme.space(180)
+        objectName: "agentSkillMenu"
+        z: 1
+
+        onActivated: action => {
+            agentSkillMenu.close();
+            if (action === "unlink")
+                App.agentSkill.unlink();
             bodyItem.forceActiveFocus();
         }
         onRejected: bodyItem.forceActiveFocus()
