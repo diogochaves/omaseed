@@ -57,7 +57,8 @@ QString doPlan(const QJsonObject &answer, const TextStyle &style);
 QString failure(const QString &message, const TextStyle &style);
 
 /// `text` broken at spaces so no line is longer than `width` (a longer word stays whole);
-/// the first line starts with `first`, the others with `rest`. Each line ends in "\n".
+/// the first line starts with `first`, the others with `rest`; a "\n" in `text` starts a
+/// line too. Each line ends in "\n".
 QString wrap(const QString &text, int width, const QString &first, const QString &rest);
 
 /// "qBittorrent", "Transmission", "Deluge" for an engine's id; the id itself otherwise.

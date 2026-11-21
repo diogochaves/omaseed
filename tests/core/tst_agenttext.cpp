@@ -320,6 +320,12 @@ void TestAgentText::wrapsAtWidth()
     // A word longer than the width stays whole on its own line.
     QCOMPARE(Text::wrap(QStringLiteral("a /a/very/long/path b"), 8, QString(), QString()),
              QStringLiteral("a\n/a/very/long/path\nb\n"));
+    // A line break in the text starts a line under the indent (a refusal's second line).
+    QCOMPARE(Text::wrap(QStringLiteral("refused: one two\nthree"),
+                        40,
+                        QStringLiteral("  "),
+                        QStringLiteral("    ")),
+             QStringLiteral("  refused: one two\n    three\n"));
     // An unreachable server's line wraps under itself.
     Answers::StatusInput input = attic();
     input.server.reachable = false;

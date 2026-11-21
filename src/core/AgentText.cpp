@@ -145,16 +145,25 @@ QString wrap(const QString &text, int width, const QString &first, const QString
     QString out;
     QString line = first;
     bool empty = true; // nothing but the prefix on the line yet
-    for (const QString &word : text.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
-        if (!empty && line.size() + 1 + word.size() > width) {
+    const QStringList paragraphs = text.split(QLatin1Char('\n'));
+    for (qsizetype i = 0; i < paragraphs.size(); ++i) {
+        if (i > 0) {
+            // A line break in the text (a refusal's second line) starts a line under `rest`.
             out += line + QLatin1Char('\n');
             line = rest;
             empty = true;
         }
-        if (!empty)
-            line += QLatin1Char(' ');
-        line += word;
-        empty = false;
+        for (const QString &word : paragraphs.at(i).split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
+            if (!empty && line.size() + 1 + word.size() > width) {
+                out += line + QLatin1Char('\n');
+                line = rest;
+                empty = true;
+            }
+            if (!empty)
+                line += QLatin1Char(' ');
+            line += word;
+            empty = false;
+        }
     }
     return out + line + QLatin1Char('\n');
 }
