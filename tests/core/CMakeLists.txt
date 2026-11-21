@@ -846,6 +846,12 @@ omaseed_add_test(tst_procparent
     LIBRARIES omaseed::core
 )
 
+# DECISIONS C50 GT2 (#294): do locate's find, each file's relative path and size in a folder.
+omaseed_add_test(tst_locatecheck
+    SOURCES tst_locatecheck.cpp
+    LIBRARIES omaseed::core
+)
+
 # DECISIONS C45 V4, V6, V7, V8 (#163): the envelope, the options, --server's match, the reads'
 # JSON from plain inputs.
 omaseed_add_test(tst_agentanswers

@@ -10,6 +10,8 @@ qt_add_library(omaseed-core STATIC
     AgentGate.hpp
     ProcParent.cpp
     ProcParent.hpp
+    LocateCheck.cpp
+    LocateCheck.hpp
     AgentText.cpp
     AgentText.hpp
     AgentWords.cpp
