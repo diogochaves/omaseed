@@ -156,6 +156,11 @@ private slots:
     void skinUseOnARunningOmaseed();
     void skinUseOnAnOldOneIs3();
     void skinUseOddNames();
+    void skillPrintsTheMap();
+    void skillPagePrintsIt();
+    void skillJson();
+    void aFileNamedSkillOpensAsDotSlash();
+    void skillIsTheSameAsDashDashSkill();
 
 private:
     /// The environment of every run: its own homes and runtime directory, no display, and
@@ -340,7 +345,7 @@ void TestWords::helpListsTheWords()
 void TestWords::helpWordAndWordHelpMatch_data()
 {
     QTest::addColumn<QString>("word");
-    for (const char *word : {"status", "errors", "log", "moves", "help", "check", "skin"})
+    for (const char *word : {"status", "errors", "log", "moves", "help", "check", "skin", "skill"})
         QTest::newRow(word) << QString::fromLatin1(word);
 }
 
@@ -831,6 +836,110 @@ void TestWords::skinUseOddNames()
         json().value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
         QStringLiteral("unknown-skin"));
     QCOMPARE(state(), before);
+}
+
+// DECISIONS C48 (docs/65 §4, §5): the word skill prints the guide with no display, bus or
+// running omaseed, and writes nothing.
+void TestWords::skillPrintsTheMap()
+{
+    QVERIFY(run({QStringLiteral("skill")}, QString()));
+    QCOMPARE(m_exitStatus, QProcess::NormalExit);
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY(m_err.isEmpty());
+    QVERIFY(!m_out.startsWith(QLatin1String("---")));
+    QVERIFY(m_out.contains(QLatin1String(": omaseed skill library\n")));
+    QVERIFY(!m_out.contains(QLatin1String("ref: ")));
+    QVERIFY(m_out.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")));
+    QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral("config/omaseed"))));
+}
+
+void TestWords::skillPagePrintsIt()
+{
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("skins")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QFile source(QStringLiteral(OMASEED_SOURCE_SKILL_DIR "/ref/skins.md"));
+    QVERIFY(source.open(QIODevice::ReadOnly));
+    QCOMPARE(m_out.toUtf8(), source.readAll());
+    QVERIFY(!m_out.contains(QLatin1String("Pages: ")));
+    for (const char *name : {"library", "files"}) {
+        QVERIFY(run({QStringLiteral("skill"), QString::fromLatin1(name)}, QString()));
+        QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+        QVERIFY(m_out.size() > 100);
+    }
+    // An unknown page is usage, with the pages named.
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("layoutz")}, QString()));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY(m_out.isEmpty());
+    QVERIFY2(m_err.contains(QLatin1String("skill takes a page (library, skins, files), link, "
+                                          "unlink or status")),
+             qPrintable(m_err));
+    // link, unlink and status are words, answered by a later step.
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("link")}, QString()));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY(m_err.contains(QLatin1String("skill link isn't in this omaseed yet")));
+    QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral(".claude"))));
+    QVERIFY(!QFileInfo::exists(m_home->filePath(QStringLiteral(".agents"))));
+}
+
+void TestWords::skillJson()
+{
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("--json")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out.count(QLatin1Char('\n')), 1);
+    const QJsonObject map = json();
+    QCOMPARE(map.keys(),
+             (QStringList{QStringLiteral("at"),
+                          QStringLiteral("command"),
+                          QStringLiteral("page"),
+                          QStringLiteral("text"),
+                          QStringLiteral("v")}));
+    QVERIFY(m_out.startsWith(QLatin1String("{\"v\":1,\"command\":\"skill\",\"at\":\"")));
+    QCOMPARE(map.value(QLatin1String("page")).toString(), QStringLiteral("map"));
+    const QString text = map.value(QLatin1String("text")).toString();
+    QVERIFY(text.endsWith(QLatin1String("\n\nPages: omaseed skill library, skins, files.\n")));
+    QVERIFY(run({QStringLiteral("skill")}, QString()));
+    QCOMPARE(text, m_out);
+
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("library"), QStringLiteral("--json")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    const QJsonObject library = json();
+    QCOMPARE(library.value(QLatin1String("command")).toString(), QStringLiteral("skill library"));
+    QCOMPARE(library.value(QLatin1String("page")).toString(), QStringLiteral("library"));
+    QVERIFY(library.value(QLatin1String("text")).toString().contains(QLatin1String("not-running")));
+
+    // A usage failure with --json is one object on stdout.
+    QVERIFY(run({QStringLiteral("skill"), QStringLiteral("nope"), QStringLiteral("--json")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QCOMPARE(
+        json().value(QLatin1String("error")).toObject().value(QLatin1String("code")).toString(),
+        QStringLiteral("usage"));
+}
+
+void TestWords::aFileNamedSkillOpensAsDotSlash()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    QVERIFY(ownAsOld(bus));
+    // C37 U10: skill is a word now, and ./skill is still a file to open.
+    QVERIFY(run({QStringLiteral("./skill")}, bus, true));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_old->opened.size(), 1);
+    QVERIFY2(m_old->opened.first().endsWith(QLatin1String("/skill")),
+             qPrintable(m_old->opened.first()));
+}
+
+void TestWords::skillIsTheSameAsDashDashSkill()
+{
+    // AS9 a: --skill stays, a spelling of the word.
+    QVERIFY(run({QStringLiteral("skill")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    const QString word = m_out;
+    QVERIFY(run({QStringLiteral("--skill")}, QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out, word);
 }
 
 QTEST_GUILESS_MAIN(TestWords)

@@ -49,6 +49,7 @@ omaseed_add_test(tst_words
     SOURCES tst_words.cpp
     LIBRARIES Qt6::DBus Qt6::Network
     DEFINES OMASEED_BINARY="$<TARGET_FILE:omaseed>"
+            OMASEED_SOURCE_SKILL_DIR="${PROJECT_SOURCE_DIR}/data/agents/skill"
 )
 add_dependencies(tst_words omaseed)
 

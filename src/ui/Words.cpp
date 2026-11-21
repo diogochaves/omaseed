@@ -4,6 +4,7 @@
 #include "core/AgentWords.hpp"
 #include "core/Version.hpp"
 #include "integration/AgentClient.hpp"
+#include "integration/AgentGuide.hpp"
 #include "integration/SkinReader.hpp"
 #include "integration/SkinWords.hpp"
 #include "integration/ThemeReader.hpp"
@@ -163,6 +164,33 @@ int saved(const AgentWords::Request &request, const integration::Skin &skin)
         SkinWords::use(name, skin, false, QDateTime::currentDateTimeUtc(), core::version()));
 }
 
+/// `skill` and `skill PAGE` (DECISIONS C48, docs/65 §4): the map as --skill prints it, or a
+/// page; with --json, the envelope with page ("map" or its name) and text. link, unlink and
+/// status come with SkillLinker.
+int skill(const AgentWords::Request &request)
+{
+    namespace AgentGuide = integration::AgentGuide;
+    const QString command = request.command();
+    if (!AgentWords::isSkillPrint(request))
+        return fail(command, request.json, QStringLiteral("usage"), AgentWords::notYet(command));
+    const QString text = request.subword.isEmpty() ? AgentGuide::printedMap() + QLatin1Char('\n') +
+                                                         AgentGuide::pagesLine() + QLatin1Char('\n')
+                                                   : AgentGuide::page(request.subword);
+    if (request.json) {
+        write(stdout,
+              AgentWords::orderedJson(
+                  {{QStringLiteral("v"), 1},
+                   {QStringLiteral("command"), command},
+                   {QStringLiteral("at"), AgentWords::isoUtc(QDateTime::currentDateTimeUtc())},
+                   {QStringLiteral("page"),
+                    request.subword.isEmpty() ? QStringLiteral("map") : request.subword},
+                   {QStringLiteral("text"), text}}));
+        return 0;
+    }
+    write(stdout, text.toUtf8());
+    return 0;
+}
+
 } // namespace
 
 int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
@@ -170,7 +198,8 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
     QStringList arguments;
     for (int i = 1; i < argc; ++i)
         arguments << QString::fromLocal8Bit(argv[i]);
-    const AgentWords::Request request = AgentWords::parse(arguments);
+    const AgentWords::Request request =
+        AgentWords::parse(arguments, integration::AgentGuide::pages());
     // check draws offscreen on an application of its own (C37 U5).
     if (request.kind == AgentWords::Request::Kind::Local && request.word == QLatin1String("check"))
         return check(argc, argv, request);
@@ -187,6 +216,8 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
     case AgentWords::Request::Kind::Usage:
         return fail(request.word, request.json, QStringLiteral("usage"), request.message);
     case AgentWords::Request::Kind::Local:
+        if (request.word == QLatin1String("skill"))
+            return skill(request);
         return local(request);
     case AgentWords::Request::Kind::Call:
         break;
