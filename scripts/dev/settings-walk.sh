@@ -20,6 +20,9 @@
 #   - Appearance › In the Omarchy menu (#216): on adds the block to the box's menu file;
 #     `omarchy menu summon torrents` › Speeds › Turtle turns the box qBittorrent's alternative
 #     limits on (set back after); off leaves the file as it was, byte for byte;
+#   - General › Agents (#291, DECISIONS C50 GT3, GT8): Fixes to allow and Reads off from the
+#     row's lines, read back from the box's state.json (Fixes kept while Reads is off, a greyed
+#     line taking no enter), then both put back;
 #   - the everything palette's settings (#266, DECISIONS C42 Z7, Z8): `:` `/se` space `dht`,
 #     enter turns DHT off on the box qBittorrent with the palette still open, tab shows it in
 #     Settings (off there too), space there turns it back on; Skin's options listed in the
@@ -338,6 +341,33 @@ check "the menu file back byte for byte" "$(menu_sum)" "$menu_before"
 step "In the Omarchy menu, off again" "The switch off; the box's menu file as it was."
 # shellcheck disable=SC2016 # expanded by the box's shell, from its argument
 omabox run -b "$BOX" -- sh -c 'rm -f "$1"; [ ! -e "$1.walk" ] || mv "$1.walk" "$1"' sh "$MENU_FILE"
+keys Escape Escape
+
+# ---- General › Agents, the gate (board 67 §3, DECISIONS C50 GT3, GT8, #291) ----------------
+# The row's four lines are cursor stops of the General pane after the Agents row (6 Reads,
+# 7 Fixes, 8 Moves, 9 Remove). enter moves a line's level on; Fixes off → ask → allow, then
+# Reads off greys the acting lines and keeps their levels. Read back from the box's
+# state.json ("agents"; a key not written yet is its default), then put back.
+saved_agent() {
+    jq -r --arg key "$1" --arg default "$2" '.agents[$key] // $default' \
+        "$(omabox path -b "$BOX")/home/.config/omaseed/state.json" 2>/dev/null || echo "$2"
+}
+check "Reads on by default" "$(saved_agent reads on)" on
+check "Fixes off by default" "$(saved_agent fixes off)" off
+keys comma 1 h l j j j j j j j
+step "Agents, Fixes under the cursor" "General: the Agents row's sentence 'Agents can read your library through omaseed's commands. They can't change anything.'; under the Skill line, a hairline and four lines: Reads (on lit), Fixes (off lit, the line outlined), Moves and Remove (off lit, allow struck and faint)."
+keys Return Return
+check "Fixes allow saved" "$(saved_agent fixes off)" allow
+step "Agents, Fixes allow" "Fixes: allow lit; the sentence now 'Agents can read your library and do what the lines below allow. Deleting files, renaming and settings stay yours.'"
+keys k Return
+check "Reads off saved" "$(saved_agent reads on)" off
+check "Fixes keeps allow while Reads is off" "$(saved_agent fixes off)" allow
+step "Agents, Reads off" "Reads: off lit; Fixes, Moves and Remove faint (Fixes still on allow); the sentence 'Agents get nothing from omaseed's commands. That's omaseed's side only: your agent's own settings are the wall (omaseed help agents).'"
+keys j Return
+check "a greyed line takes no enter" "$(saved_agent fixes off)" allow
+keys k Return j Return
+check "Reads back on" "$(saved_agent reads on)" on
+check "Fixes back off" "$(saved_agent fixes off)" off
 keys Escape Escape
 
 # ---- the everything palette's settings (board 63 S1–S3, DECISIONS C42 Z7, Z8, #266) ---------
