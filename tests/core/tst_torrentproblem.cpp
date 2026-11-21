@@ -657,6 +657,15 @@ void TestTorrentProblem::anEnginesErrorInPlaceReadsItsCause()
     QCOMPARE(
         noData.rowSentence,
         QStringLiteral("its files aren't where Transmission left them · it stopped the torrent"));
+
+    // …and after a verify that found nothing (what `do recheck` leaves; the agent walk, #295).
+    t.errorMessage = QStringLiteral(
+        "Paused torrent as no data was found! Ensure your drives are connected or use \"Set "
+        "Location\", then use \"Verify Local Data\" again. To re-download, start the torrent.");
+    const TorrentProblem verified = ProblemMatch::fromEngine(t, QStringLiteral("Transmission"), {});
+    QCOMPARE(verified.causeKey, QStringLiteral("missingFiles"));
+    QCOMPARE(verified.cause, QStringLiteral("missing files"));
+    QCOMPARE(verified.headline, QStringLiteral("Its files aren't where Transmission left them"));
 }
 
 // A text in the daemon's language with no cause omaseed reads: the engine's words stay whole,
