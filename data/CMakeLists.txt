@@ -117,6 +117,11 @@ install(FILES omarchy-menu.jsonc
 install(PROGRAMS agents/skin-check.sh
     DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed/agents")
 
+# DECISIONS C48 (#286): the agent skill, as is: SKILL.md and its ref/ pages. `omaseed skill
+# link` links agents' skill folders to this one; AGENTS.md and `omaseed skill` print from it.
+install(DIRECTORY agents/skill
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/omaseed/agents")
+
 # The companion bar widget (#17, docs/07 §6): a read-only copy for `omaseed
 # --install-bar-widget` to put into ~/.config/omarchy/plugins/, since the shell scans no system
 # directory. plugin/ is also what the public omaseed-bar repo is split from.
