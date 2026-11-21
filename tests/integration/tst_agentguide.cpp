@@ -6,6 +6,7 @@
 // what the reader drops outside it. Every path is under a temporary directory.
 
 #include "SchemaCheck.hpp"
+#include "core/AgentGate.hpp"
 #include "core/AgentWords.hpp"
 #include "integration/AgentGuide.hpp"
 #include "integration/SkinReader.hpp"
@@ -623,7 +624,15 @@ void TestAgentGuide::guideNamesEveryWordAndCode()
                                 QStringLiteral("no-log"),
                                 QStringLiteral("unknown-torrent"),
                                 QStringLiteral("first-sync"),
-                                QStringLiteral("not-written")}) {
+                                QStringLiteral("not-written"),
+                                // do's (C45 V13, C50 GT1 and GT2)
+                                QStringLiteral("not-allowed"),
+                                QStringLiteral("never"),
+                                QStringLiteral("refused"),
+                                QStringLiteral("no-answer"),
+                                QStringLiteral("not-removable"),
+                                QStringLiteral("not-found"),
+                                QStringLiteral("failed")}) {
         const int exit = Words::exitFor(code);
         const qsizetype row = library.indexOf(QStringLiteral("\n  %1  ").arg(exit));
         QVERIFY2(row >= 0, qPrintable(code));
@@ -635,9 +644,34 @@ void TestAgentGuide::guideNamesEveryWordAndCode()
     }
     QVERIFY(library.contains(QStringLiteral("\n  0  answered")));
 
-    // No action is offered: they aren't built.
-    QVERIFY(!text.contains(QStringLiteral("### Acting")));
-    QVERIFY(!text.contains(QStringLiteral("omaseed do")));
+    // do (#297): every action of every kind on the library page, the gate binding only
+    // omaseed (C50 GT7), the plan and the dry run (GT4, GT5), and the missing-files path in
+    // its order: errors, the agent's own find, a plan, its dry run, one ask.
+    for (const auto kind : {omaseed::core::AgentGate::Kind::Fixes,
+                            omaseed::core::AgentGate::Kind::Moves,
+                            omaseed::core::AgentGate::Kind::Remove})
+        for (const QString &action : omaseed::core::AgentGate::actionsOf(kind))
+            QVERIFY2(library.contains(action), qPrintable(action));
+    for (const QString &line : {QStringLiteral("omaseed help agents"),
+                                QStringLiteral("omaseed do --plan FILE|- [--dry-run] --json"),
+                                QStringLiteral("No flag deletes a file"),
+                                QStringLiteral("Kept 30 days")})
+        QVERIFY2(library.contains(line), qPrintable(line));
+    qsizetype at = library.indexOf(QStringLiteral("## Missing files"));
+    QVERIFY(at > 0);
+    for (const QString &step : {QStringLiteral("errors --json"),
+                                QStringLiteral("with your shell"),
+                                QStringLiteral("A plan"),
+                                QStringLiteral("--dry-run"),
+                                QStringLiteral("one window asks")}) {
+        const qsizetype next = library.indexOf(step, at);
+        QVERIFY2(next > at, qPrintable(u"out of order or missing: " + step));
+        at = next;
+    }
+    for (const QString &line : {QStringLiteral("omaseed do --list --json"),
+                                QStringLiteral("--dry-run --json"),
+                                QStringLiteral("omaseed do --plan FILE --json")})
+        QVERIFY2(Guide::map().contains(line), qPrintable(line));
 }
 
 QTEST_GUILESS_MAIN(TestAgentGuide)

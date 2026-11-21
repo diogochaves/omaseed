@@ -19,8 +19,8 @@
 # added back from the Agents row's sheet; --plan dry runs (a refused line: 5, its text indented;
 # both lines would ask) and a real plan, one ask with a torrent unticked (Done: 2 of 3); help
 # agents (the address on show, --for gemini). The skill (C48, #286): `skill` prints the map
-# (plain and --json), `skill library` the exit-code table; in the box's home `skill link` links
-# ~/.agents and ~/.claude to omaseed's skill folder and leaves a folder of the box's own at
+# (plain and --json), `skill library` the exit-code table with do's and the missing-files
+# path; in the box's home `skill link` links ~/.agents and ~/.claude to omaseed's skill folder and leaves a folder of the box's own at
 # ~/.codex/skills/omaseed, `skill status` says so, a second link changes nothing, `skill unlink`
 # takes out only its links, and AGENTS.md is the printed map. Then the Status interface switches to the :8081
 # playground and a torrent goes into error: errors names its cause and fix with qBittorrent's
@@ -437,8 +437,10 @@ check "skill --json: page map, its text" answered 0 skill-map-json.json \
      and (has("omaseed") | not)'
 word skill-library skill library
 skill_library() { plain skill-library && grep -q '^## Exit codes$' "$ANSWERS/skill-library.txt" &&
-    grep -q '^  5  not-written' "$ANSWERS/skill-library.txt"; }
-check "skill library: exit 0, the exit-code table" skill_library
+    grep -q '^  5  not done (do): not-allowed' "$ANSWERS/skill-library.txt" &&
+    grep -q '^  6  failed' "$ANSWERS/skill-library.txt" &&
+    grep -q '^## Missing files, sorted out$' "$ANSWERS/skill-library.txt"; }
+check "skill library: exit 0, the exit-code table, do's codes, the missing-files path" skill_library
 word skill-status0 skill status --json
 check "skill status --json: nothing linked yet" answered 0 skill-status0.json \
     '.command == "skill status" and ([.folders[] | select(.state == "linked")] | length == 0)'
