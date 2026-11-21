@@ -21,6 +21,7 @@
 #include "core/engines/LogEntry.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/SkinWords.hpp"
+#include "ui/app/AgentDo.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
 
@@ -41,6 +42,7 @@ using core::ServerListModel;
 AgentService::AgentService(App *app, QObject *parent)
     : QObject(parent)
     , m_app(app)
+    , m_do(new AgentDo(app, this))
 {}
 
 void AgentService::setWindowShown(bool shown)
@@ -90,11 +92,7 @@ void AgentService::useSkin(const QString &options, Reply reply)
 
 void AgentService::doAction(const QString &options, uint callerPid, Reply reply)
 {
-    Q_UNUSED(options);
-    Q_UNUSED(callerPid);
-    reply(failure(QStringLiteral("do"),
-                  QStringLiteral("usage"),
-                  core::AgentWords::notYet(QStringLiteral("do"))));
+    m_do->run(options, callerPid, reply);
 }
 
 void AgentService::status(const QString &options, Reply reply)

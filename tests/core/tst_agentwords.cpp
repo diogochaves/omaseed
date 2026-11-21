@@ -120,6 +120,8 @@ void TestAgentWords::doIsAWordNow()
     QCOMPARE(AgentWords::parse({w, QStringLiteral("--help")}).page, w);
     QVERIFY(AgentWords::wordPage(w).startsWith(QStringLiteral("Usage: omaseed do <action>")));
     QCOMPARE(AgentWords::method(w), QStringLiteral("Do"));
+    // It waits for the ask (2 minutes, V17) and then the server (assumed: + 30 s).
+    QCOMPARE(AgentWords::kAskTimeoutMs, 150000);
     QVERIFY(!AgentWords::isWord(QStringLiteral("./do")));
 }
 

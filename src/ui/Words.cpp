@@ -15,6 +15,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStringList>
@@ -99,9 +100,14 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
             write(stderr, failureWords(failure.value(QStringLiteral("message")).toString()));
         return AgentWords::exitFor(code.isEmpty() ? QStringLiteral("failed") : code);
     }
+    // C45 V13: a do the server refused, for one torrent or more, exits 6 (its lines still say
+    // what was done).
+    const int exit = object.value(QStringLiteral("failed")).toArray().isEmpty()
+                         ? 0
+                         : AgentWords::exitFor(QStringLiteral("failed"));
     if (json) {
         write(stdout, bytes);
-        return 0;
+        return exit;
     }
     // C45 V12: the lines are made from the same JSON --json prints. A word whose lines aren't
     // in this omaseed yet (#163 steps C, D) prints its JSON.
@@ -109,7 +115,7 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
     if (lines.isEmpty())
         lines = SkinWords::lines(object, QDir::homePath());
     write(stdout, lines.isEmpty() ? bytes : lines.toUtf8());
-    return 0;
+    return exit;
 }
 
 /// `check <skin>` (C37 U5): the skin named is checked first (bad-name, unknown-skin: exit 2);
@@ -255,8 +261,12 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
         if (!picked.code.isEmpty())
             return fail(command, request.json, picked.code, picked.message);
     }
-    const integration::AgentClient::Reply reply =
-        integration::AgentClient::call(AgentWords::method(command), request.options);
+    // `do` waits for the person's answer, then the server's (C45 V15, V17).
+    const integration::AgentClient::Reply reply = integration::AgentClient::call(
+        AgentWords::method(command),
+        request.options,
+        request.word == QLatin1String("do") ? AgentWords::kAskTimeoutMs
+                                            : AgentWords::kReplyTimeoutMs);
     if (request.subword == QLatin1String("use") &&
         (reply.code == QLatin1String("not-running") || reply.code == QLatin1String("no-bus")))
         return saved(request, picked.skin);

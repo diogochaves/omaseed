@@ -1915,6 +1915,28 @@ public:
     void setAgentLast(const QString &text, const QDateTime &at);
     const omaseed::core::AgentGate &agentGate() const;
 
+    // --- #292: the fixes an agent runs through `do` (C45 V14, V15) ----------------------------
+    /// An act asked through `do`: who asked (S4 says it in the strip, the journal and the last
+    /// line), and what to call once the server has answered, with the strip's outcome.
+    struct AgentAct
+    {
+        omaseed::core::AgentOrigin origin;
+        std::function<void(const omaseed::core::ActionOutcome &)> answered;
+    };
+    /// retryTorrents, recheck, reannounce as the window runs them, and `act.answered` once the
+    /// server answered. False when nothing was sent (a demo, no server): `answered` isn't
+    /// called then.
+    bool retryTorrents(const QStringList &hashes, const AgentAct &act);
+    bool recheck(const QStringList &hashes, const AgentAct &act);
+    bool reannounce(const QStringList &hashes, const AgentAct &act);
+    /// dismissFailure for each of `hashes`; answered at once (nothing goes to the server).
+    bool dismissFailures(const QStringList &hashes, const AgentAct &act);
+    /// C36 M10's hold, as the window's: answered when PauseHold says it ended, with action
+    /// "pause"/"resume", the count in `target` and an error in `cause`. False when PauseHold
+    /// can't send it (nothing held to resume, one on its way).
+    bool pauseTorrents(const AgentAct &act);
+    bool resumeTorrents(const AgentAct &act);
+
 Q_SIGNALS:
     void agentsChanged();
 
@@ -2420,11 +2442,13 @@ private:
     /// answers are in (limits takes up to three requests), the strip says how it went, in
     /// ErrorWords' words when one failed. The torrent's name is read now, while it is still
     /// in the list (a delete).
+    /// `answered` (#292: an agent's `do`) is called with the outcome after the strip has it.
     std::function<void(const omaseed::core::Result<omaseed::core::Done> &)>
     tableAnswer(const QString &action,
                 const QStringList &hashes,
                 const QString &target = QString(),
-                int calls = 1);
+                int calls = 1,
+                std::function<void(const omaseed::core::ActionOutcome &)> answered = {});
 
     bool m_serverRefused = false;
     /// C25 K8: the server's engine answered with a version omaseed refuses (SyncEngine's

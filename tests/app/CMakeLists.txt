@@ -263,6 +263,13 @@ omaseed_add_test(tst_agentservice
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #292 (DECISIONS C45 V14, V15; C50 GT3, GT5, GT8): `do`'s app side against a stand-in
+# qBittorrent: the gate, the checks before anything runs, each fix sent, dry run, pause/resume.
+omaseed_add_test(tst_app_agentdo
+    SOURCES tst_app_agentdo.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
 omaseed_add_test(tst_addroute
     SOURCES tst_addroute.cpp

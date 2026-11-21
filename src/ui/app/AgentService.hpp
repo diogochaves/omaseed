@@ -2,7 +2,7 @@
 
 // AgentService — the app's side of `io.github.diogochaves.omaseed.Agent` (DECISIONS C45 V3):
 // it reads App's models into core::AgentAnswers' plain inputs and answers with their JSON.
-// integration::AgentBus exports the interface and calls this; nothing here acts. While the
+// integration::AgentBus exports the interface and calls this; `do` acts through AgentDo. While the
 // Agents row's Reads is off (C50 GT8), every read answers not-allowed; `skin use` stays.
 //
 // What it never reads (C45 V7): a server's username, its URL beyond host:port, the secret
@@ -17,6 +17,7 @@
 namespace omaseed::app {
 
 class App;
+class AgentDo;
 
 class AgentService : public QObject, public omaseed::integration::AgentHandler
 {
@@ -59,6 +60,8 @@ public Q_SLOTS:
     void setWindowShown(bool shown);
 
 private:
+    friend class AgentDo; // `do` checks the server and the torrents as the reads do
+
     /// A failure the app makes for `command` (C45 V4).
     static QString failure(const QString &command, const QString &code, const QString &message);
     /// C50 GT8's not-allowed for `command` while Reads is off in the Agents row; "" while on.
@@ -75,6 +78,7 @@ private:
     QList<core::AgentAnswers::LogTorrent> logLibrary() const;
 
     App *m_app;
+    AgentDo *m_do = nullptr;
     bool m_windowShown = false;
 };
 

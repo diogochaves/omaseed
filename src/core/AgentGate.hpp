@@ -24,6 +24,15 @@
 
 namespace omaseed::core {
 
+/// Who asked for an act through `do` (C45 V17, V18): the program that ran the word (S5 reads
+/// it from /proc), the pid the bus gave, and whether the person was asked in the window.
+struct AgentOrigin
+{
+    QString caller; ///< the parent's comm ("claude"); "" until S5 reads it
+    uint pid = 0;   ///< the calling process as the bus daemon knows it; 0 unknown
+    bool asked = false;
+};
+
 class AgentGate
 {
 public:

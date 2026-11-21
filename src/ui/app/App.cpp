@@ -842,6 +842,22 @@ void App::dismissFailure(const QString &hash)
     m_engine->problems()->dismiss(hash);
 }
 
+bool App::dismissFailures(const QStringList &hashes, const AgentAct &act)
+{
+    if (hashes.isEmpty() || m_demoMode || !m_hasServer)
+        return false;
+    for (const QString &hash : hashes)
+        dismissFailure(hash);
+    ActionOutcome outcome;
+    outcome.action = QStringLiteral("dismiss");
+    outcome.hashes = hashes;
+    if (hashes.size() == 1)
+        outcome.name = m_engine->torrents()->torrent(hashes.constFirst()).name;
+    if (act.answered)
+        act.answered(outcome);
+    return true;
+}
+
 QVariantMap App::exportFailure() const
 {
     QVariantMap failure = m_engine->problems()->exportFailure();
@@ -977,20 +993,79 @@ bool App::pickAltSpeed(const QString &kind, bool outside)
 
 void App::pauseTorrents()
 {
-    if (m_demoMode || !m_hasServer)
-        return;
-    // C36 M10: never `hashes=all`; PauseHold stops exactly what runs and remembers it.
-    if (!m_pauseHold->pause())
-        qWarning().noquote() << QStringLiteral("pause torrents: not sent (one on its way)");
+    pauseTorrents(AgentAct());
 }
 
 void App::resumeTorrents()
 {
-    if (m_demoMode || !m_hasServer)
+    resumeTorrents(AgentAct());
+}
+
+namespace {
+
+/// #292: `answered` once, with `outcome(count, error)`, when `hold` next ends what it sent.
+template<typename Signal, typename Make>
+void answerOnce(PauseHold *hold,
+                QObject *context,
+                Signal signal,
+                const std::function<void(const ActionOutcome &)> &answered,
+                Make make)
+{
+    if (!answered)
         return;
-    if (!m_pauseHold->resume())
+    auto connection = std::make_shared<QMetaObject::Connection>();
+    *connection =
+        QObject::connect(hold, signal, context, [connection, answered, make](auto... args) {
+            QObject::disconnect(*connection);
+            answered(make(args...));
+        });
+}
+
+ActionOutcome holdOutcome(const QString &action, int count, const QString &error)
+{
+    ActionOutcome outcome;
+    outcome.action = action;
+    outcome.target = QString::number(count);
+    outcome.cause = error;
+    return outcome;
+}
+
+} // namespace
+
+bool App::pauseTorrents(const AgentAct &act)
+{
+    if (m_demoMode || !m_hasServer)
+        return false;
+    // C36 M10: never `hashes=all`; PauseHold stops exactly what runs and remembers it.
+    if (m_pauseHold->busy()) {
+        qWarning().noquote() << QStringLiteral("pause torrents: not sent (one on its way)");
+        return false;
+    }
+    if (!m_pauseHold->pause())
+        return false;
+    // PauseHold answers later (its list of what runs comes first): listen once it is sent.
+    answerOnce(m_pauseHold, this, &PauseHold::paused, act.answered, [](int count, QString error) {
+        return holdOutcome(QStringLiteral("pause"), count, error);
+    });
+    return true;
+}
+
+bool App::resumeTorrents(const AgentAct &act)
+{
+    if (m_demoMode || !m_hasServer)
+        return false;
+    if (m_pauseHold->busy() || !m_pauseHold->held()) {
         qWarning().noquote() << QStringLiteral("resume torrents: not sent (nothing held, or one "
                                                "on its way)");
+        return false;
+    }
+    if (!m_pauseHold->resume())
+        return false;
+    answerOnce(
+        m_pauseHold, this, &PauseHold::resumed, act.answered, [](int count, int, QString error) {
+            return holdOutcome(QStringLiteral("resume"), count, error);
+        });
+    return true;
 }
 
 // --- the tray ----------------------------------------------------------------------------
@@ -3669,7 +3744,11 @@ void App::reportActionResult(const QString &action,
 }
 
 std::function<void(const Result<Done> &)>
-App::tableAnswer(const QString &action, const QStringList &hashes, const QString &target, int calls)
+App::tableAnswer(const QString &action,
+                 const QStringList &hashes,
+                 const QString &target,
+                 int calls,
+                 std::function<void(const ActionOutcome &)> answered)
 {
     struct Answers
     {
@@ -3681,7 +3760,7 @@ App::tableAnswer(const QString &action, const QStringList &hashes, const QString
     const QString name =
         hashes.size() == 1 ? m_engine->torrents()->torrent(hashes.constFirst()).name : QString();
     return
-        [this, answers, action, hashes, target, name](const Result<Done> &result) {
+        [this, answers, action, hashes, target, name, answered](const Result<Done> &result) {
             if (result.isError() && !answers->error)
                 answers->error = result.error();
             if (--answers->left > 0)
@@ -3708,6 +3787,8 @@ App::tableAnswer(const QString &action, const QStringList &hashes, const QString
                                       : words.line + QStringLiteral("\n\n") + words.details;
             }
             m_outcomes->report(outcome);
+            if (answered)
+                answered(outcome);
         };
 }
 
@@ -3759,15 +3840,21 @@ void App::stopTorrents(const QStringList &hashes)
 
 void App::retryTorrents(const QStringList &hashes)
 {
+    retryTorrents(hashes, AgentAct());
+}
+
+bool App::retryTorrents(const QStringList &hashes, const AgentAct &act)
+{
     if (hashes.isEmpty() || demoGuard(QStringLiteral("retry"), hashes.size()) || !m_hasServer)
-        return;
-    auto answer = tableAnswer(QStringLiteral("retry"), hashes);
+        return false;
+    auto answer = tableAnswer(QStringLiteral("retry"), hashes, QString(), 1, act.answered);
     m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     m_client->start(hashes)->then(this, [this, answer](const Result<Done> &result) {
         answer(result);
         if (!result.isError())
             m_engine->readErrorStops();
     });
+    return true;
 }
 
 void App::forceStart(const QStringList &hashes)
@@ -3785,18 +3872,32 @@ void App::forceStart(const QStringList &hashes)
 
 void App::recheck(const QStringList &hashes)
 {
+    recheck(hashes, AgentAct());
+}
+
+bool App::recheck(const QStringList &hashes, const AgentAct &act)
+{
     if (hashes.isEmpty() || demoGuard(QStringLiteral("recheck"), hashes.size()) || !m_hasServer)
-        return;
+        return false;
     // Board 44 §2: a hybrid that errors after this is libtorrent's hybrid error (C17 D3).
     m_engine->problems()->noteRechecked(hashes);
-    m_client->recheck(hashes)->then(this, tableAnswer(QStringLiteral("recheck"), hashes));
+    m_client->recheck(hashes)->then(
+        this, tableAnswer(QStringLiteral("recheck"), hashes, QString(), 1, act.answered));
+    return true;
 }
 
 void App::reannounce(const QStringList &hashes)
 {
+    reannounce(hashes, AgentAct());
+}
+
+bool App::reannounce(const QStringList &hashes, const AgentAct &act)
+{
     if (hashes.isEmpty() || demoGuard(QStringLiteral("reannounce"), hashes.size()) || !m_hasServer)
-        return;
-    m_client->reannounce(hashes)->then(this, tableAnswer(QStringLiteral("reannounce"), hashes));
+        return false;
+    m_client->reannounce(hashes)->then(
+        this, tableAnswer(QStringLiteral("reannounce"), hashes, QString(), 1, act.answered));
+    return true;
 }
 
 void App::removeTrackers(const QString &hash, const QStringList &urls)
