@@ -126,6 +126,13 @@ omaseed_add_test(tst_agentguide
     LIBRARIES omaseed::integration
 )
 
+# DECISIONS C48 (#286, docs/65 §3–4): the skill's pages in data/agents/skill/, their budget.
+omaseed_add_test(tst_skillpages
+    SOURCES tst_skillpages.cpp
+    LIBRARIES Qt6::Core
+    DEFINES OMASEED_SOURCE_SKILL_DIR="${PROJECT_SOURCE_DIR}/data/agents/skill"
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration
