@@ -926,13 +926,18 @@ QVariantMap AgentDo::moveRequest(const QString &action,
     if (const QString room = words.value(QStringLiteral("roomText")).toString(); !room.isEmpty())
         where << room;
     request.insert(QStringLiteral("where"), where.join(QStringLiteral(" · ")));
-    // The sheet's lines that say something (names there, left out, a move running first), in
-    // its words; its green "all fine" line is the room above.
+    // The sheet's lines that say something (names there, left out, room it can't tell, a move
+    // running first), in its words; its green "all fine" line is the room above.
     QStringList checks;
     for (const QVariant &value : words.value(QStringLiteral("checks")).toList()) {
         const QVariantMap line = value.toMap();
-        if (line.value(QStringLiteral("kind")).toString() != QLatin1String("ok"))
-            checks << line.value(QStringLiteral("text")).toString();
+        // A plain fact ("Order: … goes alone") says nothing to allow or refuse on; one the
+        // sheet always shows (a move running first) does.
+        const QString kind = line.value(QStringLiteral("kind")).toString();
+        if (kind == QLatin1String("ok") ||
+            (kind == QLatin1String("fact") && !line.value(QStringLiteral("always")).toBool()))
+            continue;
+        checks << line.value(QStringLiteral("text")).toString();
     }
     request.insert(QStringLiteral("checks"), checks);
     request.insert(QStringLiteral("note"),
