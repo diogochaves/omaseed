@@ -4,6 +4,7 @@
 // answering later (a delayed reply), and nothing exported without a connection.
 
 #include "integration/AgentBus.hpp"
+#include "integration/AgentClient.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
@@ -12,6 +13,7 @@
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QElapsedTimer>
+#include <QJsonObject>
 #include <QProcess>
 #include <QTest>
 #include <QTimer>
@@ -68,6 +70,9 @@ public:
     {
         calls << QStringLiteral("do ") + options;
         doPid = callerPid;
+        // A do that asks says so first (the Asking signal), then waits on the person.
+        if (options.contains(QStringLiteral("move")))
+            sayAsking(callerPid, QStringLiteral("Asking in omaseed's window… moves always ask."));
         // Answers later, as a do waits for the server (C45 V15).
         QTimer::singleShot(150, [reply]() { reply(QStringLiteral(R"({"v":1,"command":"do"})")); });
     }
@@ -115,6 +120,7 @@ private slots:
     void agentBesideStatusAndApplication();
     void statusUnchanged();
     void delayedReplyArrives();
+    void askingReachesTheCaller();
     void notExportedWithoutConnection();
 
 private:
@@ -272,6 +278,41 @@ void TestAgentBus::delayedReplyArrives()
     QVERIFY(timer.elapsed() >= 140);
     QCOMPARE(m_agent.calls.last(), QStringLiteral(R"(do {"action":"recheck"})"));
     QCOMPARE(m_agent.doPid, uint(QCoreApplication::applicationPid()));
+}
+
+void TestAgentBus::askingReachesTheCaller()
+{
+    // docs/62 §5: the CLI hears Asking before the answer, only for its own pid; others hear
+    // nothing, and a do that doesn't ask says nothing.
+    QVERIFY(AgentBus::exportOn(m_primary, m_primary->connection(), &m_agent));
+    QStringList heard;
+    const auto asking = [&heard](const QString &words) { heard << words; };
+    omaseed::integration::AgentClient::Reply reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("move")}},
+        5000,
+        asking);
+    QVERIFY2(reply.code.isEmpty(), qPrintable(reply.message));
+    QCOMPARE(QString::fromUtf8(reply.answer), QStringLiteral(R"({"v":1,"command":"do"})"));
+    QCOMPARE(heard, QStringList{QStringLiteral("Asking in omaseed's window… moves always ask.")});
+
+    heard.clear();
+    reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("recheck")}},
+        5000,
+        asking);
+    QVERIFY(reply.code.isEmpty());
+    QVERIFY(heard.isEmpty());
+
+    // Another process's ask: not this one's to say.
+    m_agent.sayAsking(1, QStringLiteral("not mine"));
+    reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("recheck")}},
+        5000,
+        asking);
+    QVERIFY(heard.isEmpty());
 }
 
 void TestAgentBus::notExportedWithoutConnection()

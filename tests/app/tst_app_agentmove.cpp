@@ -303,9 +303,17 @@ void TestAppAgentMove::askedAllowedStartsAJobByAnAgent()
     // A hand-edited allow still asks (C50 GT3).
     m_app->setAgentMoves(QStringLiteral("allow"));
     omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    QStringList heard;
+    m_service->setAsking([&heard](uint pid, const QString &words) {
+        heard << QStringLiteral("%1 %2").arg(pid).arg(words);
+    });
     const QString music = m_home->path() + QStringLiteral("/music");
     const auto pending = begin(*m_service, moveJson(music));
     QTRY_VERIFY_WITH_TIMEOUT(ask->isOpen(), 5000);
+    // docs/62 §5: the asking CLI (its pid) is told, to say so before it waits.
+    QCOMPARE(heard,
+             QStringList{QStringLiteral("4242 Asking in omaseed's window… moves always ask.")});
+    m_service->setAsking({});
     const QVariantMap request = ask->request();
     QCOMPARE(request.value(QStringLiteral("head")).toString(),
              QStringLiteral("An agent asks to move a torrent"));

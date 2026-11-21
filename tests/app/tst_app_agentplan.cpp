@@ -424,8 +424,15 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     m_app->setAgentFixes(QStringLiteral("allow"));
     m_app->setAgentRemove(QStringLiteral("ask"));
     omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    QStringList heard;
+    m_service->setAsking([&heard](uint pid, const QString &words) {
+        heard << QStringLiteral("%1 %2").arg(pid).arg(words);
+    });
     const auto pending = begin(*m_service, planJson(mixedPlan(true)));
     QTRY_VERIFY_WITH_TIMEOUT(ask->isOpen(), 5000);
+    // docs/67 §6: what asks, counted as the dry run counts it; the allowed line isn't said.
+    QCOMPARE(heard, QStringList{QStringLiteral("4242 Asking in omaseed's window… 2 removes ask.")});
+    m_service->setAsking({});
     const QVariantMap request = ask->request();
     QVERIFY(request.value(QStringLiteral("plan")).toBool());
     QCOMPARE(request.value(QStringLiteral("head")).toString(),

@@ -360,7 +360,13 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
         options,
         options.contains(QStringLiteral("plan")) ? AgentWords::kPlanTimeoutMs
         : request.word == QLatin1String("do")    ? AgentWords::kAskTimeoutMs
-                                                 : AgentWords::kReplyTimeoutMs);
+                                                 : AgentWords::kReplyTimeoutMs,
+        // docs/62 §5: "Asking in omaseed's window…" on stderr before it waits; stdout (and
+        // so --json) unchanged.
+        request.word == QLatin1String("do")
+            ? integration::AgentClient::Asking(
+                  [](const QString &words) { write(stderr, words.toUtf8()); })
+            : integration::AgentClient::Asking());
     if (request.subword == QLatin1String("use") &&
         (reply.code == QLatin1String("not-running") || reply.code == QLatin1String("no-bus")))
         return saved(request, picked.skin);

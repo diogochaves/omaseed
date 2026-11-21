@@ -45,6 +45,27 @@ Reply failed(const QString &code, const QString &message)
 
 } // namespace
 
+/// Hears the app's Asking signal and passes on the words meant for this process (its pid).
+class AskingWatch : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit AskingWatch(Asking asking)
+        : m_asking(std::move(asking))
+    {}
+
+public Q_SLOTS:
+    void heard(uint callerPid, const QString &words)
+    {
+        if (m_asking && callerPid == static_cast<uint>(QCoreApplication::applicationPid()))
+            m_asking(words);
+    }
+
+private:
+    Asking m_asking;
+};
+
 QString interfaceName()
 {
     return AppIdentity::dbusServiceName() + QStringLiteral(".Agent");
@@ -93,7 +114,7 @@ QString tooOldWords(const QString &running, const QString &mine)
         .arg(which, mine);
 }
 
-Reply call(const QString &method, const QJsonObject &options, int timeoutMs)
+Reply call(const QString &method, const QJsonObject &options, int timeoutMs, const Asking &asking)
 {
     const QString address = busAddress();
     if (address.isEmpty())
@@ -112,6 +133,15 @@ Reply call(const QString &method, const QJsonObject &options, int timeoutMs)
                    !owned.isValid() || !owned.value()) {
             reply = failed(QStringLiteral("not-running"), notRunningWords());
         } else {
+            // docs/62 §5: told before the person is asked, while the call still waits.
+            AskingWatch watch(asking);
+            if (asking)
+                connection.connect(service,
+                                   AppIdentity::dbusObjectPath(),
+                                   interfaceName(),
+                                   QStringLiteral("Asking"),
+                                   &watch,
+                                   SLOT(heard(uint, QString)));
             QDBusMessage message = QDBusMessage::createMethodCall(
                 service, AppIdentity::dbusObjectPath(), interfaceName(), method);
             message << QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
@@ -157,3 +187,5 @@ Reply call(const QString &method, const QJsonObject &options, int timeoutMs)
 }
 
 } // namespace omaseed::integration::AgentClient
+
+#include "AgentClient.moc"

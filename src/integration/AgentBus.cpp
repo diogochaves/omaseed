@@ -1,5 +1,7 @@
 #include "integration/AgentBus.hpp"
 
+#include "integration/AppIdentity.hpp"
+
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
@@ -101,6 +103,14 @@ bool AgentBus::exportOn(QObject *exported, const QDBusConnection &connection, Ag
         return false;
     }
     new AgentDBusAdaptor(exported, connection, handler);
+    // A broadcast on the app's path: the asking CLI picks its own pid out (AgentClient).
+    handler->setAsking([connection](uint callerPid, const QString &words) {
+        QDBusMessage signal = QDBusMessage::createSignal(
+            AppIdentity::dbusObjectPath(), AgentBus::interfaceName(), QStringLiteral("Asking"));
+        signal << callerPid << words;
+        if (!QDBusConnection(connection).send(signal))
+            qCWarning(lcAgentBus) << "could not say Asking";
+    });
     return true;
 }
 

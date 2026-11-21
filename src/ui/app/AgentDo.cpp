@@ -719,7 +719,19 @@ void AgentDo::askFirst(const QString &json,
                                                           "2 minutes: not done."),
                                            true));
         });
-    if (!opened) {
+    if (opened) {
+        // docs/62 §5, docs/67 §2: the CLI says so on stderr before it waits; moves and
+        // removes add that they always ask (C50 GT3).
+        const bool always = action == QLatin1String("move") ||
+                            action == QLatin1String("move-back") ||
+                            action == QLatin1String("remove");
+        const QString kind =
+            action == QLatin1String("remove") ? QStringLiteral("removes") : QStringLiteral("moves");
+        m_service->sayAsking(
+            caller.wordPid,
+            always ? QStringLiteral("Asking in omaseed's window… %1 always ask.").arg(kind)
+                   : QStringLiteral("Asking in omaseed's window…"));
+    } else {
         // PLAN Q5: one ask at a time, no queue.
         m_app->noteAgentRefusal(
             action, QStringLiteral("not asked: another ask was open"), origin, subject);

@@ -11,6 +11,9 @@
 //   UseSkin(s options) → s     draw the skin {"name": NAME} and keep it (DECISIONS C37 U6)
 //   Do(s options) → s          an action, if the Agents row lets agents act (C45 V14, V15;
 //                              C50 GT3): {action, torrents, to, move, dryRun, list, server}
+//   signal Asking(u pid, s words)  a Do is now waiting on the person in omaseed's window;
+//                              `pid` is its caller's, so the CLI that asked can say so on
+//                              stderr before it waits (docs/62 §5, docs/67 §2)
 //
 // It lives on the app's object path beside org.freedesktop.Application and Status (StatusBus),
 // which it leaves as they are. Every method answers later (a delayed reply), as StatusBus's
@@ -49,6 +52,19 @@ public:
     /// window on, the person). `callerPid` is the calling process's pid as the bus daemon
     /// knows it (0 when unknown): who asked, for the ask window and the journal (V17, V18).
     virtual void doAction(const QString &options, uint callerPid, Reply reply) = 0;
+
+    /// How the handler says a Do now waits on the person (the Asking signal); set by exportOn.
+    using Asking = std::function<void(uint callerPid, const QString &words)>;
+    void setAsking(Asking asking) { m_asking = std::move(asking); }
+    /// Sends Asking for `callerPid` (nothing before exportOn, or with no pid).
+    void sayAsking(uint callerPid, const QString &words) const
+    {
+        if (m_asking && callerPid != 0)
+            m_asking(callerPid, words);
+    }
+
+private:
+    Asking m_asking;
 };
 
 namespace AgentBus {

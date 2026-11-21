@@ -504,7 +504,29 @@ void AgentDo::planAsk(const std::shared_ptr<PlanRun> &run)
                                         "none of the plan ran."),
                    true);
         });
-    if (!opened) {
+    if (opened) {
+        // docs/67 §6: "Asking in omaseed's window… 6 removes ask." on the CLI's stderr.
+        QStringList order;
+        QHash<QString, int> asked;
+        for (qsizetype i = 0; i < run->plan.lines.size(); ++i) {
+            if (!run->asks.value(i))
+                continue;
+            const AgentPlan::Line &line = run->plan.lines.at(i);
+            if (!asked.contains(line.action))
+                order << line.action;
+            asked[line.action] += weightOf(line, run->checks.value(i));
+        }
+        QStringList words;
+        int total = 0;
+        for (const QString &action : std::as_const(order)) {
+            words << asksFor(action, asked.value(action));
+            total += asked.value(action);
+        }
+        m_service->sayAsking(run->caller.wordPid,
+                             QStringLiteral("Asking in omaseed's window… %1 %2.")
+                                 .arg(words.join(QStringLiteral(", ")),
+                                      total == 1 ? QStringLiteral("asks") : QStringLiteral("ask")));
+    } else {
         m_app->noteAgentRefusal(QStringLiteral("plan"),
                                 QStringLiteral("not asked: another ask was open"),
                                 origin,

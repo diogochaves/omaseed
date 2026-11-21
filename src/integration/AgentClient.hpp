@@ -18,6 +18,8 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <functional>
+
 namespace omaseed::integration::AgentClient {
 
 /// The interface the reads are methods of.
@@ -33,10 +35,16 @@ struct Reply
 /// The session bus's address as above; "" when there is none.
 QString busAddress();
 
-/// Calls `method` (Status, Errors, Log, Moves) with `options` as its JSON string.
+/// Told the words of the app's Asking signal meant for this process (a Do now waits on the
+/// person in omaseed's window).
+using Asking = std::function<void(const QString &words)>;
+
+/// Calls `method` (Status, Errors, Log, Moves, Do…) with `options` as its JSON string;
+/// `asking`, when given, hears the app say it is asking the person before the answer comes.
 Reply call(const QString &method,
            const QJsonObject &options,
-           int timeoutMs = core::AgentWords::kReplyTimeoutMs);
+           int timeoutMs = core::AgentWords::kReplyTimeoutMs,
+           const Asking &asking = {});
 
 /// The failures' words (C45 V13); `running` is the status file's version, or "".
 QString notRunningWords();
