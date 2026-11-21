@@ -12,6 +12,8 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QGuiApplication>
@@ -37,6 +39,8 @@ using integration::ThemeReader;
 /// off (herdr's stale-frame lesson, `8ab0a55`). Past the deadline the grab happens anyway.
 constexpr int kFrames = 2;
 constexpr int kDeadlineMs = 10000;
+/// Longer than any colour Behavior in the kit (Theme.fillChangeDuration, 120 ms).
+constexpr int kSettleMs = 200;
 
 /// Every pair (role, ground) the floor lifted under `theme`, with the lift.
 QHash<QString, ThemeInk::Lift> liftsOf(const Theme &theme)
@@ -92,7 +96,24 @@ QImage drawSheet()
     QTimer::singleShot(kDeadlineMs, &loop, &QEventLoop::quit);
     view.update();
     loop.exec();
-    return view.grabWindow();
+
+    // Then until two grabs a settle apart agree (#298): a fill's colour Behavior
+    // (Theme.fillChangeDuration) can still be running from the theme's first colours to the
+    // ones read, so a grab then caught a shade of the way, different on every run.
+    QElapsedTimer waited;
+    waited.start();
+    QImage last = view.grabWindow();
+    while (waited.elapsed() < kDeadlineMs) {
+        QEventLoop settle;
+        QTimer::singleShot(kSettleMs, &settle, &QEventLoop::quit);
+        view.update();
+        settle.exec();
+        QImage now = view.grabWindow();
+        if (now == last)
+            break;
+        last = std::move(now);
+    }
+    return last;
 }
 
 /// The stock Omarchy themes that stand for a lightness the person's theme isn't (C37 U5,
