@@ -1077,10 +1077,8 @@ QString findWords(const core::LocateCheck::Result &find,
                   const QList<core::ContentFile> &files,
                   const QString &to)
 {
-    const QString of = QStringLiteral("found %1 of %2 %3")
-                           .arg(find.found)
-                           .arg(find.files)
-                           .arg(find.files == 1 ? QStringLiteral("file") : QStringLiteral("files"));
+    // C41: the count's plural through Qt Linguist.
+    const QString of = AgentDo::tr("found %1 of %n files", "", find.files).arg(find.found);
     if (find.found == 0)
         return QStringLiteral("%1 in %2").arg(of, to);
     return QStringLiteral("%1; %2 missing, the first “%3”")
@@ -1337,7 +1335,7 @@ void AgentDo::locateFound(const QString &json,
         fields.append({QStringLiteral("torrents"), torrents});
         const QString every =
             found.size() == 1
-                ? QStringLiteral("found %1 of %1 files").arg(found.constFirst().find.files)
+                ? AgentDo::tr("found %n of %n files", "", found.constFirst().find.files)
                 : QStringLiteral("every file found");
         fields.append(
             {QStringLiteral("outcome"),
@@ -1366,7 +1364,7 @@ void AgentDo::locateFound(const QString &json,
             if (torrents.size() == kShown)
                 break;
             const core::Torrent &torrent = model->torrent(f.hash);
-            QStringList words{QStringLiteral("found %1 of %1 files").arg(f.find.files),
+            QStringList words{AgentDo::tr("found %n of %n files", "", f.find.files),
                               core::Format::size(f.find.bytes)};
             if (!torrent.savePath.isEmpty())
                 words << QStringLiteral("was in %1").arg(torrent.savePath);

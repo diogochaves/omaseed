@@ -573,7 +573,7 @@
 <context>
     <name>SettingsModal</name>
     <message numerus="yes">
-        <location filename="../src/ui/qml/Views/SettingsModal.qml" line="+1032"/>
+        <location filename="../src/ui/qml/Views/SettingsModal.qml" line="+1047"/>
         <source>%1: %n token(s) left at Omarchy&apos;s: %2 and %3 more. omaseed check %1 names them.</source>
         <translation>
             <numerusform>%1: %n token left at Omarchy&apos;s: %2 and %3 more. omaseed check %1 names them.</numerusform>
@@ -582,10 +582,32 @@
     </message>
 </context>
 <context>
+    <name>omaseed::app::AgentDo</name>
+    <message numerus="yes">
+        <location filename="../src/ui/app/AgentDo.cpp" line="+1081"/>
+        <source>found %1 of %n files</source>
+        <translation>
+            <numerusform>found %1 of %n file</numerusform>
+            <numerusform>found %1 of %n files</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location line="+257"/>
+        <location line="+29"/>
+        <source>found %n of %n files</source>
+        <translation>
+            <numerusform>found %n of %n file</numerusform>
+            <numerusform>found %n of %n files</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>omaseed::app::App</name>
     <message numerus="yes">
-        <location filename="../src/ui/app/App.cpp" line="+3667"/>
-        <location line="+32"/>
+        <location filename="../src/ui/app/App.cpp" line="+870"/>
+        <location line="+2933"/>
+        <location line="+35"/>
+        <location line="+30"/>
         <source>%n torrents</source>
         <translation>
             <numerusform>%n torrent</numerusform>

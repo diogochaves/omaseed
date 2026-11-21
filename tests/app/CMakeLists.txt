@@ -281,7 +281,7 @@ omaseed_add_test(tst_app_agentmove
 # temporary folder: the find, set location and the recheck, not-found, the refusals, the ask.
 omaseed_add_test(tst_app_agentlocate
     SOURCES tst_app_agentlocate.cpp
-    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+    LIBRARIES omaseed::app omaseed::core omaseed::integration omaseed::i18n Qt6::Network
 )
 
 # #295 (DECISIONS C50 GT1, GT6): `do remove` against a stand-in qBittorrent whose save path is a

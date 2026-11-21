@@ -15,6 +15,7 @@
 #include "ui/app/AgentDo.hpp"
 #include "ui/app/AgentService.hpp"
 #include "ui/app/App.hpp"
+#include "ui/i18n/Translations.hpp"
 
 #include "FakeHttp.hpp"
 
@@ -220,6 +221,7 @@ private slots:
     void incompleteFolderIsRefused();
     void askShowsTheFolderAndTheFind();
     void dryRunSendsNothing();
+    void oneFileIsSaidSingular();
     void pathMapRewritesTheFolder();
 
 private:
@@ -238,6 +240,7 @@ private:
 void TestAppAgentLocate::initTestCase()
 {
     qputenv("DBUS_SESSION_BUS_ADDRESS", QByteArray("unix:path=/nonexistent/omaseed-no-bus"));
+    QVERIFY(omaseed::i18n::installTranslations(QCoreApplication::instance())); // as main() does
 }
 
 void TestAppAgentLocate::init()
@@ -491,6 +494,34 @@ void TestAppAgentLocate::dryRunSendsNothing()
     QVERIFY(!m_app->agentAsk()->isOpen());
     QCOMPARE(sent("/api/v2/torrents/setLocation"), 0);
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+}
+
+// C41: one file is "found 1 of 1 file", in the dry run's outcome and in the ask.
+void TestAppAgentLocate::oneFileIsSaidSingular()
+{
+    m_qbt.items[kLantern].files = {QStringLiteral("Lantern Festival/a.flac")};
+    start();
+    m_app->setAgentFixes(QStringLiteral("ask"));
+    const QString to = path(QStringLiteral("found"));
+    const QJsonObject object = run(*m_service, locateJson(kLantern, to, true));
+    QVERIFY2(codeOf(object).isEmpty(), qPrintable(messageOf(object)));
+    const QString outcome = object.value(QLatin1String("outcome")).toString();
+    QVERIFY2(outcome.endsWith(QStringLiteral(" · found 1 of 1 file in %1").arg(to)),
+             qPrintable(outcome));
+    omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    const auto pending = begin(*m_service, locateJson(kLantern, to));
+    QTRY_VERIFY_WITH_TIMEOUT(ask->isOpen(), 5000);
+    const QString line = ask->request()
+                             .value(QStringLiteral("torrents"))
+                             .toList()
+                             .first()
+                             .toMap()
+                             .value(QStringLiteral("line"))
+                             .toString();
+    QVERIFY2(line.startsWith(QStringLiteral("found 1 of 1 file · ")), qPrintable(line));
+    QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^agent: locate")));
+    ask->refuse();
+    QCOMPARE(codeOf(finish(pending)), QStringLiteral("refused"));
 }
 
 // C14 E11: FOLDER is the server's path; the path map gives this machine's. A FOLDER no
