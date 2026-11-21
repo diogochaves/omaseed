@@ -105,18 +105,23 @@ Window {
         activateAgain.restart();
     }
 
-    /// The allow button.
+    /// The allow button. The window goes before the answer runs (as AgentAsk closes the ask
+    /// first): what an allowed remove does next, with the window still mapped, left the next
+    /// plan's ask in a layout loop that never ended (the agent walk, #296).
     function allow(): void {
-        if (root.ask && root.ask.open)
-            root.ask.allow(root.planMode ? root.ticks() : []);
+        const ticks = root.planMode ? root.ticks() : [];
+        const open = root.ask && root.ask.open;
         root._close();
+        if (open)
+            root.ask.allow(ticks);
     }
 
     /// refuse, esc and the window's close.
     function refuse(): void {
-        if (root.ask && root.ask.open)
-            root.ask.refuse();
+        const open = root.ask && root.ask.open;
         root._close();
+        if (open)
+            root.ask.refuse();
     }
 
     function _close(): void {

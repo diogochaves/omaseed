@@ -326,6 +326,30 @@ TestCase {
         again.window.refuse();
     }
 
+    function test_the_window_goes_before_the_answer_runs() {
+        // The agent walk (#296): an allowed remove's answer ran with the window still mapped,
+        // and the next plan's ask hung in a layout loop. Now the window is gone first, on
+        // allow and on refuse alike.
+        const opened = testCase.makeOpen(testCase.recheckRequest(1));
+        let shownAtAllow = null;
+        opened.ask.allowed = 0;
+        opened.ask.allowedChanged.connect(() => shownAtAllow = opened.window.visible);
+        opened.window.allow();
+        compare(opened.ask.allowed, 1);
+        compare(shownAtAllow, false, "the answer ran with the window up");
+
+        opened.ask.request = testCase.planRequest();
+        opened.ask.open = true;
+        opened.window.openAsk();
+        tryCompare(opened.window, "active", true);
+        compare(findChild(opened.window.sheet, "askPlan").visible, true);
+        let shownAtRefuse = null;
+        opened.ask.refusedChanged.connect(() => shownAtRefuse = opened.window.visible);
+        opened.window.refuse();
+        compare(opened.ask.refused, 1);
+        compare(shownAtRefuse, false, "the refusal ran with the window up");
+    }
+
     function test_the_real_ask_is_apps() {
         const window = createTemporaryObject(windowComponent, testCase);
         compare(window.ask, App.agentAsk);
