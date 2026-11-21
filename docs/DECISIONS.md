@@ -3054,6 +3054,37 @@ removes only links to omaseed's skill folder; `--skill` prints the map. **Amends
 guide's home and its printing) and C45 V19 (what `--skill` prints). Found by the agent trial
 of #227 (`.local` report, not public): the schema, not the guide, was the cost.
 
+**Built for v0.16.0 (#286).** AS1–AS11 as ruled. What the code rests on, and what the board left
+open:
+- **AGENTS.md is the printed map** (`AgentGuide::printedMap()`: each `ref: X.md` as `omaseed skill
+  X`, SKILL.md's sentence about `ref/` swapped for board §4's), under omaseed's header, rewritten
+  only when different (C37 U4 as amended): every older AGENTS.md is rewritten once. The line "Coding
+  agents load this by themselves once it is linked: omaseed skill link." is **printed only**, by
+  `omaseed skill` and `--skill` while no folder is linked, never written into AGENTS.md (it would
+  rewrite it on every link and unlink). The pages are the `*.md` in the skill's `ref/`, so a new
+  page (C49's layouts) is a file and nothing else.
+- **`skill` takes one positional**: none (the map), a page, or `link`, `unlink`, `status`; anything
+  else is usage (exit 2). Every form is local: no display, bus or server. **`--json` on a print**
+  (assumed, since the help page says every word takes it): `{v, command, at, page, text}`, `page`
+  `"map"` or the page's name; no `omaseed` key (no running omaseed answered, C45 V4).
+- **The links** (`SkillLinker`): Omarchy's folder list (`~/.agents/skills`, `~/.claude/skills`
+  always, made when missing; Codex, pi, Gemini, Hermes and each Hermes profile only when installed).
+  **Ours** is judged by the link's text: it ends in `/omaseed/agents/skill` or a build's
+  `/data/agents/skill`, or names the skill folder omaseed is using (`$OMASEED_SKILL_DIR` wherever it
+  is), so a dead link after a removal is still ours (`dead` in status; `unlink` takes it, a
+  reinstall revives it, AS10) and `link` moves a build's link to the installed one and back. A
+  folder, a file or another link named `omaseed` is the person's, left and said (`yours`, and "your
+  own copy" when it holds a SKILL.md named omaseed). `link` exits 5 `not-written` when no skill is
+  found or no folder could take it, and writes the guide files (AS6) only once something is linked.
+- **The row of its own** (assumed; C45 V16's gate is unbuilt): Settings › General › **Agents**
+  (`general.agents`, an action row), the board's first sentence and the Skill line under it, with
+  **link the skill** or ⋯ › unlink. #163's gate chips join this same row later.
+- **The package only speaks** (`packaging/arch/omaseed.install`): on install and on the upgrade that
+  crosses 0.16.0, how to link; before removal, that the links now point nowhere and how to take them
+  out. It writes nothing; nothing links at start or from the package (AS8). The file travels beside
+  the PKGBUILD (omarchy-pkgs keeps `.install` files in a package's folder; the release build copies
+  it too).
+
 ## C49 — Layouts (board 66, ruled 2026-11-20)
 
 Board [66](66-layouts.html), #288, LY1–LY12 as recommended, with one change: the built-in

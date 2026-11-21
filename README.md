@@ -376,9 +376,9 @@ which roles and alphas paint which grounds, the line widths, cuts, rounding, fon
 of labels, densities, glyphs and labels. The colours stay your Omarchy theme's, and text stays
 readable on every theme.
 
-Start your agent in `~/.config/omaseed/`: omaseed writes its guide there on every start
-(`AGENTS.md`, with `skin.schema.json` beside it listing every token, its range and Omarchy's
-value). The agent works with four words, which you can type too:
+Link omaseed's skill (`omaseed skill link`, see [Ask your agent](#ask-your-agent)) or start
+your agent in `~/.config/omaseed/`, where omaseed writes its guide on every start (`AGENTS.md`,
+with `skin.schema.json` beside it listing every token, its range and Omarchy's value). The agent works with four words, which you can type too:
 
 ```
 omaseed skin list               # every skin, where it lives, whether it reads
@@ -450,11 +450,29 @@ torrent or switches servers. omaseed has to be running (in the tray is enough); 
 starts it, and says so with exit 3 when it isn't. Exit 4 means that server can't answer now
 (not the one omaseed is on, unreachable, or no log to read).
 
-`omaseed --skill` prints the guide for agents: the words, their JSON and the exit codes. On
-every start omaseed also writes it to `~/.config/omaseed/AGENTS.md` (with a `CLAUDE.md` that
-points at it), so an agent started in that folder reads it. Torrent names, folders and log
-lines go to whatever model your agent uses; logins, API keys and tracker passkeys never leave
-omaseed.
+omaseed's guide for agents is a skill: a short map of the words, their JSON and exit codes,
+and how to make a skin, with pages an agent reads when the task needs them.
+
+```
+omaseed skill link     # link it where coding agents look for skills
+omaseed skill status   # which agents have it
+omaseed skill unlink   # take the links out
+omaseed skill          # print the map (omaseed skill library, skins, files: a page)
+```
+
+`skill link` puts a link named `omaseed` to the installed skill
+(`/usr/share/omaseed/agents/skill/`) in `~/.agents/skills/` and `~/.claude/skills/`, and in
+Codex's, pi's, Gemini's and Hermes' skill folders when those agents are installed. Then an
+agent started anywhere loads it when you ask about a download or omaseed's look. It never
+touches a folder or a link of yours named `omaseed`, and `unlink` removes only its own links.
+Nothing is linked until you ask: not at start, not by the package. Settings › General ›
+Agents says the same and has a button for it. `omaseed --skill` is another spelling of
+`omaseed skill`.
+
+On every start omaseed also writes the map to `~/.config/omaseed/AGENTS.md` (with a
+`CLAUDE.md` that points at it), so an agent started in that folder reads it too. Torrent
+names, folders and log lines go to whatever model your agent uses; logins, API keys and
+tracker passkeys never leave omaseed.
 
 ## Troubleshooting
 
