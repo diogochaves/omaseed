@@ -73,6 +73,7 @@
 #include "core/engines/qbt/ServerPreferences.hpp"
 #include "core/engines/qbt/TorrentsExport.hpp"
 #include "core/engines/qbt/TorrentsImport.hpp"
+#include "integration/AgentSkill.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
@@ -1871,6 +1872,19 @@ private:
     omaseed::integration::BarWidget *m_barWidget =
         new omaseed::integration::BarWidget(QString(), this);
     // --- end #17 --------------------------------------------------------------------------------
+
+    // --- #286: the skill linked into the agents' folders (DECISIONS C48 AS8 a) ------------------
+public:
+    /// Settings › General's Agents row: whether the skill is linked and where, and its link
+    /// the skill and unlink, as `omaseed skill status|link|unlink` (SkillLinker). Reads nothing
+    /// until Settings opens; main.cpp gives it the source tree's skill in a development build.
+    Q_PROPERTY(omaseed::integration::AgentSkill *agentSkill READ agentSkill CONSTANT)
+    omaseed::integration::AgentSkill *agentSkill() const { return m_agentSkill; }
+
+private:
+    omaseed::integration::AgentSkill *m_agentSkill =
+        new omaseed::integration::AgentSkill(QString(), this);
+    // --- end #286 -------------------------------------------------------------------------------
 
     // --- #24: the seed console (docs/22) -------------------------------------------------------
     // The ledger keeps what the server gave and took over time (one file per server); the

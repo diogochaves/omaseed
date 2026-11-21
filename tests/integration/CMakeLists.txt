@@ -140,6 +140,13 @@ omaseed_add_test(tst_skilllinker
     LIBRARIES omaseed::integration
 )
 
+# DECISIONS C48 AS8 a (#286, docs/65 §5): Settings › General's Skill line, SkillLinker's status,
+# link and unlink on a worker thread, every case in a temporary HOME.
+omaseed_add_test(tst_agentskill
+    SOURCES tst_agentskill.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration

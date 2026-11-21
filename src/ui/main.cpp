@@ -357,6 +357,16 @@ QString devPluginDir()
 #endif
 }
 
+/// The source tree's data/agents/skill in a development build; empty in a release.
+QString devSkillDir()
+{
+#ifdef OMASEED_SOURCE_SKILL_DIR
+    return QStringLiteral(OMASEED_SOURCE_SKILL_DIR);
+#else
+    return QString();
+#endif
+}
+
 /// `--install-bar-widget` (#17): what Settings › Appearance's switch does, from a terminal:
 /// links the packaged bar widget into the shell's plugins folder and puts it in the bar. Runs
 /// on a QCoreApplication, so it needs no display, and before anything else: it never starts
@@ -749,6 +759,7 @@ int main(int argc, char *argv[])
     omaseed::app::App omaseedApp;
     omaseed::app::App::setDefaultInstance(&omaseedApp);
     omaseedApp.barWidget()->setDevSourceDir(devPluginDir());
+    omaseedApp.agentSkill()->setDevSourceDir(devSkillDir());
     // Main.qml reads it for its first `visible`; a demo always shows its window.
     omaseedApp.setLaunchHidden(demo.isEmpty() && parser.isSet(options.hidden));
     // The Appearance pane's "follow the Omarchy theme" and base-size override live in

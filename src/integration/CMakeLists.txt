@@ -6,6 +6,8 @@ qt_add_library(omaseed-integration STATIC
     AgentClient.hpp
     AgentGuide.cpp
     AgentGuide.hpp
+    AgentSkill.cpp
+    AgentSkill.hpp
     AppIdentity.cpp
     AppIdentity.hpp
     Autostart.cpp
