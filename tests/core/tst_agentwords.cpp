@@ -19,9 +19,12 @@ private slots:
     void aWordIsAWordOnlyFirst();
     void aPathNamedLikeAWordIsNot();
     void magnetsAndUrlsAreNot();
-    void reservedWordsSayNotYet();
     void checkAndSkinAreWordsNow();
-    void doStaysReserved();
+    void doIsAWordNow();
+    void doParses_data();
+    void doParses();
+    void doUsage_data();
+    void doUsage();
     void skinSubwords();
     void positionalsCounted_data();
     void positionalsCounted();
@@ -84,22 +87,6 @@ void TestAgentWords::magnetsAndUrlsAreNot()
         QVERIFY2(!AgentWords::isWord(QString::fromLatin1(link)), link);
 }
 
-void TestAgentWords::reservedWordsSayNotYet()
-{
-    const QString w = QStringLiteral("do");
-    QVERIFY(AgentWords::isReserved(w));
-    const auto request =
-        AgentWords::parse({w, QStringLiteral("anything"), QStringLiteral("--json")});
-    QCOMPARE(request.kind, Kind::Usage);
-    QVERIFY(request.json);
-    QCOMPARE(request.message,
-             QStringLiteral("omaseed: %1 isn't in this omaseed yet. omaseed --help lists the "
-                            "words it has.")
-                 .arg(w));
-    QCOMPARE(AgentWords::parse({QStringLiteral("help"), w}).kind, Kind::Usage);
-    QVERIFY(!AgentWords::isReserved(QStringLiteral("status")));
-}
-
 void TestAgentWords::checkAndSkinAreWordsNow()
 {
     // C37 U3, U5, U6 (#223): check and skin left the reserved list for the table.
@@ -123,12 +110,129 @@ void TestAgentWords::checkAndSkinAreWordsNow()
              QStringLiteral("paper-light"));
 }
 
-void TestAgentWords::doStaysReserved()
+void TestAgentWords::doIsAWordNow()
 {
-    QVERIFY(AgentWords::isWord(QStringLiteral("do")));
-    QVERIFY(AgentWords::isReserved(QStringLiteral("do")));
-    QVERIFY(AgentWords::wordPage(QStringLiteral("do")).isEmpty());
-    QCOMPARE(AgentWords::parse({QStringLiteral("do"), QStringLiteral("pause")}).kind, Kind::Usage);
+    // C45 V15 (#292): do left the reserved list for the table; nothing is reserved now.
+    const QString w = QStringLiteral("do");
+    QVERIFY(AgentWords::isWord(w));
+    QVERIFY(!AgentWords::isReserved(w));
+    QCOMPARE(AgentWords::parse({QStringLiteral("help"), w}).kind, Kind::Page);
+    QCOMPARE(AgentWords::parse({w, QStringLiteral("--help")}).page, w);
+    QVERIFY(AgentWords::wordPage(w).startsWith(QStringLiteral("Usage: omaseed do <action>")));
+    QCOMPARE(AgentWords::method(w), QStringLiteral("Do"));
+    QVERIFY(!AgentWords::isWord(QStringLiteral("./do")));
+}
+
+void TestAgentWords::doParses_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<QString>("options");
+    QTest::addColumn<bool>("json");
+
+    // Prefixes are kept as given (lower case); the app matches them (V15).
+    QTest::newRow("recheck") << QStringList{"recheck", "3F9A1C0E"}
+                             << R"({"action":"recheck","torrents":["3f9a1c0e"]})" << false;
+    QTest::newRow("two torrents, --json")
+        << QStringList{"retry", "3f9a1c0e", "--json", "deadbeefcafe"}
+        << R"({"action":"retry","torrents":["3f9a1c0e","deadbeefcafe"]})" << true;
+    QTest::newRow("start-here dry run")
+        << QStringList{"start-here", "--dry-run", "3f9a1c0e"}
+        << R"({"action":"start-here","dryRun":true,"torrents":["3f9a1c0e"]})" << false;
+    QTest::newRow("pause, no torrents") << QStringList{"pause"} << R"({"action":"pause"})" << false;
+    QTest::newRow("resume --server") << QStringList{"resume", "--server=attic"}
+                                     << R"({"action":"resume","server":"attic"})" << false;
+    QTest::newRow("move --to")
+        << QStringList{"move", "3f9a1c0e", "--to", "/data/music-new"}
+        << R"({"action":"move","to":"/data/music-new","torrents":["3f9a1c0e"]})" << false;
+    QTest::newRow("locate --to=")
+        << QStringList{"locate", "3f9a1c0e", "--to=/data/shelf-b"}
+        << R"({"action":"locate","to":"/data/shelf-b","torrents":["3f9a1c0e"]})" << false;
+    QTest::newRow("move-back") << QStringList{"move-back", "j-5e02"}
+                               << R"({"action":"move-back","move":"j-5e02"})" << false;
+    QTest::newRow("--list") << QStringList{"--list"} << R"({"list":true})" << false;
+    QTest::newRow("--list --json") << QStringList{"--list", "--json"} << R"({"list":true})" << true;
+    // C45 V14: never words reach the app, which answers never (PLAN Q4).
+    QTest::newRow("delete") << QStringList{"delete", "3f9a1c0e"}
+                            << R"({"action":"delete","torrents":["3f9a1c0e"]})" << false;
+    QTest::newRow("rename, no torrent")
+        << QStringList{"rename"} << R"({"action":"rename","torrents":[]})" << false;
+}
+
+void TestAgentWords::doParses()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(QString, options);
+    QFETCH(bool, json);
+    const auto request = AgentWords::parse(QStringList{QStringLiteral("do")} + arguments);
+    QVERIFY2(request.kind == Kind::Call, qPrintable(request.message));
+    QCOMPARE(request.word, QStringLiteral("do"));
+    QCOMPARE(request.command(), QStringLiteral("do"));
+    QCOMPARE(request.json, json);
+    QCOMPARE(request.options, QJsonDocument::fromJson(options.toUtf8()).object());
+}
+
+void TestAgentWords::doUsage_data()
+{
+    QTest::addColumn<QStringList>("arguments");
+    QTest::addColumn<QString>("message");
+
+    QTest::newRow("nothing") << QStringList{}
+                             << "omaseed: do takes an action and its torrents: omaseed do recheck "
+                                "3f9a1c0e. omaseed do --list says what it may do.";
+    QTest::newRow("unknown action")
+        << QStringList{"rechek", "3f9a1c0e"}
+        << "omaseed: do doesn't take \"rechek\". omaseed help do says what it takes.";
+    QTest::newRow("no torrents") << QStringList{"recheck"}
+                                 << "omaseed: do recheck takes the torrents' hashes, or 8 or more "
+                                    "of their first characters: omaseed errors gives them.";
+    // C50 GT1: no wording of a request turns it into a delete.
+    QTest::newRow("--delete-files")
+        << QStringList{"remove", "9c40e7a2", "--delete-files"}
+        << "omaseed do never deletes files: remove takes the torrent off the list and nothing "
+           "else.";
+    QTest::newRow("--delete-files on delete")
+        << QStringList{"delete", "9c40e7a2", "--delete-files"}
+        << "omaseed do never deletes files: remove takes the torrent off the list and nothing "
+           "else.";
+    QTest::newRow("--to on recheck")
+        << QStringList{"recheck", "3f9a1c0e", "--to", "/x"}
+        << "omaseed: do doesn't take \"--to\". omaseed help do says what it takes.";
+    QTest::newRow("move without --to") << QStringList{"move", "3f9a1c0e"}
+                                       << "omaseed: do move takes --to FOLDER. omaseed help do "
+                                          "says how.";
+    QTest::newRow("pause with a hash")
+        << QStringList{"pause", "3f9a1c0e"}
+        << "omaseed: do pause takes no torrents: it holds the whole server, as the window's "
+           "pause does.";
+    QTest::newRow("move-back two") << QStringList{"move-back", "j-1", "j-2"}
+                                   << "omaseed: do move-back takes one move's id: omaseed moves "
+                                      "lists them.";
+    QTest::newRow("--list with an action")
+        << QStringList{"--list", "recheck"}
+        << "omaseed: do doesn't take \"recheck\". omaseed help do says what it takes.";
+    QTest::newRow("--list --dry-run")
+        << QStringList{"--list", "--dry-run"}
+        << "omaseed: do doesn't take \"--dry-run\". omaseed help do says what it takes.";
+    QTest::newRow("--plan not yet") << QStringList{"--plan", "plan.json"}
+                                    << "omaseed: do --plan isn't in this omaseed yet. omaseed "
+                                       "--help lists the words it has.";
+    QTest::newRow("unknown option")
+        << QStringList{"recheck", "3f9a1c0e", "--force"}
+        << "omaseed: do doesn't take \"--force\". omaseed help do says what it takes.";
+    QTest::newRow("--to twice") << QStringList{"move", "3f9a1c0e", "--to", "/a", "--to", "/b"}
+                                << "omaseed: do doesn't take \"--to\". omaseed help do says what "
+                                   "it takes.";
+}
+
+void TestAgentWords::doUsage()
+{
+    QFETCH(QStringList, arguments);
+    QFETCH(QString, message);
+    const auto request =
+        AgentWords::parse(QStringList{QStringLiteral("do")} + arguments + QStringList{"--json"});
+    QCOMPARE(request.kind, Kind::Usage);
+    QVERIFY(request.json);
+    QCOMPARE(request.message, message);
 }
 
 void TestAgentWords::skinSubwords()
@@ -407,13 +511,16 @@ void TestAgentWords::helpPageSplicesAboveOptions()
         "Options:\n  -h, --help   Displays help on commandline options.\n\nArguments:\n"
         "  uris         magnet: links or .torrent files to add.\n")));
     QVERIFY(!page.contains(QStringLiteral("/usr/bin/omaseed")));
-    // The do lines wait for their word (C45 V20).
-    QVERIFY(!page.contains(QStringLiteral("  do ")));
+    // do's two lines (C45 V15, docs/62 §2).
+    QVERIFY(page.contains(
+        QStringLiteral("\n  do         a fix the window offers, if you let agents act\n"
+                       "             (Settings › General › Agents; moves always ask you)\n")));
 }
 
 void TestAgentWords::wordPagesHaveUsageAndExit()
 {
-    for (const char *w : {"help", "status", "errors", "log", "moves", "check", "skin", "skill"}) {
+    for (const char *w :
+         {"help", "status", "errors", "log", "moves", "check", "skin", "skill", "do"}) {
         const QString word = QString::fromLatin1(w);
         const QString page = AgentWords::wordPage(word);
         QVERIFY2(page.startsWith(QStringLiteral("Usage: omaseed %1").arg(word)), w);
@@ -435,7 +542,7 @@ void TestAgentWords::wordPagesHaveUsageAndExit()
                  "  --json          one JSON object; omaseed skill library describes its fields\n"
                  "Exit: 0 answered (whatever it found) · 2 usage · 3 omaseed isn't running ·\n"
                  "      4 that server can't answer now\n"));
-    QVERIFY(AgentWords::wordPage(QStringLiteral("do")).isEmpty());
+    QVERIFY(AgentWords::wordPage(QStringLiteral("nope")).isEmpty());
     QVERIFY(AgentWords::wordPage(QStringLiteral("status"))
                 .contains(QStringLiteral("whether the server answers or not")));
 }

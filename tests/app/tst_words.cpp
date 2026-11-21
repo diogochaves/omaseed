@@ -340,7 +340,7 @@ void TestWords::helpListsTheWords()
                                       "files...]\n       omaseed <word> [arguments] [--json]\n")),
         qPrintable(page));
     for (const char *word :
-         {"status", "errors", "log", "moves", "skin list", "skin clone", "check", "skin use"})
+         {"status", "errors", "log", "moves", "do", "skin list", "skin clone", "check", "skin use"})
         QVERIFY(page.contains(QStringLiteral("\n  %1 ").arg(QString::fromLatin1(word))));
     QVERIFY(page.contains(QLatin1String("\nYour skins, in ~/.config/omaseed/skins/:\n")));
     QVERIFY(page.contains(QLatin1String("Options:")));
@@ -354,7 +354,8 @@ void TestWords::helpListsTheWords()
 void TestWords::helpWordAndWordHelpMatch_data()
 {
     QTest::addColumn<QString>("word");
-    for (const char *word : {"status", "errors", "log", "moves", "help", "check", "skin", "skill"})
+    for (const char *word :
+         {"status", "errors", "log", "moves", "help", "check", "skin", "skill", "do"})
         QTest::newRow(word) << QString::fromLatin1(word);
 }
 
@@ -395,10 +396,18 @@ void TestWords::usageExits2WithJsonOnStdout()
     QVERIFY(m_out.isEmpty());
     QVERIFY2(m_err.contains(QLatin1String("log doesn't take \"--lines=0\"")), qPrintable(m_err));
 
-    // A reserved word answers usage too.
-    QVERIFY(run({QStringLiteral("do"), QStringLiteral("pause")}, QString()));
+    // do's usage is the CLI's, before any call (C45 V15, C50 GT1).
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("pause"), QStringLiteral("3f9a1c0e")},
+                QString()));
     QCOMPARE(m_exitCode, 2);
-    QVERIFY2(m_err.contains(QLatin1String("do isn't in this omaseed yet")), qPrintable(m_err));
+    QVERIFY2(m_err.contains(QLatin1String("do pause takes no torrents")), qPrintable(m_err));
+    QVERIFY(run({QStringLiteral("do"),
+                 QStringLiteral("remove"),
+                 QStringLiteral("9c40e7a2"),
+                 QStringLiteral("--delete-files")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY2(m_err.contains(QLatin1String("omaseed do never deletes files")), qPrintable(m_err));
 }
 
 void TestWords::notRunningExits3()

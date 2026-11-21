@@ -6,9 +6,10 @@
 //
 // - Only the first argument can be a word (C37 U10): `omaseed ./status`, a magnet or
 //   `--hidden status` are links and options, as they always were.
-// - `help`, `status`, `errors`, `log`, `moves`, `check`, `skin` and `skill` (C48) are built. `do`
-// is
-//   reserved: it answers usage until its word exists (the actions patch).
+// - `help`, `status`, `errors`, `log`, `moves`, `check`, `skin`, `skill` (C48) and `do`
+//   (C45 V15, C50 GT5; #292) are built; nothing is reserved now.
+// - `do <action> <hash…>` takes the action and its torrents as positionals, `--to`,
+//   `--dry-run`, `--list`, `--server`; `--delete-files` is usage (C50 GT1), `--plan` not yet.
 // - `check <skin>` and `skin list | clone <from> <name> | use <name>` take positionals
 //   (C37 U3, U5, U6), `skill [page | link | unlink | status]` one (C48); every other word
 //   takes options only.
@@ -36,6 +37,9 @@ inline constexpr int kMaxLines = 2000;
 inline constexpr int kDefaultLanded = 5;
 inline constexpr int kMaxLanded = 20;
 inline constexpr int kReplyTimeoutMs = 30000;
+/// `do` waits for the person's answer (2 minutes, C45 V17) and then the server's: 2 min + 30 s
+/// (assumed, PLAN S3).
+inline constexpr int kAskTimeoutMs = 150000;
 /// The levels `--level` takes, from the most to the least said; "warning" is the default.
 QStringList levels();
 inline const char *const kDefaultLevel = "warning";
@@ -81,7 +85,7 @@ bool isSkillPrint(const Request &request);
 QStringList optionsOf(const QString &word);
 
 /// The Agent interface's method for a command: "Status", "Errors", "Log", "Moves",
-/// "UseSkin" (`skin use`); "" else.
+/// "UseSkin" (`skin use`), "Do"; "" else.
 QString method(const QString &command);
 
 /// The help page: Qt's `helpText()` with its first line replaced by omaseed's two usage
@@ -94,6 +98,8 @@ QString wordPage(const QString &word);
 QString doesNotTake(const QString &word, const QString &argument);
 QString noSuchWord(const QString &argument);
 QString notYet(const QString &word);
+/// `do … --delete-files`'s usage words (C50 GT1).
+QString deleteFilesWords();
 
 /// The exit for an error code (C45 V13): 2 usage, unknown-server, ambiguous, and the skins'
 /// unknown-skin, bad-name, skin-exists, no-theme; 3 not-running, too-old, no-bus, no-reply;
