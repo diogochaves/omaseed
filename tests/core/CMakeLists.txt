@@ -819,6 +819,12 @@ omaseed_add_test(tst_agentwords
     LIBRARIES omaseed::core
 )
 
+# DECISIONS C50 GT3, GT8 (#291): what an agent may do, by kind; the agents section.
+omaseed_add_test(tst_agentgate
+    SOURCES tst_agentgate.cpp
+    LIBRARIES omaseed::core
+)
+
 # DECISIONS C45 V4, V6, V7, V8 (#163): the envelope, the options, --server's match, the reads'
 # JSON from plain inputs.
 omaseed_add_test(tst_agentanswers

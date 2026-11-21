@@ -6,6 +6,8 @@ qt_add_library(omaseed-core STATIC
     ActionOutcome.hpp
     AgentAnswers.cpp
     AgentAnswers.hpp
+    AgentGate.cpp
+    AgentGate.hpp
     AgentText.cpp
     AgentText.hpp
     AgentWords.cpp
