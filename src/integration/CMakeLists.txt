@@ -32,6 +32,10 @@ qt_add_library(omaseed-integration STATIC
     SkinReader.hpp
     SkinWords.cpp
     SkinWords.hpp
+    SkillLinker.cpp
+    SkillLinker.hpp
+    SkillWords.cpp
+    SkillWords.hpp
     StatusWriter.cpp
     StatusWriter.hpp
     Theme.cpp

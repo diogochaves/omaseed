@@ -133,6 +133,13 @@ omaseed_add_test(tst_skillpages
     DEFINES OMASEED_SOURCE_SKILL_DIR="${PROJECT_SOURCE_DIR}/data/agents/skill"
 )
 
+# DECISIONS C48 AS6–AS8, AS10 (#286, docs/65 §5): `omaseed skill link | unlink | status`'s
+# links into each agent's skill folder, every case in a temporary HOME.
+omaseed_add_test(tst_skilllinker
+    SOURCES tst_skilllinker.cpp
+    LIBRARIES omaseed::integration
+)
+
 omaseed_add_test(tst_statuswriter
     SOURCES tst_statuswriter.cpp
     LIBRARIES omaseed::integration
