@@ -666,6 +666,13 @@ omaseed_add_test(tst_pointat
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# The same on the playgrounds (:8081, :8085, :8086): nothing at the new place or the old one is
+# moved, replaced or deleted, and a recheck finds the torrent whole (research/294-locate).
+omaseed_add_test(tst_pointat_live LIVE
+    SOURCES tst_pointat_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)
+
 # The same against the real deluge-web test server (:8086, test-server.sh --deluge;
 # DELUGE_TEST_PASS from dev.env in the environment).
 omaseed_add_test(tst_delugeengine_live LIVE
