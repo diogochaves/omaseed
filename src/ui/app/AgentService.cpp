@@ -21,6 +21,7 @@
 #include "core/engines/LogEntry.hpp"
 #include "integration/BarMenu.hpp"
 #include "integration/SkinWords.hpp"
+#include "ui/app/AgentDo.hpp"
 #include "ui/app/App.hpp"
 #include "ui/app/MoveController.hpp"
 
@@ -41,6 +42,7 @@ using core::ServerListModel;
 AgentService::AgentService(App *app, QObject *parent)
     : QObject(parent)
     , m_app(app)
+    , m_do(new AgentDo(app, this))
 {}
 
 void AgentService::setWindowShown(bool shown)
@@ -52,6 +54,17 @@ QString AgentService::failure(const QString &command, const QString &code, const
 {
     return QString::fromUtf8(core::AgentWords::failure(
         command, code, message, QDateTime::currentDateTimeUtc(), core::version()));
+}
+
+QString AgentService::readsOff(const QString &command) const
+{
+    // C50 GT8: a courtesy, not a wall; the words are board 67's reads line.
+    if (m_app->agentGate().reads())
+        return {};
+    return failure(command,
+                   QStringLiteral("not-allowed"),
+                   QStringLiteral("Agents get nothing from omaseed's commands: Reads is off in "
+                                  "Settings › General › Agents. Only the person can turn it on."));
 }
 
 void AgentService::useSkin(const QString &options, Reply reply)
@@ -77,8 +90,17 @@ void AgentService::useSkin(const QString &options, Reply reply)
         name, picked.skin, true, QDateTime::currentDateTimeUtc(), core::version())));
 }
 
+void AgentService::doAction(const QString &options, uint callerPid, Reply reply)
+{
+    m_do->run(options, callerPid, reply);
+}
+
 void AgentService::status(const QString &options, Reply reply)
 {
+    if (const QString off = readsOff(QStringLiteral("status")); !off.isEmpty()) {
+        reply(off);
+        return;
+    }
     const Answers::ParsedOptions parsed = Answers::parseOptions(QStringLiteral("status"), options);
     if (!parsed.usage.isEmpty()) {
         reply(failure(QStringLiteral("status"), QStringLiteral("usage"), parsed.usage));
@@ -90,6 +112,10 @@ void AgentService::status(const QString &options, Reply reply)
 void AgentService::errors(const QString &options, Reply reply)
 {
     const QString command = QStringLiteral("errors");
+    if (const QString off = readsOff(command); !off.isEmpty()) {
+        reply(off);
+        return;
+    }
     const Answers::ParsedOptions parsed = Answers::parseOptions(command, options);
     if (!parsed.usage.isEmpty()) {
         reply(failure(command, QStringLiteral("usage"), parsed.usage));
@@ -186,6 +212,10 @@ QList<Answers::LogTorrent> AgentService::logLibrary() const
 void AgentService::log(const QString &options, Reply reply)
 {
     const QString command = QStringLiteral("log");
+    if (const QString off = readsOff(command); !off.isEmpty()) {
+        reply(off);
+        return;
+    }
     const Answers::ParsedOptions parsed = Answers::parseOptions(command, options);
     if (!parsed.usage.isEmpty()) {
         reply(failure(command, QStringLiteral("usage"), parsed.usage));
@@ -284,6 +314,10 @@ void AgentService::log(const QString &options, Reply reply)
 void AgentService::moves(const QString &options, Reply reply)
 {
     const QString command = QStringLiteral("moves");
+    if (const QString off = readsOff(command); !off.isEmpty()) {
+        reply(off);
+        return;
+    }
     const Answers::ParsedOptions parsed = Answers::parseOptions(command, options);
     if (!parsed.usage.isEmpty()) {
         reply(failure(command, QStringLiteral("usage"), parsed.usage));

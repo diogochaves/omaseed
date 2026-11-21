@@ -44,6 +44,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QSaveFile>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -88,10 +89,13 @@ public:
     void setTorrentsFolder(const QString &folder);
     QString torrentsFolder() const { return m_torrentsFolder; }
 
+    /// Writes the daemon's torrents to `path`; with `only` (hashes, any case), just those, as
+    /// the removed folder keeps one (DECISIONS C50 GT6). A hash the daemon lacks is left out.
     void start(const QString &path,
                const QString &serverName,
                const QString &serverUrl,
-               const QString &appVersion);
+               const QString &appVersion,
+               const QStringList &only = {});
     void cancel();
     bool isBusy() const { return m_busy; }
 
@@ -161,6 +165,7 @@ private:
     QHash<QString, int> m_queue; ///< id → place among the unfinished, from 1
     QList<Pending> m_pending;    ///< the batch being read
     qsizetype m_magnetAt = 0;
+    QSet<QString> m_only; ///< lower case; empty: every torrent
     std::unique_ptr<QSaveFile> m_file;
     std::unique_ptr<TarWriter> m_writer;
     QString m_path;

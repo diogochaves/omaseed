@@ -3157,3 +3157,95 @@ C48's Agents row, with GT6's `add back…`. V17: one ask may hold a plan, a box 
 V18 stands, a plan's outcome included. C48: `do` stays out of the skill's `allowed-tools`; its
 library page gains the missing-files path (errors, find, plan, dry run, one ask). V20's order
 holds: the gate and `do` as patch or minor releases after the reads, whatever is green (C33).
+
+**Built for v0.17.0 (#291–#297).** GT1–GT8 as ruled. What the code rests on, and what the board
+left to the build:
+- **The gate** (`core::AgentGate`, state.json's `agents` section `{reads, fixes, moves, remove,
+  last}`, merged into what is on disk). Reads off makes every act `Off` and keeps the acting
+  lines' levels for when reads come back; an action of no kind is `never` whatever the row says,
+  and the reads guard comes before option parsing. A hand-edited `allow` on moves or remove reads
+  as ask. In a demo every `do` is `not-allowed`, "A demo acts on nothing." `do --list` answers with
+  Reads off too: it reads no library, and it is how an agent learns why it gets nothing.
+- **The row's four lines** are cursor stops of their own (`general.agents.reads|fixes|moves|
+  remove`), enter moving a line on; a greyed line takes the cursor but no enter. The palette says
+  "Agents · Reads" and the like. Moves' and remove's `allow` is drawn struck (`Chip.struck`),
+  never offered. The last line ("last: recheck · NAME · today 15:20", gate refusals too: "… · not
+  allowed: Fixes is off") sits under the Skill line, with `add back… (N kept)` beside it.
+- **`Do(s options) → s`** on the bus, JSON in and out like every method (not V3's sketch); a plan
+  and `--dry-run` need no second method. The app reads the sender's pid from the bus and its
+  parent's name from `/proc` (`origin.caller`, falling back to the bus's pid). The never words the
+  CLI passes on: delete, rename, category/categories, tag/tags, label/labels, add, settings,
+  server/servers, credentials, quit; any other unknown action is usage. pause and resume take no
+  hashes and act on the server on show (C36 M10's hold); a pause with nothing running is done.
+- **Checks before anything runs.** A per-torrent check (start-here offered only where the
+  torrent's problem offers it; on Deluge, which pauses on error, "recheck first"; dismiss; resume)
+  refuses the whole call. `failed[]` holds only what the server refused, and any entry exits 6. A
+  server down is `unreachable` (exit 4). A single `--dry-run` answers `{dryRun, would: run|ask}`
+  or the real run's failure object; `would: off|refused` is a plan line's.
+- **By an agent.** An `AgentOrigin {caller, pid, asked}` rides into the outcome (the strip's dim
+  "· by an agent", never elided, the headline giving way first; the agent's own `outcome` has no
+  suffix), the move record and job spec (`by: "agent"`, the story's "… · by an agent"), the
+  journal (`journalctl --user`: "agent: recheck on NAME, allowed in the window (claude, pid N)")
+  and the last line. An agent's dismiss, pause and resume put up strips of their own. Usage,
+  unknown torrents, per-torrent refusals and dry runs are not noted; gate refusals and the
+  window's refusals are.
+- **The ask** (`AgentAsk`, `AgentAskWindow.qml`, a window of its own as C35's add window). One at
+  a time: a second answers `no-answer` at once, "Another ask is open in omaseed's window…"; no
+  queue. ↵ alone does nothing (no button has focus at open); tab, then ↵ on a button; esc refuses.
+  Allowed, every check runs again (a line turned off answers not-allowed). The window hides before
+  the answer runs. The CLI prints "Asking in omaseed's window…" on stderr when the app broadcasts
+  `Asking(u pid, s words)` for its pid ("… moves always ask.", "… removes always ask."); it waits
+  asleep in an event loop. `OMASEED_ASK_TIMEOUT_MS` shortens the 2 minutes for tests and walks.
+- **Moves through `do`** wait for the move sheet's whole plan (up to 20 s); a plan that can't move
+  is refused "Not moved: …" before any ask; one that leaves some out asks with the sheet's lines
+  that bear on the answer. Behind a running move it is queued (`queued: N`, `job: null`, C44 L12).
+  `move-back` takes a landed record's id (whole or 8+ characters; `omaseed moves` prints "id
+  XXXXXXXX ·" on each move-back line); an unknown or unmovable one is `refused` with the sheet's
+  words. A job keeps its record's id in its file, the only key (two moves of one title in the same
+  second kept one record before).
+- **Locate.** Every engine passed the re-point proof (`scripts/dev/research/294-locate/`), so the
+  refusal for an engine that can't ("locate it from the window") is unused; `EngineClient::pointAt`
+  stays refused by default. "Found" is every wanted file (priority above 0) there, a complete one at
+  its size, an incomplete one at most its size; skipped files aren't required. Files missing = the
+  engine says so (qBittorrent's missing files, Transmission's "No data found" or its verify's "no
+  data was found", a failed move) or the find in the torrent's own save path comes up short.
+  `not-found` is only a short find (with `found`, `files` and the first missing file; found 0 adds
+  "Point at the folder that holds “TOP/”."); an unseen disk, files not missing (that is a move),
+  qBittorrent's incomplete folder, a torrent listing no file and a Deluge torrent in an error other
+  than a failed move (its recheck hangs) are `refused`. qBittorrent's set location turns automatic
+  management off: the ask and the answer say so (`managementOff`). The story says "Located in
+  FOLDER · nothing moved · by an agent", and the polls that see the new path add no outside line.
+- **Remove and the keep** (`RemovedKeep`, `~/.local/share/omaseed/removed/yyyymmdd-hash8/`). "Files
+  gone" is the engine's missing state (a failed move is not: its files are somewhere) and, where
+  omaseed sees the disk, no file at any size at the save path or, while incomplete, qBittorrent's
+  incomplete folder. Gone is not unplugged: a missing folder whose drive isn't mounted (at or
+  under an `/etc/fstab` target not mounted now, or under `/run/media`, `/media` or `/mnt` with its
+  nearest existing folder on no filesystem mounted under that root: the drive's folder gone or
+  left empty) refuses `not-removable`, "its folder is on a drive that isn't mounted (…): plug it
+  in and recheck" (`LocateCheck::unmountedDrive`). The keep runs after the ask, one torrent at a time; one that can't keep (its
+  `.torrent` unreadable from here, the daemon's folder out of reach) refuses the whole remove
+  `not-removable`, "omaseed keeps a way back before every remove"; a bare magnet keeps its link.
+  Add back (`App.addBack`) is the person's: another server's kept torrent is listed, its button off
+  until that server is on show ("switch to it first"); adding back never switches servers. A
+  damaged keep folder is skipped and pruned by the day in its name; a folder not so named is never
+  touched. An agent's remove strip is a done strip, so its `add back` goes after 6 s (C18 D3); the
+  row's `add back…` stays.
+- **Plans** (`core::AgentPlan`, `AgentDoPlan`). The CLI reads the file or stdin (1 MB at most) and
+  sends the text; the app never opens a path an agent names. `{v?, server?, lines: [{action,
+  torrents?, to?, move?}]}`; torrents are 8–64 hex characters, never names; a bad line is usage
+  naming it. Each line is checked as its own dry run and run as its own `do` (its journal line,
+  last line and strip); one off or refused line refuses the plan with that line's code and every
+  line's `would`. Ticks are per torrent (`LINE:HASH`), a line with no torrents one box. "Done: X of
+  Y · by an agent" counts done only; unticked lines exit 0. A plan waits 5 minutes in all.
+- **`help agents`** is the CLI's own: it asks the running omaseed's `Status` for the address (5 s)
+  and prints `<host>:<port>` with a line saying so when none answers; exit 0 always. A loopback
+  server is named both as 127.0.0.1 and localhost. Claude Code: `Bash(*ADDR*)`, the bus tools on
+  omaseed's name, `Edit(…)` on the config's own files; no WebFetch rule (a domain rule takes no
+  port and would shut every local service) and no Write rule (Edit covers it). Codex: prefix rules
+  for busctl and gdbus only. Gemini CLI: a policy file (`commandRegex`, `argsPattern` on its file
+  tools). pi has no permission system: the wall paragraph alone. Each with its docs URL and the
+  day checked beside it in `AgentDeny.cpp`.
+- **The skill** keeps `do` out of `allowed-tools`, so every act passes the agent's own prompt too.
+  Its never list says exit 5 is the person's no, with no way round it, and `do` only when asked to
+  act; `ref/library.md` holds the kinds, the guards, the answer, the plan and the missing-files
+  path, and its "this omaseed runs no fix for you" (C45's guide) gives way to `fix.do`. `omaseed help do` names every action and points at `help agents`.

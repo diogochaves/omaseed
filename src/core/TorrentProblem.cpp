@@ -727,9 +727,11 @@ fromEngine(const Torrent &torrent, const QString &engine, const QDateTime &seenA
     line.systemMessage = said.message;
     TorrentProblem cause = describe(line);
     // Transmission 4's "No data found! Ensure your drives are connected or use \"Set
-    // Location\"…" (English only: another language reads as its words, quoted): the files
-    // aren't where it left them, as qBittorrent's missing files.
-    if (said.message.contains(QLatin1String("No data found"), Qt::CaseInsensitive)) {
+    // Location\"…" when it starts such a torrent, and "Paused torrent as no data was found!…"
+    // when a verify finds nothing (English only: another language reads as its words, quoted):
+    // the files aren't where it left them, as qBittorrent's missing files.
+    if (said.message.contains(QLatin1String("No data found"), Qt::CaseInsensitive) ||
+        said.message.contains(QLatin1String("no data was found"), Qt::CaseInsensitive)) {
         cause.causeKey = QStringLiteral("missingFiles");
         cause.cause = tr("missing files");
         cause.headline = tr("Its files aren't where %1 left them").arg(engine);

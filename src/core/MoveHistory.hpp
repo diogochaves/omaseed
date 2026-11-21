@@ -54,6 +54,10 @@ struct MoveRecord
     /// DECISIONS C28 (#176): the empty files no torrent owned that "replace it" deleted from
     /// the torrents' way before the move, as the server writes them.
     QStringList replaced;
+    /// DECISIONS C45 V18 (#293): who started it: "agent" for an agent's `omaseed do move`
+    /// (the story's move line says "by an agent"), "" for the window's own. Empty in a record
+    /// from before.
+    QString by;
 
     QJsonObject toJson() const;
     static MoveRecord fromJson(const QJsonObject &object);

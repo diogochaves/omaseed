@@ -146,6 +146,8 @@ private slots:
     void tooOldExits3();
     void aFileNamedStatusOpensAsDotSlash();
     void statusFromARunningOmaseed();
+    void doOnARunningOmaseed();
+    void helpAgentsWithNoneRunning();
 
     // The skins' words (DECISIONS C37 U3, U6; #223).
     void aFileNamedCheckOpensAsDotSlash();
@@ -340,7 +342,7 @@ void TestWords::helpListsTheWords()
                                       "files...]\n       omaseed <word> [arguments] [--json]\n")),
         qPrintable(page));
     for (const char *word :
-         {"status", "errors", "log", "moves", "skin list", "skin clone", "check", "skin use"})
+         {"status", "errors", "log", "moves", "do", "skin list", "skin clone", "check", "skin use"})
         QVERIFY(page.contains(QStringLiteral("\n  %1 ").arg(QString::fromLatin1(word))));
     QVERIFY(page.contains(QLatin1String("\nYour skins, in ~/.config/omaseed/skins/:\n")));
     QVERIFY(page.contains(QLatin1String("Options:")));
@@ -354,7 +356,8 @@ void TestWords::helpListsTheWords()
 void TestWords::helpWordAndWordHelpMatch_data()
 {
     QTest::addColumn<QString>("word");
-    for (const char *word : {"status", "errors", "log", "moves", "help", "check", "skin", "skill"})
+    for (const char *word :
+         {"status", "errors", "log", "moves", "help", "check", "skin", "skill", "do"})
         QTest::newRow(word) << QString::fromLatin1(word);
 }
 
@@ -395,10 +398,18 @@ void TestWords::usageExits2WithJsonOnStdout()
     QVERIFY(m_out.isEmpty());
     QVERIFY2(m_err.contains(QLatin1String("log doesn't take \"--lines=0\"")), qPrintable(m_err));
 
-    // A reserved word answers usage too.
-    QVERIFY(run({QStringLiteral("do"), QStringLiteral("pause")}, QString()));
+    // do's usage is the CLI's, before any call (C45 V15, C50 GT1).
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("pause"), QStringLiteral("3f9a1c0e")},
+                QString()));
     QCOMPARE(m_exitCode, 2);
-    QVERIFY2(m_err.contains(QLatin1String("do isn't in this omaseed yet")), qPrintable(m_err));
+    QVERIFY2(m_err.contains(QLatin1String("do pause takes no torrents")), qPrintable(m_err));
+    QVERIFY(run({QStringLiteral("do"),
+                 QStringLiteral("remove"),
+                 QStringLiteral("9c40e7a2"),
+                 QStringLiteral("--delete-files")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY2(m_err.contains(QLatin1String("omaseed do never deletes files")), qPrintable(m_err));
 }
 
 void TestWords::notRunningExits3()
@@ -415,6 +426,41 @@ void TestWords::notRunningExits3()
                 .startsWith(QLatin1String("omaseed isn't running, so it can't answer.")));
     // A word never starts omaseed.
     QVERIFY(!QFile::exists(m_home->filePath(QStringLiteral("runtime/omaseed/status.json"))));
+}
+
+void TestWords::helpAgentsWithNoneRunning()
+{
+    // C50 GT7: no omaseed to say its server: the rules with <host>:<port>, a line saying so,
+    // exit 0; nothing is written anywhere.
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    QVERIFY(run({QStringLiteral("help"), QStringLiteral("agents")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY(m_out.startsWith(QLatin1String("A wall, not a gate\n")));
+    QVERIFY(m_out.contains(QLatin1String("\"Bash(*<host>:<port>*)\"")));
+    QVERIFY(m_out.contains(QLatin1String("omaseed isn't running, so it can't say its server")));
+    QVERIFY(m_err.isEmpty());
+    QVERIFY(!QFile::exists(m_home->filePath(QStringLiteral("config/omaseed"))));
+
+    QVERIFY(run({QStringLiteral("help"),
+                 QStringLiteral("agents"),
+                 QStringLiteral("--for=gemini"),
+                 QStringLiteral("--json")},
+                QString()));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(json().value(QLatin1String("agent")).toString(), QStringLiteral("gemini"));
+    QVERIFY(json().value(QLatin1String("server")).isNull());
+
+    QVERIFY(run({QStringLiteral("help"),
+                 QStringLiteral("agents"),
+                 QStringLiteral("--for"),
+                 QStringLiteral("cursor")},
+                QString()));
+    QCOMPARE(m_exitCode, 2);
+    QCOMPARE(m_err.trimmed(),
+             QStringLiteral("omaseed: help agents takes --for claude|codex|pi|gemini. omaseed "
+                            "help help says how."));
 }
 
 void TestWords::noBusExits3()
@@ -568,6 +614,120 @@ void TestWords::statusFromARunningOmaseed()
              qPrintable(m_out));
     QVERIFY(m_out.contains(QStringLiteral("\n  1 torrent: 1 giving back\n")));
     QVERIFY(!m_out.contains(QLatin1Char('\x1b')));
+
+    // C50 GT7: help agents fills its rules with the server on show, asked through Status.
+    QVERIFY(run({QStringLiteral("help"), QStringLiteral("agents"), QStringLiteral("--json")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    const QJsonObject deny = json();
+    QCOMPARE(deny.value(QLatin1String("server")).toString(), address);
+    QCOMPARE(deny.value(QLatin1String("agent")).toString(), QStringLiteral("claude"));
+    QVERIFY(deny.value(QLatin1String("rules"))
+                .toArray()
+                .contains(QStringLiteral("Bash(*%1*)").arg(address)));
+    QVERIFY(!deny.value(QLatin1String("text")).toString().contains(QLatin1String("<port>")));
+}
+
+// #292 (C45 V13, V15): do through the real binary on a running omaseed whose Agents row lets
+// fixes run: the fix answered (0), never (5), an unknown torrent (4), the list, the lines.
+void TestWords::doOnARunningOmaseed()
+{
+    const QString bus = startBus();
+    if (bus.isEmpty())
+        QSKIP("dbus-daemon did not start");
+    SeedServer server;
+    QVERIFY(server.listen(QHostAddress::LocalHost));
+    writeState(R"({"agents":{"reads":"on","fixes":"allow","moves":"off","remove":"off"}})");
+
+    QProcess app;
+    QProcessEnvironment env = environment(bus);
+    env.insert(QStringLiteral("QT_QPA_PLATFORM"), QStringLiteral("offscreen"));
+    env.insert(QStringLiteral("OMASEED_SERVER_URL"),
+               QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort()));
+    app.setProcessEnvironment(env);
+    app.setProcessChannelMode(QProcess::ForwardedErrorChannel);
+    app.start(QStringLiteral(OMASEED_BINARY), QStringList());
+    QVERIFY(app.waitForStarted(5000));
+    struct Stop
+    {
+        QProcess &app;
+        ~Stop()
+        {
+            app.terminate();
+            if (!app.waitForFinished(10000))
+                app.kill();
+            app.waitForFinished(2000);
+        }
+    } stop{app};
+
+    // Asked until the first sync is done: before it, do answers first-sync (4).
+    const QStringList recheck{
+        QStringLiteral("do"), QStringLiteral("recheck"), QStringLiteral("cccccccc")};
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 30000) {
+        QVERIFY(run(recheck + QStringList{QStringLiteral("--json")}, bus));
+        if (m_exitCode == 0)
+            break;
+        QTest::qWait(300);
+    }
+    QVERIFY2(m_exitCode == 0, qPrintable(m_out + m_err));
+    QJsonObject object = json();
+    QCOMPARE(object.value(QLatin1String("command")).toString(), QStringLiteral("do"));
+    QCOMPARE(object.value(QLatin1String("answer")).toString(), QStringLiteral("not-asked"));
+    QCOMPARE(object.value(QLatin1String("done")).toArray().size(), 1);
+
+    QVERIFY(run(recheck, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out, QStringLiteral("t sent to recheck\n"));
+
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("delete"), QStringLiteral("cccccccc")}, bus));
+    QCOMPARE(m_exitCode, 5);
+    QVERIFY2(m_err.contains(QLatin1String("doesn't delete, rename or change settings")),
+             qPrintable(m_err));
+
+    QVERIFY(
+        run({QStringLiteral("do"), QStringLiteral("recheck"), QStringLiteral("deadbeef")}, bus));
+    QCOMPARE(m_exitCode, 4);
+
+    QVERIFY(run({QStringLiteral("do"), QStringLiteral("--list")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(QStringLiteral("Settings › General › Agents\n")), qPrintable(m_out));
+    QVERIFY(m_out.contains(QLatin1String("  Fixes    allow run at once\n")));
+
+    QVERIFY(run(recheck + QStringList{QStringLiteral("--dry-run")}, bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QCOMPARE(m_out, QStringLiteral("Dry run, nothing done: recheck would run · t\n"));
+
+    // C50 GT4, GT5: the CLI reads the plan and sends its text; a file it can't read is usage.
+    QTemporaryDir plans;
+    QFile file(plans.filePath(QStringLiteral("plan.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"v":1,"lines":[{"action":"recheck","torrents":["cccccccc"]}]})");
+    file.close();
+    QVERIFY(run({QStringLiteral("do"),
+                 QStringLiteral("--plan"),
+                 file.fileName(),
+                 QStringLiteral("--dry-run")},
+                bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(QStringLiteral("Plan for ")) &&
+                 m_out.contains(QLatin1String("dry run, nothing done")) &&
+                 m_out.endsWith(QLatin1String("Every line would run.\n")),
+             qPrintable(m_out));
+    QVERIFY(run(
+        {QStringLiteral("do"), QStringLiteral("--plan"), file.fileName(), QStringLiteral("--json")},
+        bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    object = json();
+    QVERIFY(object.value(QLatin1String("plan")).toBool());
+    QCOMPARE(object.value(QLatin1String("outcome")).toString(),
+             QStringLiteral("Done: 1 of 1 · by an agent"));
+    QVERIFY(run({QStringLiteral("do"),
+                 QStringLiteral("--plan"),
+                 plans.filePath(QStringLiteral("none.json"))},
+                bus));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY2(m_err.contains(QLatin1String("do --plan can't read")), qPrintable(m_err));
 }
 
 void TestWords::aFileNamedCheckOpensAsDotSlash()

@@ -215,6 +215,10 @@ public:
     /// (MovePlan::replaceable()), then plans again and moves; the move's record keeps what
     /// went (`replaced`), for its line in the log. A start that follows forgets them either way.
     Q_INVOKABLE void replaceNext(const QStringList &paths) { m_replace = paths; }
+    /// DECISIONS C45 V18 (#293): who starts the next start (selection, back): "agent" for an
+    /// agent's `omaseed do`. It rides in the job's spec (so its file and a queued move keep it)
+    /// into the move's record, the story's line and the strip. A start forgets it either way.
+    void startNextBy(const QString &by) { m_nextBy = by; }
 
     // ---- a selection (board 43, C16) ----------------------------------------------------------
 
@@ -432,6 +436,7 @@ private:
     QHash<QString, QDateTime> m_ownMoveEndedAt;
     QJsonObject m_pending;  ///< a start waiting for file lists or listings
     QStringList m_replace;  ///< C28 (#176): replaceNext()'s, for the next start
+    QString m_nextBy;       ///< C45 V18: startNextBy()'s, for the next start
     QDateTime m_restoredAt; ///< J4's line shows for a while after a restore
 
     // A shown job's summary, as it read at its end, kept while the move after it runs unseen

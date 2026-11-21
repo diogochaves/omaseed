@@ -52,6 +52,14 @@ Phrases phrases(const QString &action, const QString &target)
         return {tr("sent to recheck"), tr("didn't recheck"), tr("rechecking")};
     if (action == QLatin1String("reannounce"))
         return {tr("reannounced"), tr("didn't reannounce"), tr("reannounced")};
+    // #294 (C50 GT2): an agent's locate, re-pointed at %1 and sent to recheck.
+    if (action == QLatin1String("locate"))
+        return {tr("located in %1 · rechecking").arg(target),
+                tr("didn't locate"),
+                tr("located · %1").arg(leaf(target))};
+    // #292: an agent's dismiss through `do` (the window's own dismiss puts no strip up).
+    if (action == QLatin1String("dismiss"))
+        return {tr("cleared"), tr("didn't clear"), tr("cleared")};
     if (action == QLatin1String("category")) {
         if (target.isEmpty())
             return {
@@ -89,6 +97,9 @@ Phrases phrases(const QString &action, const QString &target)
         return {tr("moved down the queue"), tr("didn't move in the queue"), tr("queue ↓")};
     if (action == QLatin1String("delete"))
         return {tr("deleted"), tr("didn't delete"), QString()};
+    // #295 (C50 GT1): an agent's remove, the torrent only, kept 30 days to add back (GT6).
+    if (action == QLatin1String("remove"))
+        return {tr("removed · kept 30 days"), tr("didn't remove"), QString()};
     if (action == QLatin1String("deleteWithFiles"))
         return {tr("deleted with its files"), tr("didn't delete"), QString()};
     if (action == QLatin1String("sequential"))
@@ -125,6 +136,11 @@ QString kindName(ActionOutcome::Kind kind)
 }
 
 } // namespace
+
+QString ActionOutcome::byAnAgent()
+{
+    return tr("by an agent");
+}
 
 ActionOutcome::Kind ActionOutcome::kind() const
 {
@@ -193,6 +209,8 @@ QVariantMap ActionOutcome::words() const
         {QStringLiteral("failedRow"), words.failed},
         {QStringLiteral("startHere"), startHere && k != Kind::Done},
         {QStringLiteral("recheckFirst"), recheckFirst && k != Kind::Done},
+        {QStringLiteral("agent"), byAgent ? byAnAgent() : QString()},
+        {QStringLiteral("keptIds"), keptIds},
     };
 }
 
@@ -209,6 +227,8 @@ ActionOutcome ActionOutcome::fromMap(const QVariantMap &map)
     outcome.details = map.value(QStringLiteral("details")).toString();
     outcome.startHere = map.value(QStringLiteral("startHere")).toBool();
     outcome.recheckFirst = map.value(QStringLiteral("recheckFirst")).toBool();
+    outcome.byAgent = map.value(QStringLiteral("byAgent")).toBool();
+    outcome.keptIds = map.value(QStringLiteral("keptIds")).toStringList();
     return outcome;
 }
 

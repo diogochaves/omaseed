@@ -25,6 +25,7 @@
 
 #include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
+#include "core/AgentGate.hpp"
 #include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
@@ -43,6 +44,7 @@
 #include "core/OmaseedBackup.hpp"
 #include "core/PauseHold.hpp"
 #include "core/PrivateTrackers.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/RenameDisk.hpp"
 #include "core/SearchModel.hpp"
 #include "core/SecretStore.hpp"
@@ -78,6 +80,7 @@
 #include "integration/BarWidget.hpp"
 #include "integration/Tray.hpp"
 #include "ui/app/AddRoute.hpp"
+#include "ui/app/AgentAsk.hpp"
 #include "ui/app/MoveController.hpp"
 
 #include <QDate>
@@ -1886,6 +1889,110 @@ private:
         new omaseed::integration::AgentSkill(QString(), this);
     // --- end #286 -------------------------------------------------------------------------------
 
+    // --- #291: what an agent may do (DECISIONS C50 GT3, GT8) -----------------------------------
+    // The gate in state.json's "agents" section, read the first time it is asked. Only the
+    // Agents row writes it: first run and the package never change it (GT3), and a demo's
+    // writes stay in memory like every other section's.
+public:
+    /// "on" (default) or "off" (GT8): off, every read and `do` answer not-allowed.
+    Q_PROPERTY(QString agentReads READ agentReads WRITE setAgentReads NOTIFY agentsChanged)
+    /// "off" (default) · "ask" · "allow".
+    Q_PROPERTY(QString agentFixes READ agentFixes WRITE setAgentFixes NOTIFY agentsChanged)
+    /// "off" (default) · "ask"; an "allow" is taken as ask (GT3).
+    Q_PROPERTY(QString agentMoves READ agentMoves WRITE setAgentMoves NOTIFY agentsChanged)
+    /// "off" (default) · "ask"; an "allow" is taken as ask (GT1, GT3).
+    Q_PROPERTY(QString agentRemove READ agentRemove WRITE setAgentRemove NOTIFY agentsChanged)
+    /// The row's last line (C45 V18): {text ("last: … · today 15:20"), what (as saved), at};
+    /// empty until something was done through `do`.
+    Q_PROPERTY(QVariantMap agentLast READ agentLast NOTIFY agentsChanged)
+    /// C50 GT6 (#295): what an agent removed and omaseed keeps to add back, newest first, for
+    /// the Agents row's add back… and its sheet: {id, hash, name, savePath, server, here (the
+    /// server on show: only there can it come back, Q12), removed ("today 15:20"), until}.
+    Q_PROPERTY(QVariantList removedKept READ removedKept NOTIFY removedKeptChanged)
+    QString agentReads() const { return agentGate().readsLevel(); }
+    QString agentFixes() const;
+    QString agentMoves() const;
+    QString agentRemove() const;
+    QVariantMap agentLast() const;
+    QVariantList removedKept() const;
+    /// Reads the removed folder again (a keep, an add back, a prune, a remove refused).
+    void refreshRemovedKept();
+    void setAgentReads(const QString &level);
+    void setAgentFixes(const QString &level);
+    void setAgentMoves(const QString &level);
+    void setAgentRemove(const QString &level);
+    /// What the last act through `do` was (C45 V18), saved with the gate.
+    void setAgentLast(const QString &text, const QDateTime &at);
+    const omaseed::core::AgentGate &agentGate() const;
+
+    // --- #292: the fixes an agent runs through `do` (C45 V14, V15) ----------------------------
+    /// An act asked through `do`: who asked (S4 says it in the strip, the journal and the last
+    /// line), and what to call once the server has answered, with the strip's outcome.
+    struct AgentAct
+    {
+        /// The word the agent asked ("recheck", "start-here"); "" for the window's own act.
+        QString word;
+        omaseed::core::AgentOrigin origin;
+        std::function<void(const omaseed::core::ActionOutcome &)> answered;
+        /// #295 (C50 GT6): a remove's kept entries, hash → RemovedKeep id; the ones the server
+        /// didn't remove are forgotten once it has answered.
+        QHash<QString, QString> kept;
+    };
+    /// C45 V18: an agent's act that went to the server, said in the journal (`qInfo`) and
+    /// saved as the row's last line. `subject` is the torrent's name, "3 torrents" or the
+    /// server. Nothing for the window's own act (`act.word` empty).
+    void noteAgentAct(const AgentAct &act,
+                      const QString &subject,
+                      const omaseed::core::ActionOutcome &outcome);
+    /// An agent's `do` refused before anything ran, by the gate (not-allowed, never) or in the
+    /// ask window (refused, no answer; `subject` then names what it asked about): the
+    /// journal's line and the last line, so the person sees an agent tried.
+    void noteAgentRefusal(const QString &word,
+                          const QString &how,
+                          const omaseed::core::AgentOrigin &origin,
+                          const QString &subject = QString());
+    /// pauseTorrents/resumeTorrents' answer: `act.answered`, and for an agent the strip and
+    /// the note first.
+    std::function<void(const omaseed::core::ActionOutcome &)> holdAnswered(const AgentAct &act);
+    /// retryTorrents, recheck, reannounce as the window runs them, and `act.answered` once the
+    /// server answered. False when nothing was sent (a demo, no server): `answered` isn't
+    /// called then.
+    bool retryTorrents(const QStringList &hashes, const AgentAct &act);
+    bool recheck(const QStringList &hashes, const AgentAct &act);
+    bool reannounce(const QStringList &hashes, const AgentAct &act);
+    /// #294 (C50 GT2): `do locate`: re-points `hashes` at `path` (EngineClient::pointAt, nothing
+    /// moved), then rechecks them; answered once both went through, or at the first refusal.
+    bool locate(const QStringList &hashes, const QString &path, const AgentAct &act);
+    /// #295 (C50 GT1): `do remove`: the torrents only, never their files (no deleteFiles here
+    /// at all), each already kept (`act.kept`). False when nothing was sent.
+    bool removeForAgent(const QStringList &hashes, const AgentAct &act);
+    /// What this machine sees of the server's disks (`localPathFor`), for `do locate`'s find.
+    const omaseed::core::FreeSpaceProbe &freeSpaceProbe() const { return m_freeSpace; }
+    /// dismissFailure for each of `hashes`; answered at once (nothing goes to the server).
+    bool dismissFailures(const QStringList &hashes, const AgentAct &act);
+    /// C36 M10's hold, as the window's: answered when PauseHold says it ended, with action
+    /// "pause"/"resume", the count in `target` and an error in `cause`. False when PauseHold
+    /// can't send it (nothing held to resume, one on its way).
+    bool pauseTorrents(const AgentAct &act);
+    bool resumeTorrents(const AgentAct &act);
+
+    // --- #293: the ask (C45 V17) ---------------------------------------------------------------
+    /// The one ask an agent's `do` may have open; the `omaseed · agent` window draws it.
+    Q_PROPERTY(omaseed::app::AgentAsk *agentAsk READ agentAsk CONSTANT)
+    AgentAsk *agentAsk() const { return m_agentAsk; }
+
+Q_SIGNALS:
+    void agentsChanged();
+    void removedKeptChanged();
+
+private:
+    void setAgentLevel(omaseed::core::AgentGate::Kind kind, const QString &level);
+    void saveAgentGate();
+    mutable omaseed::core::AgentGate m_agentGate;
+    mutable bool m_agentGateLoaded = false;
+    AgentAsk *m_agentAsk = new AgentAsk(this);
+    // --- end #291 -------------------------------------------------------------------------------
+
     // --- #24: the seed console (docs/22) -------------------------------------------------------
     // The ledger keeps what the server gave and took over time (one file per server); the
     // console works out every block of the seed console from it and the library.
@@ -2118,6 +2225,23 @@ public:
     /// How long between two looks at the journal's links; a test shortens it.
     void setLinksInterval(std::chrono::milliseconds interval) { m_linksInterval = interval; }
 
+    // docs/DECISIONS.md C50 GT6 (#295): a torrent an agent removes is kept 30 days to add back
+    // (core/RemovedKeep). `do remove` and the Agents row's add back… use these.
+    /// Keeps `hash` of the server on show in the removed folder: a one-torrent export by the
+    /// engine's own exporter, as Backup's. `done(id, error)`: the kept entry's id, or why not
+    /// ("" id): not connected, not on the server, or its .torrent out of reach (a Transmission
+    /// or Deluge whose disk this machine doesn't see: Q11, the remove is then refused).
+    void keepRemoved(const QString &hash,
+                     const std::function<void(const QString &id, const QString &error)> &done);
+    /// Adds kept torrent `id` back to the server on show by the engine's own importer: stopped,
+    /// unchecked, at the save path it had. Forgets the entry once it is in. `done(error)`: ""
+    /// when added; why not otherwise (another server's: switch to it first, Q12; on the
+    /// server already; an export or import running).
+    void addBackRemoved(const QString &id, const std::function<void(const QString &error)> &done);
+    /// The window's add back (the outcome strip's, the removed sheet's): kept torrents `ids`
+    /// added back one after another, the strip saying how it went ("2 added back · stopped").
+    Q_INVOKABLE void addBack(const QStringList &ids);
+
     // A Transmission and a Deluge keep their .torrent files on their own disk, not in their
     // API (docs/57 §4, docs/DECISIONS.md C40 X3; #88): whether this machine can read them,
     // asked when Settings › ENGINE › Backup shows and after a folder is given. A Deluge may
@@ -2168,6 +2292,12 @@ private:
                                  const QString &source) const;
     QList<omaseed::core::TorrentsImport::PathRow> torrentsRows(const QVariantList &rows) const;
     QVariantMap torrentsImportInfo();
+    /// What the server has now for an import's plan: every id, category and tag, read afresh.
+    void readServerHere(const std::function<void(const omaseed::core::TorrentsImport::Here &here,
+                                                 const QString &error)> &done);
+    omaseed::core::TorrentsImport::Plan
+    torrentsPlanHere(const omaseed::core::TorrentsBackup::Contents &contents,
+                     const omaseed::core::TorrentsImport::Here &here) const;
     QPointer<omaseed::core::TorrentsExport> m_torrentsExport;
     QPointer<omaseed::core::TransmissionTorrentsExport> m_transmissionExport;
     QPointer<omaseed::core::DelugeTorrentsExport> m_delugeExport;
@@ -2381,11 +2511,19 @@ private:
     /// answers are in (limits takes up to three requests), the strip says how it went, in
     /// ErrorWords' words when one failed. The torrent's name is read now, while it is still
     /// in the list (a delete).
+    /// `agent` (#292: an agent's `do`): the strip says "by an agent" (C45 V18), the act is
+    /// noted (noteAgentAct), and its `answered` is called with the outcome after the strip.
     std::function<void(const omaseed::core::Result<omaseed::core::Done> &)>
     tableAnswer(const QString &action,
                 const QStringList &hashes,
                 const QString &target = QString(),
-                int calls = 1);
+                int calls = 1,
+                std::optional<AgentAct> agent = std::nullopt);
+
+    QList<omaseed::core::RemovedKeep::Entry> m_removedKept;
+    /// addBack's run, one kept torrent after another.
+    struct AddingBack;
+    void addBackNext(const std::shared_ptr<AddingBack> &run);
 
     bool m_serverRefused = false;
     /// C25 K8: the server's engine answered with a version omaseed refuses (SyncEngine's
@@ -3028,6 +3166,14 @@ private:
     int m_storyRevision = 0;
     /// hash → the id of the line its last recorded rename landed in (the take-back's seam).
     QHash<QString, int> m_renameLineOf;
+    /// #297 (C50 GT2): "server\nhash" → when omaseed re-pointed it (do locate). The poll that
+    /// sees the save path change is the locate's line, not an outside move, for a minute (as
+    /// MoveController::ownsMoveOf is for a move).
+    QHash<QString, QDateTime> m_locatedAt;
+    /// Records a locate's line ("Located in FOLDER · nothing moved · by an agent") for each
+    /// of `was`'s torrents (hash → its save path before).
+    void recordLocated(const QHash<QString, QString> &was, const QString &path, bool byAgent);
+    bool locatedLately(const QString &hash) const;
     // --- end #236/#248 -------------------------------------------------------------------------
 
     // --- #275: the room (AppRoom.cpp; DECISIONS C47 I8–I12) ------------------------------------

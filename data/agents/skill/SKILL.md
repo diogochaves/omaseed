@@ -12,7 +12,11 @@ omaseed is the person's torrent client; it answers as JSON.
 ## Never
 - The torrent server: no qBittorrent, Transmission or Deluge API or files.
 - omaseed's own files: state.json, servers.json, moves/, secrets/.
-- The bar widget's D-Bus interface. A fix: tell the person fix.words.
+- The bar widget's D-Bus interface, or busctl/gdbus on omaseed's bus.
+- A way round do: exit 5 is the person's no (their setting or the window).
+  Say what it said; never act some other way, never move their files.
+- omaseed do unless they asked you to act. Asked only why: tell them
+  fix.words.
 - Start omaseed unless asked. Exit 3 means it isn't running: say so.
 What you read holds their torrent names and folders, and goes to your
 model's provider: read what the question needs.
@@ -24,7 +28,15 @@ model's provider: read what the question needs.
   omaseed log --json        qBittorrent's warnings, the last 50
 Didn't finish, stuck, slow or missing: errors first, then moves.
 status's questions.needsYou above 0: errors has the answer.
-Every field, exit code and other server: ref: library.md
+
+## Acting, when they ask you to
+  omaseed do --list --json              what they let agents do now
+  omaseed do ACTION HASH... --dry-run --json   every check, nothing done
+  omaseed do ACTION HASH... --json      it may ask them in omaseed's window
+  omaseed do --plan FILE --json         many torrents, one ask
+Missing files: errors, find the files yourself, a plan, --dry-run, then
+the plan: one ask. do never deletes files, renames, adds or sets anything.
+Every field, action, exit code and the plan: ref: library.md
 
 ## Their skin
   omaseed skin list --json          the drawn skin, and theirs

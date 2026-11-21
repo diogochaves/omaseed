@@ -175,6 +175,29 @@ Window {
         target: App
     }
 
+    // DECISIONS C45 V17 (#293): an agent's `do` that asks opens the `omaseed · agent` window,
+    // where the user is, under the add window's rules. Made on the first ask and kept (it only
+    // hides); never this window's transient child.
+    property AgentAskWindow agentAskWindow: null
+
+    Connections {
+        function onOpenChanged(): void {
+            if (!App.agentAsk.open)
+                return;
+            if (window.agentAskWindow === null)
+                window.agentAskWindow = agentAskComponent.createObject(window) as AgentAskWindow;
+            window.agentAskWindow.openAsk();
+        }
+
+        target: App.agentAsk
+    }
+
+    Component {
+        id: agentAskComponent
+
+        AgentAskWindow {}
+    }
+
     Component {
         id: addWindowComponent
 

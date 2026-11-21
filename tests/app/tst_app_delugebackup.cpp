@@ -11,6 +11,7 @@
 
 #include "core/ActionOutcome.hpp"
 #include "core/GlobalState.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/ServerStore.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TarArchive.hpp"
@@ -279,6 +280,7 @@ private Q_SLOTS:
     void withTheLabelPluginOffItIsSaidBeforeAndAfter();
     void aDelugesOwnFileIsNoCrossing();
     void linksAreFinishedLater();
+    void oneTorrentIsKeptForAnAgentsRemove();
 
 private:
     /// A recorded row as the torrent of `fixtureName`, its .torrent in `m_folder`.
@@ -746,6 +748,80 @@ void TestAppDelugeBackup::linksAreFinishedLater()
     const int after = daemon.looks();
     QTest::qWait(400);
     QCOMPARE(daemon.looks(), after);
+    app.engine()->stop();
+}
+
+// DECISIONS C50 GT6 (#295): before an agent's remove, the torrent is kept by this engine's own
+// exporter, alone, in the removed folder; one whose .torrent can't be read is not kept (Q11);
+// adding back refuses one still here and one from another server (Q12). The add back itself
+// runs on the playgrounds (tst_removedkeep_live).
+void TestAppDelugeBackup::oneTorrentIsKeptForAnAgentsRemove()
+{
+    Daemon daemon;
+    fill(daemon);
+    daemon.config.insert(QStringLiteral("plugins_location"),
+                         m_home->filePath(QStringLiteral("deluge/plugins")));
+    App app;
+    QVERIFY(startOn(app, daemon, 3));
+    const QString single = TorrentFile::parse(torrentBytes(kSingle)).infoHashV1;
+    QVERIFY(app.torrents()->indexOfHash(single) >= 0);
+    const auto keep = [&app](const QString &hash) {
+        QPair<QString, QString> got;
+        bool called = false;
+        app.keepRemoved(hash, [&](const QString &kept, const QString &why) {
+            got = {kept, why};
+            called = true;
+        });
+        if (!QTest::qWaitFor([&called] { return called; }, 5000))
+            return QPair<QString, QString>{QStringLiteral("never"), QStringLiteral("no answer")};
+        return got;
+    };
+
+    // One torrent alone, in the removed folder, the server named.
+    const auto [id, error] = keep(single.toUpper());
+    QVERIFY2(!id.isEmpty(), qPrintable(error));
+    QVERIFY(app.torrentsBackupRunning().isEmpty()); // Backup's row shows nothing for it
+    const std::optional<RemovedKeep::Entry> kept = RemovedKeep::entry(id);
+    QVERIFY(kept.has_value());
+    QCOMPARE(kept->hash, single);
+    QCOMPARE(kept->serverName, app.serverName());
+    QCOMPARE(kept->engine, EngineKind::Deluge);
+    QVERIFY(!kept->link);
+    const std::optional<TorrentsBackup::Contents> contents = TorrentsBackup::read(kept->path);
+    QVERIFY(contents.has_value());
+    QCOMPARE(contents->records.size(), 1);
+    QVERIFY(contents->torrents.contains(single));
+
+    // A hash the server lacks: nothing kept.
+    const auto missing = keep(QString(40, QLatin1Char('0')));
+    QVERIFY(missing.first.isEmpty());
+    QVERIFY2(missing.second.contains(QStringLiteral("has no torrent")), qPrintable(missing.second));
+
+    // Adding back what is still on the server: said, and still kept.
+    QString back = QStringLiteral("never");
+    app.addBackRemoved(id, [&back](const QString &why) { back = why; });
+    QVERIFY(QTest::qWaitFor([&back] { return back != QLatin1String("never"); }, 5000));
+    QVERIFY2(back.endsWith(QStringLiteral(" already.")), qPrintable(back));
+    QVERIFY(app.torrentsBackupRunning().isEmpty());
+    QVERIFY(RemovedKeep::entry(id).has_value());
+
+    // Q12: one kept from another server is never added back here.
+    TorrentsManifest other = contents->manifest;
+    other.serverName = QStringLiteral("attic");
+    other.serverUrl = QStringLiteral("http://attic:1/");
+    const auto foreign = RemovedKeep::keep(other, contents->records.at(0), torrentBytes(kSingle));
+    QVERIFY(foreign.has_value());
+    back = QStringLiteral("never");
+    app.addBackRemoved(foreign->id, [&back](const QString &why) { back = why; });
+    QCOMPARE(back, QStringLiteral("On attic: switch to it first."));
+
+    // Q11: its .torrent out of reach would make it a link: no way back, nothing kept.
+    QVERIFY(QFile::remove(QDir(m_folder).filePath(single + QStringLiteral(".torrent"))));
+    const auto unreachable = keep(single);
+    QVERIFY(unreachable.first.isEmpty());
+    QVERIFY2(unreachable.second.startsWith(QStringLiteral("omaseed can't keep a way back for ")),
+             qPrintable(unreachable.second));
+    QCOMPARE(RemovedKeep::list().size(), 2);
     app.engine()->stop();
 }
 

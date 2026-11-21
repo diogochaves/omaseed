@@ -1,6 +1,9 @@
 #include "integration/AgentBus.hpp"
 
+#include "integration/AppIdentity.hpp"
+
 #include <QDBusAbstractAdaptor>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QLoggingCategory>
 #include <QObject>
@@ -58,6 +61,20 @@ public Q_SLOTS:
         return QString();
     }
 
+    QString Do(const QString &options, const QDBusMessage &message)
+    {
+        // C45 V17: who asked, as the bus daemon knows the caller (the omaseed word's process,
+        // or busctl); 0 when it can't say.
+        uint pid = 0;
+        if (QDBusConnectionInterface *bus = m_connection.interface()) {
+            const QDBusReply<uint> reply = bus->servicePid(message.service());
+            if (reply.isValid())
+                pid = reply.value();
+        }
+        m_handler->doAction(options, pid, delayedReply(message));
+        return QString();
+    }
+
 private:
     AgentHandler::Reply delayedReply(const QDBusMessage &message)
     {
@@ -86,6 +103,14 @@ bool AgentBus::exportOn(QObject *exported, const QDBusConnection &connection, Ag
         return false;
     }
     new AgentDBusAdaptor(exported, connection, handler);
+    // A broadcast on the app's path: the asking CLI picks its own pid out (AgentClient).
+    handler->setAsking([connection](uint callerPid, const QString &words) {
+        QDBusMessage signal = QDBusMessage::createSignal(
+            AppIdentity::dbusObjectPath(), AgentBus::interfaceName(), QStringLiteral("Asking"));
+        signal << callerPid << words;
+        if (!QDBusConnection(connection).send(signal))
+            qCWarning(lcAgentBus) << "could not say Asking";
+    });
     return true;
 }
 

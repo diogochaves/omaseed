@@ -2,7 +2,8 @@
 
 // AgentService — the app's side of `io.github.diogochaves.omaseed.Agent` (DECISIONS C45 V3):
 // it reads App's models into core::AgentAnswers' plain inputs and answers with their JSON.
-// integration::AgentBus exports the interface and calls this; nothing here acts.
+// integration::AgentBus exports the interface and calls this; `do` acts through AgentDo. While the
+// Agents row's Reads is off (C50 GT8), every read answers not-allowed; `skin use` stays.
 //
 // What it never reads (C45 V7): a server's username, its URL beyond host:port, the secret
 // store, a cookie. Every free text goes out through AgentAnswers, which masks it.
@@ -16,6 +17,7 @@
 namespace omaseed::app {
 
 class App;
+class AgentDo;
 
 class AgentService : public QObject, public omaseed::integration::AgentHandler
 {
@@ -37,6 +39,10 @@ public:
     /// C37 U6: a built-in or a listed user skin that reads is drawn (App::setSkinChoice,
     /// which saves it); a bad name, an unknown skin or one that doesn't read changes nothing.
     void useSkin(const QString &options, Reply reply) override;
+    /// C45 V15, C50 GT3, GT5: `do`.
+    void doAction(const QString &options, uint callerPid, Reply reply) override;
+    /// `do`'s side, for the tests (its /proc root).
+    AgentDo *agentDo() const { return m_do; }
 
     /// How long errors waits for the log before it answers with what is held (design 12).
     static constexpr int kErrorsWaitMs = 5000;
@@ -56,8 +62,12 @@ public Q_SLOTS:
     void setWindowShown(bool shown);
 
 private:
+    friend class AgentDo; // `do` checks the server and the torrents as the reads do
+
     /// A failure the app makes for `command` (C45 V4).
     static QString failure(const QString &command, const QString &code, const QString &message);
+    /// C50 GT8's not-allowed for `command` while Reads is off in the Agents row; "" while on.
+    QString readsOff(const QString &command) const;
     /// `--server QUERY`'s failure for `command`, "" when it names a saved server; that one's
     /// id in `id`.
     QString serverFailure(const QString &command, const QString &query, QString *id) const;
@@ -70,6 +80,7 @@ private:
     QList<core::AgentAnswers::LogTorrent> logLibrary() const;
 
     App *m_app;
+    AgentDo *m_do = nullptr;
     bool m_windowShown = false;
 };
 

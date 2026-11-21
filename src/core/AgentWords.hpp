@@ -6,9 +6,11 @@
 //
 // - Only the first argument can be a word (C37 U10): `omaseed ./status`, a magnet or
 //   `--hidden status` are links and options, as they always were.
-// - `help`, `status`, `errors`, `log`, `moves`, `check`, `skin` and `skill` (C48) are built. `do`
-// is
-//   reserved: it answers usage until its word exists (the actions patch).
+// - `help`, `status`, `errors`, `log`, `moves`, `check`, `skin`, `skill` (C48) and `do`
+//   (C45 V15, C50 GT5; #292) are built; nothing is reserved now.
+// - `do <action> <hash…>` takes the action and its torrents as positionals, `--to`,
+//   `--dry-run`, `--list`, `--server`; `--delete-files` is usage (C50 GT1), `--plan FILE|-` (GT4)
+//   the CLI reads.
 // - `check <skin>` and `skin list | clone <from> <name> | use <name>` take positionals
 //   (C37 U3, U5, U6), `skill [page | link | unlink | status]` one (C48); every other word
 //   takes options only.
@@ -36,6 +38,12 @@ inline constexpr int kMaxLines = 2000;
 inline constexpr int kDefaultLanded = 5;
 inline constexpr int kMaxLanded = 20;
 inline constexpr int kReplyTimeoutMs = 30000;
+/// `do` waits for the person's answer (2 minutes, C45 V17) and then the server's: 2 min + 30 s
+/// (assumed, PLAN S3).
+inline constexpr int kAskTimeoutMs = 150000;
+/// `do --plan` waits for the ask, then every line in turn (a remove keeps each torrent first):
+/// 2 min + 3 min (assumed, S11).
+inline constexpr int kPlanTimeoutMs = 300000;
 /// The levels `--level` takes, from the most to the least said; "warning" is the default.
 QStringList levels();
 inline const char *const kDefaultLevel = "warning";
@@ -81,7 +89,7 @@ bool isSkillPrint(const Request &request);
 QStringList optionsOf(const QString &word);
 
 /// The Agent interface's method for a command: "Status", "Errors", "Log", "Moves",
-/// "UseSkin" (`skin use`); "" else.
+/// "UseSkin" (`skin use`), "Do"; "" else.
 QString method(const QString &command);
 
 /// The help page: Qt's `helpText()` with its first line replaced by omaseed's two usage
@@ -94,11 +102,16 @@ QString wordPage(const QString &word);
 QString doesNotTake(const QString &word, const QString &argument);
 QString noSuchWord(const QString &argument);
 QString notYet(const QString &word);
+/// True for a word `do` never runs as an agent may spell it (C45 V14: delete, rename, tags…).
+bool isNeverWord(const QString &action);
+/// `do … --delete-files`'s usage words (C50 GT1).
+QString deleteFilesWords();
 
 /// The exit for an error code (C45 V13): 2 usage, unknown-server, ambiguous, and the skins'
 /// unknown-skin, bad-name, skin-exists, no-theme; 3 not-running, too-old, no-bus, no-reply;
-/// 4 not-current, unreachable, no-log, unknown-torrent, first-sync; 5 the actions' and
-/// not-written; 6 failed. 0 for "" (answered), 1 for unreadable and a code it doesn't know.
+/// 4 not-current, unreachable, no-log, unknown-torrent, first-sync; 5 the actions' (with
+/// C50's not-removable and not-found) and not-written; 6 failed. 0 for "" (answered), 1 for
+/// unreadable and a code it doesn't know.
 int exitFor(const QString &code);
 
 /// ISO 8601 in UTC with seconds and Z ("2026-11-12T14:03:11Z"); null when invalid (C45 V4).

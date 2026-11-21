@@ -139,6 +139,7 @@ private slots:
     void theTagWasRemoved();
     void movedOutsideOmaseed();
     void willLandIn();
+    void locatedByAnAgent();
     void byItsCategoryAutomaticManagement();
     void automaticManagementWithNoCategory();
     void byItsLabel();
@@ -235,6 +236,12 @@ void TestTorrentStory::movesSayWithWhat()
     QCOMPARE(events.at(2).detail, QStringLiteral("with 1 other torrent"));
     QCOMPARE(events.at(1).detail, QStringLiteral("on its own"));
     QCOMPARE(events.at(0).detail, QStringLiteral("with the folder alone"));
+
+    // C45 V18 (#293): an agent's move says so in the dim line.
+    input.moves = {{at(24, 17, 50), QStringLiteral("/data/music"), 0, QString(), true}};
+    const QList<StoryEvent> agent = TorrentStory::events(input);
+    QCOMPARE(agent.at(0).title, QStringLiteral("Moved to /data/music"));
+    QCOMPARE(agent.at(0).detail, QStringLiteral("on its own · by an agent"));
 }
 
 void TestTorrentStory::theErrorAndTheFailureComeAtTheirLoggedTimes()
@@ -609,6 +616,32 @@ void TestTorrentStory::movedOutsideOmaseed()
     QCOMPARE(event.title, QStringLiteral("Moved to /srv/b"));
     QCOMPARE(event.detail, QStringLiteral("moved outside omaseed"));
     QCOMPARE(event.kind, StoryEvent::Kind::Move);
+}
+
+// #297 (C50 GT2): do locate re-points it at files already there: located, not moved, and by
+// whom (C45 V18); kept and read back as such.
+void TestTorrentStory::locatedByAnAgent()
+{
+    StoryEntry entry = edited(at(24, 16, 13),
+                              StoryEntry::What::Place,
+                              QStringLiteral("/srv/a"),
+                              QStringLiteral("/srv/shelf-b"),
+                              StoryEntry::By::Omaseed);
+    entry.cause = QStringLiteral("locate");
+    entry.causeName = QStringLiteral("agent");
+    StoryEvent event = line(entry);
+    QCOMPARE(event.title, QStringLiteral("Located in /srv/shelf-b"));
+    QCOMPARE(event.detail, QStringLiteral("nothing moved · by an agent"));
+    QCOMPARE(event.kind, StoryEvent::Kind::Move);
+
+    bool ok = false;
+    const StoryEntry back = StoryEntry::fromJson(entry.toJson(), &ok);
+    QVERIFY(ok);
+    QCOMPARE(back, entry);
+
+    entry.causeName.clear();
+    event = line(entry);
+    QCOMPARE(event.detail, QStringLiteral("nothing moved"));
 }
 
 // Y6: waiting in its incomplete folder, nothing moved yet.

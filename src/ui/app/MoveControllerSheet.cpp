@@ -1378,8 +1378,10 @@ QVariantMap MoveController::planBackOf(const QString &id, const QString &only, b
     if (spec.isEmpty())
         return {};
     const MovePlan plan = planFor(spec);
-    fetchFor(plan);
-    return selectionWords(plan, spec);
+    const bool fetching = fetchFor(plan);
+    QVariantMap words = selectionWords(plan, spec);
+    words.insert(QStringLiteral("pending"), fetching || roomPending(roomFolders(plan, QString())));
+    return words;
 }
 
 QVariantMap MoveController::lastMoveOf(const QString &hash) const
@@ -1471,8 +1473,12 @@ QVariantMap MoveController::planSelection(const QStringList &hashes,
 {
     const QJsonObject spec = selectionSpec(hashes, newPath, rule);
     const MovePlan plan = planFor(spec);
-    fetchFor(plan);
-    return selectionWords(plan, spec);
+    const bool fetching = fetchFor(plan);
+    QVariantMap words = selectionWords(plan, spec);
+    // C45 V15 (#293): an agent's move waits for the plan's every check before it asks.
+    words.insert(QStringLiteral("pending"),
+                 fetching || roomPending(roomFolders(plan, plan.newPath())));
+    return words;
 }
 
 QVariantMap MoveController::planBack(bool carry)
@@ -1527,7 +1533,16 @@ QVariantMap MoveController::selectionWords(const MovePlan &plan, const QJsonObje
         if (!server.isEmpty())
             parts << tr("on %1").arg(server);
         out.insert(QStringLiteral("header"), parts.join(QStringLiteral(" · ")));
+        out.insert(QStringLiteral("bytes"), onDisk);
     }
+    // C45 V17 (#293): the room as an agent's ask says it: "512 GB free there", per drive for
+    // a move to several, "on the same drive" for a rename, "" when it isn't known.
+    out.insert(QStringLiteral("roomText"),
+               plan.sameDrive()           ? tr("on the same drive")
+               : !plan.drives().isEmpty() ? perDrive(plan)
+               : plan.bytesFree() >= 0
+                   ? tr("%1 free there").arg(core::Format::size(plan.bytesFree()))
+                   : QString());
     // L5: the choice, only when they come from two save paths or more.
     out.insert(QStringLiteral("savePaths"), folders);
     out.insert(QStringLiteral("commonRoot"), plan.root());

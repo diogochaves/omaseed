@@ -13,6 +13,7 @@
 #include "core/PeerInput.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/RenamePlan.hpp"
 #include "core/ServerLog.hpp"
 #include "core/SharedData.hpp"
@@ -238,6 +239,8 @@ App::App(QObject *parent)
         m_engine->globalState(), &GlobalState::freeSpaceOnDiskChanged, this, &App::updateFreeSpace);
     connect(m_prefs, &ServerPreferences::valuesChanged, this, &App::updateFreeSpace);
     connect(this, &App::serverChanged, this, &App::updateFreeSpace);
+    // C50 GT6, Q12: a kept torrent comes back only to the server on show.
+    connect(this, &App::serverChanged, this, &App::removedKeptChanged);
     // C47 I10: the add's lines take what downloads in progress still promise from free.
     connect(m_engine->torrents(), &TorrentModel::updated, this, &App::followPromisedRoom);
     // C47 I12: a category's temp folder or save path moved while the sheet is open.
@@ -486,6 +489,12 @@ void App::start()
     });
     // DECISIONS C24 H4: a real run writes the display it decided (or was told) at once.
     saveDisplaysFirst();
+    // DECISIONS C50 GT6: what an agent removed is kept 30 days to add back, then goes.
+    if (const int pruned = RemovedKeep::prune(QDateTime::currentDateTimeUtc()); pruned > 0)
+        qInfo().noquote() << QStringLiteral("removed: %1 kept for over %2 days deleted")
+                                 .arg(pruned)
+                                 .arg(RemovedKeep::kDays);
+    refreshRemovedKept();
 
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.
@@ -842,6 +851,31 @@ void App::dismissFailure(const QString &hash)
     m_engine->problems()->dismiss(hash);
 }
 
+bool App::dismissFailures(const QStringList &hashes, const AgentAct &act)
+{
+    if (hashes.isEmpty() || m_demoMode || !m_hasServer)
+        return false;
+    for (const QString &hash : hashes)
+        dismissFailure(hash);
+    ActionOutcome outcome;
+    outcome.action = QStringLiteral("dismiss");
+    outcome.hashes = hashes;
+    if (hashes.size() == 1)
+        outcome.name = m_engine->torrents()->torrent(hashes.constFirst()).name;
+    // C45 V18: the window's own dismiss says nothing; an agent's puts the strip up.
+    if (!act.word.isEmpty()) {
+        outcome.byAgent = true;
+        m_outcomes->report(outcome);
+        noteAgentAct(act,
+                     outcome.name.isEmpty() ? tr("%n torrents", "", int(hashes.size()))
+                                            : outcome.name,
+                     outcome);
+    }
+    if (act.answered)
+        act.answered(outcome);
+    return true;
+}
+
 QVariantMap App::exportFailure() const
 {
     QVariantMap failure = m_engine->problems()->exportFailure();
@@ -977,20 +1011,121 @@ bool App::pickAltSpeed(const QString &kind, bool outside)
 
 void App::pauseTorrents()
 {
-    if (m_demoMode || !m_hasServer)
-        return;
-    // C36 M10: never `hashes=all`; PauseHold stops exactly what runs and remembers it.
-    if (!m_pauseHold->pause())
-        qWarning().noquote() << QStringLiteral("pause torrents: not sent (one on its way)");
+    pauseTorrents(AgentAct());
 }
 
 void App::resumeTorrents()
 {
-    if (m_demoMode || !m_hasServer)
+    resumeTorrents(AgentAct());
+}
+
+namespace {
+
+/// #292: `answered` once, with `outcome(count, error)`, when `hold` next ends what it sent.
+template<typename Signal, typename Make>
+void answerOnce(PauseHold *hold,
+                QObject *context,
+                Signal signal,
+                const std::function<void(const ActionOutcome &)> &answered,
+                Make make)
+{
+    if (!answered)
         return;
-    if (!m_pauseHold->resume())
+    auto connection = std::make_shared<QMetaObject::Connection>();
+    *connection =
+        QObject::connect(hold, signal, context, [connection, answered, make](auto... args) {
+            QObject::disconnect(*connection);
+            answered(make(args...));
+        });
+}
+
+/// The act for tableAnswer: only an agent's (`word` set) says "by an agent".
+std::optional<App::AgentAct> agentOrNone(const App::AgentAct &act)
+{
+    if (act.word.isEmpty())
+        return std::nullopt;
+    return act;
+}
+
+ActionOutcome holdOutcome(const QString &action, int count, const QString &error)
+{
+    ActionOutcome outcome;
+    outcome.action = action;
+    outcome.target = QString::number(count);
+    outcome.cause = error;
+    return outcome;
+}
+
+} // namespace
+
+std::function<void(const ActionOutcome &)> App::holdAnswered(const AgentAct &act)
+{
+    if (act.word.isEmpty())
+        return act.answered;
+    // C45 V18: the hold has no strip of its own; an agent's puts one up, with its count.
+    return [this, act](const ActionOutcome &outcome) {
+        const bool paused = outcome.action == QLatin1String("pause");
+        const bool failed = !outcome.cause.isEmpty();
+        const QString count = outcome.target;
+        QString headline;
+        if (failed)
+            headline = paused ? tr("%1 didn't pause").arg(m_server.name)
+                              : tr("%1 didn't resume").arg(m_server.name);
+        else if (paused && count == QLatin1String("0"))
+            headline = tr("Nothing was running: nothing paused");
+        else
+            headline = paused ? tr("%1 paused").arg(count) : tr("%1 resumed").arg(count);
+        m_outcomes->reportWords({
+            {QStringLiteral("kind"), failed ? QStringLiteral("failed") : QStringLiteral("done")},
+            {QStringLiteral("mark"), failed ? QStringLiteral("✕") : QStringLiteral("✓")},
+            {QStringLiteral("headline"), headline},
+            {QStringLiteral("line"), outcome.cause},
+            {QStringLiteral("agent"), ActionOutcome::byAnAgent()},
+        });
+        noteAgentAct(act, m_server.name, outcome);
+        if (act.answered)
+            act.answered(outcome);
+    };
+}
+
+bool App::pauseTorrents(const AgentAct &act)
+{
+    if (m_demoMode || !m_hasServer)
+        return false;
+    // C36 M10: never `hashes=all`; PauseHold stops exactly what runs and remembers it.
+    if (m_pauseHold->busy()) {
+        qWarning().noquote() << QStringLiteral("pause torrents: not sent (one on its way)");
+        return false;
+    }
+    if (!m_pauseHold->pause())
+        return false;
+    // PauseHold answers later (its list of what runs comes first): listen once it is sent.
+    answerOnce(
+        m_pauseHold, this, &PauseHold::paused, holdAnswered(act), [](int count, QString error) {
+            return holdOutcome(QStringLiteral("pause"), count, error);
+        });
+    return true;
+}
+
+bool App::resumeTorrents(const AgentAct &act)
+{
+    if (m_demoMode || !m_hasServer)
+        return false;
+    if (m_pauseHold->busy() || !m_pauseHold->held()) {
         qWarning().noquote() << QStringLiteral("resume torrents: not sent (nothing held, or one "
                                                "on its way)");
+        return false;
+    }
+    if (!m_pauseHold->resume())
+        return false;
+    answerOnce(m_pauseHold,
+               this,
+               &PauseHold::resumed,
+               holdAnswered(act),
+               [](int count, int, QString error) {
+                   return holdOutcome(QStringLiteral("resume"), count, error);
+               });
+    return true;
 }
 
 // --- the tray ----------------------------------------------------------------------------
@@ -1289,7 +1424,8 @@ QVariantList App::torrentStory(const QString &hash) const
         input.moves.append({record.finishedAt,
                             record.to.value(hash),
                             int(record.from.size()) - 1,
-                            record.kind == QLatin1String("folder") ? record.title : QString()});
+                            record.kind == QLatin1String("folder") ? record.title : QString(),
+                            record.by == QLatin1String("agent")}); // C45 V18
     }
     const QVariantMap problem = m_engine->torrents()->problem(hash);
     input.problem = problem.value(QStringLiteral("headline")).toString();
@@ -3668,8 +3804,11 @@ void App::reportActionResult(const QString &action,
     Q_EMIT actionFailed(QString(), actionFailureText(result.error(), torrent, folder));
 }
 
-std::function<void(const Result<Done> &)>
-App::tableAnswer(const QString &action, const QStringList &hashes, const QString &target, int calls)
+std::function<void(const Result<Done> &)> App::tableAnswer(const QString &action,
+                                                           const QStringList &hashes,
+                                                           const QString &target,
+                                                           int calls,
+                                                           std::optional<AgentAct> agent)
 {
     struct Answers
     {
@@ -3681,7 +3820,7 @@ App::tableAnswer(const QString &action, const QStringList &hashes, const QString
     const QString name =
         hashes.size() == 1 ? m_engine->torrents()->torrent(hashes.constFirst()).name : QString();
     return
-        [this, answers, action, hashes, target, name](const Result<Done> &result) {
+        [this, answers, action, hashes, target, name, agent](const Result<Done> &result) {
             if (result.isError() && !answers->error)
                 answers->error = result.error();
             if (--answers->left > 0)
@@ -3707,7 +3846,30 @@ App::tableAnswer(const QString &action, const QStringList &hashes, const QString
                                       ? words.details
                                       : words.line + QStringLiteral("\n\n") + words.details;
             }
+            outcome.byAgent = agent.has_value(); // C45 V18
+            if (agent) {
+                // C50 GT6: what the server didn't remove needs no way back.
+                // The strip's add back takes the others back (GT6).
+                for (const QString &hash : hashes) {
+                    const QString id = agent->kept.value(hash);
+                    if (id.isEmpty())
+                        continue;
+                    if (outcome.failedHashes.contains(hash))
+                        RemovedKeep::forget(id);
+                    else
+                        outcome.keptIds << id;
+                }
+                if (!agent->kept.isEmpty())
+                    refreshRemovedKept();
+            }
             m_outcomes->report(outcome);
+            if (agent) {
+                noteAgentAct(*agent,
+                             name.isEmpty() ? tr("%n torrents", "", int(hashes.size())) : name,
+                             outcome);
+                if (agent->answered)
+                    agent->answered(outcome);
+            }
         };
 }
 
@@ -3759,15 +3921,21 @@ void App::stopTorrents(const QStringList &hashes)
 
 void App::retryTorrents(const QStringList &hashes)
 {
+    retryTorrents(hashes, AgentAct());
+}
+
+bool App::retryTorrents(const QStringList &hashes, const AgentAct &act)
+{
     if (hashes.isEmpty() || demoGuard(QStringLiteral("retry"), hashes.size()) || !m_hasServer)
-        return;
-    auto answer = tableAnswer(QStringLiteral("retry"), hashes);
+        return false;
+    auto answer = tableAnswer(QStringLiteral("retry"), hashes, QString(), 1, agentOrNone(act));
     m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     m_client->start(hashes)->then(this, [this, answer](const Result<Done> &result) {
         answer(result);
         if (!result.isError())
             m_engine->readErrorStops();
     });
+    return true;
 }
 
 void App::forceStart(const QStringList &hashes)
@@ -3785,18 +3953,74 @@ void App::forceStart(const QStringList &hashes)
 
 void App::recheck(const QStringList &hashes)
 {
+    recheck(hashes, AgentAct());
+}
+
+bool App::recheck(const QStringList &hashes, const AgentAct &act)
+{
     if (hashes.isEmpty() || demoGuard(QStringLiteral("recheck"), hashes.size()) || !m_hasServer)
-        return;
+        return false;
     // Board 44 §2: a hybrid that errors after this is libtorrent's hybrid error (C17 D3).
     m_engine->problems()->noteRechecked(hashes);
-    m_client->recheck(hashes)->then(this, tableAnswer(QStringLiteral("recheck"), hashes));
+    m_client->recheck(hashes)->then(
+        this, tableAnswer(QStringLiteral("recheck"), hashes, QString(), 1, agentOrNone(act)));
+    return true;
+}
+
+bool App::locate(const QStringList &hashes, const QString &path, const AgentAct &act)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("locate"), hashes.size()) || !m_hasServer)
+        return false;
+    // C50 GT2: nothing moves; the engine's progress after a re-point isn't to be read
+    // (research/294-locate), so the recheck always follows, and says.
+    auto answer = tableAnswer(QStringLiteral("locate"), hashes, path, 1, agentOrNone(act));
+    // The story says it was located, not moved outside omaseed: the poll that sees the new
+    // save path may come before pointAt's answer, so it is marked before it is sent.
+    QHash<QString, QString> was;
+    const QString server = storyServerId();
+    for (const QString &hash : hashes) {
+        was.insert(hash, m_engine->torrents()->torrent(hash).savePath);
+        m_locatedAt.insert(server + QLatin1Char('\n') + hash, QDateTime::currentDateTimeUtc());
+    }
+    const bool byAgent = !act.word.isEmpty();
+    m_client->pointAt(hashes, path)
+        ->then(this,
+               [this, hashes, answer, was, path, server, byAgent](const Result<Done> &result) {
+                   if (result.isError()) {
+                       for (const QString &hash : hashes)
+                           m_locatedAt.remove(server + QLatin1Char('\n') + hash);
+                       answer(result);
+                       return;
+                   }
+                   recordLocated(was, path, byAgent);
+                   m_engine->problems()->noteRechecked(hashes);
+                   m_client->recheck(hashes)->then(this, answer);
+               });
+    return true;
+}
+
+bool App::removeForAgent(const QStringList &hashes, const AgentAct &act)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("remove"), hashes.size()) || !m_hasServer)
+        return false;
+    // C50 GT1: the torrent only; a remove through `do` never deletes a file.
+    m_client->remove(hashes, false)
+        ->then(this, tableAnswer(QStringLiteral("remove"), hashes, QString(), 1, agentOrNone(act)));
+    return true;
 }
 
 void App::reannounce(const QStringList &hashes)
 {
+    reannounce(hashes, AgentAct());
+}
+
+bool App::reannounce(const QStringList &hashes, const AgentAct &act)
+{
     if (hashes.isEmpty() || demoGuard(QStringLiteral("reannounce"), hashes.size()) || !m_hasServer)
-        return;
-    m_client->reannounce(hashes)->then(this, tableAnswer(QStringLiteral("reannounce"), hashes));
+        return false;
+    m_client->reannounce(hashes)->then(
+        this, tableAnswer(QStringLiteral("reannounce"), hashes, QString(), 1, agentOrNone(act)));
+    return true;
 }
 
 void App::removeTrackers(const QString &hash, const QStringList &urls)

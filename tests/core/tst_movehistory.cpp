@@ -119,6 +119,21 @@ private Q_SLOTS:
         QCOMPARE(games->carriedFiles, first.carriedFiles);
         QCOMPARE(games->replaced, QStringList{QStringLiteral("/fast/games/h1.iso")});
         QCOMPARE(games->finishedAt, first.finishedAt);
+        QCOMPARE(games->by, QString());
+    }
+
+    // C45 V18 (#293): an agent's move keeps who started it; a record from before reads as the
+    // window's, and the window's own writes no key.
+    void keepsWhoStartedIt()
+    {
+        MoveRecord moved = record(QStringLiteral("agent"), {QStringLiteral("h1")}, "/x", "/y");
+        moved.by = QStringLiteral("agent");
+        QCOMPARE(MoveRecord::fromJson(moved.toJson()).by, QStringLiteral("agent"));
+        const MoveRecord window = record(QStringLiteral("own"), {QStringLiteral("h1")}, "/x", "/y");
+        QVERIFY(!window.toJson().contains(QLatin1String("by")));
+        QJsonObject old = moved.toJson();
+        old.remove(QStringLiteral("by"));
+        QCOMPARE(MoveRecord::fromJson(old).by, QString());
     }
 
     void lastForIsTheNewestThatMovedIt()

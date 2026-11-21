@@ -248,6 +248,11 @@ void TestSkillPages::mapAnswersTheTrial()
              QStringLiteral("state.json, servers.json, moves/, secrets/"),
              QStringLiteral("The bar widget's D-Bus interface"),
              QStringLiteral("fix.words"),
+             // do (#297, C50): never round the gate, only when asked to act
+             QStringLiteral("A way round do: exit 5 is the person's no"),
+             QStringLiteral("never move their files"),
+             QStringLiteral("omaseed do unless they asked you to act"),
+             QStringLiteral("## Acting, when they ask you to"),
              QStringLiteral("Exit 3"),
              // the four reads, and where to start
              QStringLiteral("omaseed status --json"),

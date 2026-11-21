@@ -13,6 +13,9 @@ import Omaseed.Kit
 //   mixed   yellow, !, "2 moved to /mnt/fast/keep, 1 didn't" · "NAME: why"   details  show  ×
 //   dim     dim, ×, "photo-walks wasn't made: cancelled at 61 %"   create again…  × (#146)
 //
+// C45 V18 (board 62 §5): an agent's act through `do` adds "· by an agent" after the headline,
+// dim (`outcome.agent`), whatever came of it.
+//
 // C30 F8–F11 (board 50 §2): "show" is there only when it brings something back, and a dim
 // line under the words says why ("they are out of view, under giving back"). The host works
 // that out live and hands it over as `showReason`; "" keeps "show" away.
@@ -64,6 +67,8 @@ Item {
     /// A failed move offers to try again, as the error block's "set location" does (docs/32 D1).
     readonly property bool canMove: root.kind === "failed" && (root.outcome.action === "move")
                                     && (root.outcome.failedHashes ?? []).length > 0
+    /// C50 GT6 (#295): an agent's remove kept what it removed; "add back" brings it back paused.
+    readonly property bool canAddBack: root.kind !== "failed" && (root.outcome.keptIds ?? []).length > 0
 
     /// "show": the cursor on the one torrent, or the several selected.
     signal showRequested(var hashes)
@@ -73,6 +78,8 @@ Item {
     signal startHereRequested(var hashes)
     /// "recheck": the failed ones rechecked (C25 K24, Deluge).
     signal recheckRequested(var hashes)
+    /// "add back": the kept torrents added back, paused where they were (C50 GT6).
+    signal addBackRequested(var ids)
     /// "move…": the move sheet again, on the ones that didn't move.
     signal moveRequested(var hashes, string target)
     /// #146: the outcome's own action (`outcome.more`: {id, text}, "create again…").
@@ -96,6 +103,7 @@ Item {
                     + (reasonText.visible ? reasonText.implicitHeight + Theme.outcomeStripReasonGap : 0)
     implicitWidth: Math.min(root.availableWidth > 0 ? root.availableWidth : Infinity,
                             Math.max(root._frameWidth + content.fixedWidth + headline.implicitWidth
+                                     + (agentText.visible ? agentText.implicitWidth + root._spacing : 0)
                                      + (lineText.text.length > 0 ? lineText.implicitWidth + root._spacing : 0),
                                      // C30 F10: the reason under the headline, from its start.
                                      root.canShow ? root._frameWidth + markText.implicitWidth + root._spacing
@@ -152,8 +160,9 @@ Item {
 
         /// The mark, the actions and the gaps around the words.
         readonly property real fixedWidth: markText.implicitWidth + actions.implicitWidth + 2 * root._spacing
-        /// What the headline and the line share, the headline first.
-        readonly property real textRoom: Math.max(0, root.width - root._frameWidth - content.fixedWidth)
+        /// What the headline and the line share, the headline first (after V18's suffix).
+        readonly property real textRoom: Math.max(0, root.width - root._frameWidth - content.fixedWidth
+                                                  - (agentText.visible ? agentText.implicitWidth + root._spacing : 0))
 
         // The outcome's sign, or its word where the skin names outcomes by words (board 46
         // `.ostrip .g`: "moved", "failed", "2 of 3"), in the label voice.
@@ -171,7 +180,8 @@ Item {
             id: headline
 
             // #79: the strip comes on its own: an alert by its words.
-            Accessible.name: [root.outcome.headline ?? "", root.outcome.line ?? ""].filter(t => t.length > 0).join(". ")
+            Accessible.name: [root.outcome.headline ?? "", root.outcome.agent ?? "", root.outcome.line ?? ""].filter(
+                                 t => t.length > 0).join(". ")
             Accessible.role: Accessible.AlertMessage
             anchors.verticalCenter: parent.verticalCenter
             bright: true
@@ -179,6 +189,17 @@ Item {
             objectName: "outcomeHeadline"
             text: root.outcome.headline ?? ""
             width: Math.min(implicitWidth, content.textRoom)
+        }
+
+        // C45 V18: "· by an agent", dim, never elided (the headline gives way first).
+        Label {
+            id: agentText
+
+            anchors.baseline: headline.baseline
+            dim: true
+            objectName: "outcomeAgent"
+            text: "· " + (root.outcome.agent ?? "")
+            visible: (root.outcome.agent ?? "").length > 0
         }
 
         Label {
@@ -215,6 +236,14 @@ Item {
                 visible: root.canRecheck
 
                 onActivated: root.recheckRequested(root.outcome.failedHashes)
+            }
+
+            StripLink {
+                objectName: "outcomeAddBack"
+                text: qsTr("add back")
+                visible: root.canAddBack
+
+                onActivated: root.addBackRequested(root.outcome.keptIds)
             }
 
             StripLink {

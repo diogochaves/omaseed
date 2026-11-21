@@ -40,6 +40,7 @@
 #include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimeZone>
 #include <QUrl>
 
 #include <functional>
@@ -127,6 +128,8 @@ private slots:
     void theDisplayIsRememberedPerScope();
     void aMovesShowIsTheTable();
     void theWalksPickTheirDisplay();
+    void theAgentsGateIsKeptInState();
+    void aDemoKeepsTheAgentsGateInMemory();
 
 private:
     QTemporaryDir m_config;
@@ -1175,6 +1178,67 @@ void TestApp::theWalksPickTheirDisplay()
     App space;
     QCOMPARE(space.display(), QStringLiteral("space"));
     qunsetenv("OMASEED_DISPLAY");
+}
+
+// DECISIONS C50 GT3, GT8: the gate in state.json's "agents" section; read only by default,
+// nothing written until the row changes a line, a hand-edited allow on moves read as ask.
+void TestApp::theAgentsGateIsKeptInState()
+{
+    using omaseed::core::StateFile;
+    QFile::remove(StateFile::path());
+    {
+        App app;
+        QSignalSpy changed(&app, &App::agentsChanged);
+        QCOMPARE(app.agentReads(), QStringLiteral("on"));
+        QCOMPARE(app.agentFixes(), QStringLiteral("off"));
+        QCOMPARE(app.agentMoves(), QStringLiteral("off"));
+        QCOMPARE(app.agentRemove(), QStringLiteral("off"));
+        QVERIFY(app.agentLast().isEmpty());
+        QVERIFY(StateFile::readSection(QStringLiteral("agents")).isEmpty());
+        app.setAgentFixes(QStringLiteral("allow"));
+        app.setAgentMoves(QStringLiteral("allow")); // never allow: ask
+        app.setAgentReads(QStringLiteral("off"));
+        app.setAgentReads(QStringLiteral("off")); // no change, no signal
+        QCOMPARE(changed.count(), 3);
+        app.setAgentLast(QStringLiteral("recheck · 1 done"),
+                         QDateTime(QDate(2026, 11, 21), QTime(15, 20), QTimeZone::UTC));
+        const QJsonObject section = StateFile::readSection(QStringLiteral("agents"));
+        QCOMPARE(section.value(QStringLiteral("reads")).toString(), QStringLiteral("off"));
+        QCOMPARE(section.value(QStringLiteral("fixes")).toString(), QStringLiteral("allow"));
+        QCOMPARE(section.value(QStringLiteral("moves")).toString(), QStringLiteral("ask"));
+        QCOMPARE(section.value(QStringLiteral("remove")).toString(), QStringLiteral("off"));
+    }
+    App app;
+    QCOMPARE(app.agentReads(), QStringLiteral("off"));
+    QCOMPARE(app.agentFixes(), QStringLiteral("allow"));
+    QCOMPARE(app.agentMoves(), QStringLiteral("ask"));
+    QCOMPARE(app.agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("recheck · 1 done"));
+    // C45 V18: the row shows it with its time.
+    QVERIFY(app.agentLast()
+                .value(QStringLiteral("text"))
+                .toString()
+                .startsWith(QStringLiteral("last: recheck · 1 done · ")));
+    QCOMPARE(app.agentGate().decide(QStringLiteral("recheck")),
+             omaseed::core::AgentGate::Decision::Off);
+    // A hand edit: remove "allow" reads as ask.
+    QJsonObject edited = StateFile::readSection(QStringLiteral("agents"));
+    edited.insert(QStringLiteral("remove"), QStringLiteral("allow"));
+    StateFile::writeSection(QStringLiteral("agents"), edited);
+    App again;
+    QCOMPARE(again.agentRemove(), QStringLiteral("ask"));
+}
+
+void TestApp::aDemoKeepsTheAgentsGateInMemory()
+{
+    using omaseed::core::StateFile;
+    QFile::remove(StateFile::path());
+    App app;
+    app.startDemo(16);
+    app.setAgentFixes(QStringLiteral("ask"));
+    QCOMPARE(app.agentFixes(), QStringLiteral("ask"));
+    QVERIFY2(StateFile::readSection(QStringLiteral("agents")).isEmpty(),
+             "a demo wrote the agents gate");
 }
 
 #include "tst_app.moc"

@@ -41,11 +41,24 @@ QString log(const QJsonObject &answer, const TextStyle &style);
 /// words, each landed one with what a move back would do, and how many more are kept.
 QString moves(const QJsonObject &answer, const TextStyle &style);
 
+/// do's answer (C45 V15, docs/62 §5's mock): "Allowed." when it asked, the outcome strip's
+/// words, and a line per torrent the server refused (red).
+QString doAnswer(const QJsonObject &answer, const TextStyle &style);
+/// `do --list` (C50 GT3): the Agents row's lines as they stand, then what is never done.
+QString doList(const QJsonObject &answer, const TextStyle &style);
+/// `do --dry-run` (C50 GT5): what would happen, nothing done.
+QString doDryRun(const QJsonObject &answer, const TextStyle &style);
+
+/// `do --plan` (C50 GT4, GT5; board 67 §6): the plan's head, what each line would do or did
+/// (done, failed, left unticked), and its last line.
+QString doPlan(const QJsonObject &answer, const TextStyle &style);
+
 /// A failure's words for stderr, wrapped at the width.
 QString failure(const QString &message, const TextStyle &style);
 
 /// `text` broken at spaces so no line is longer than `width` (a longer word stays whole);
-/// the first line starts with `first`, the others with `rest`. Each line ends in "\n".
+/// the first line starts with `first`, the others with `rest`; a "\n" in `text` starts a
+/// line too. Each line ends in "\n".
 QString wrap(const QString &text, int width, const QString &first, const QString &rest);
 
 /// "qBittorrent", "Transmission", "Deluge" for an engine's id; the id itself otherwise.

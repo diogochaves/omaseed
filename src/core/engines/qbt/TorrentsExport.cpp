@@ -26,13 +26,17 @@ TorrentsExport::~TorrentsExport()
 void TorrentsExport::start(const QString &path,
                            const QString &serverName,
                            const QString &serverUrl,
-                           const QString &appVersion)
+                           const QString &appVersion,
+                           const QStringList &only)
 {
     if (m_busy)
         return;
     m_busy = true;
     ++m_generation;
     m_path = path;
+    m_only.clear();
+    for (const QString &hash : only)
+        m_only.insert(hash.toLower());
     m_manifest = TorrentsManifest();
     m_manifest.engine = EngineKind::Qbittorrent; // DECISIONS C40 X1
     m_manifest.created = QDateTime::currentDateTimeUtc();
@@ -152,6 +156,21 @@ void TorrentsExport::step()
             if (r.isError())
                 return fail(r.error().toString());
             m_infos = r.value();
+            if (!m_only.isEmpty()) {
+                // C50 GT6: one torrent alone, known by any of its ids.
+                QJsonArray kept;
+                for (const QJsonValue &v : std::as_const(m_infos)) {
+                    const QJsonObject info = v.toObject();
+                    for (const char *key : {"hash", "infohash_v1", "infohash_v2"}) {
+                        const QString id = info.value(QLatin1String(key)).toString().toLower();
+                        if (!id.isEmpty() && m_only.contains(id)) {
+                            kept.append(info);
+                            break;
+                        }
+                    }
+                }
+                m_infos = kept;
+            }
             step();
         });
         return;

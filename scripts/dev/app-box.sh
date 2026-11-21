@@ -169,6 +169,8 @@ launch() {
     [ -n "${OMASEED_DISPLAY:-}" ] && pass+=(--pass OMASEED_DISPLAY)
     # A pinned skin (#171): OMASEED_SKIN wins over Settings › Appearance's choice.
     [ -n "${OMASEED_SKIN:-}" ] && pass+=(--pass OMASEED_SKIN)
+    # The ask's two minutes, shortened for a walk that lets one run out (#293, C45 V17).
+    [ -n "${OMASEED_ASK_TIMEOUT_MS:-}" ] && pass+=(--pass OMASEED_ASK_TIMEOUT_MS)
     # omabox run keeps this PATH: the box's own commands (up --transmission-podman's podman)
     # come first.
     local path="$PATH"
