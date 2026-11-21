@@ -825,6 +825,12 @@ omaseed_add_test(tst_agentgate
     LIBRARIES omaseed::core
 )
 
+# DECISIONS C45 V17 (#293): the program that started `omaseed do`, from /proc/PID/stat.
+omaseed_add_test(tst_procparent
+    SOURCES tst_procparent.cpp
+    LIBRARIES omaseed::core
+)
+
 # DECISIONS C45 V4, V6, V7, V8 (#163): the envelope, the options, --server's match, the reads'
 # JSON from plain inputs.
 omaseed_add_test(tst_agentanswers
