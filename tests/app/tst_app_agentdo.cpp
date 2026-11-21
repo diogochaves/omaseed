@@ -641,10 +641,10 @@ void TestAppAgentDo::notYetAndBusUsage()
     start();
     m_app->setAgentFixes(QStringLiteral("allow"));
     m_app->setAgentMoves(QStringLiteral("ask"));
-    QJsonObject object =
-        run(*m_service, QStringLiteral(R"({"action":"move","torrents":["3f9a1c0ea"],"to":"/x"})"));
+    QJsonObject object = run(
+        *m_service, QStringLiteral(R"({"action":"locate","torrents":["3f9a1c0ea"],"to":"/x"})"));
     QCOMPARE(codeOf(object), QStringLiteral("usage"));
-    QVERIFY(messageOf(object).contains(QStringLiteral("do move isn't in this omaseed yet")));
+    QVERIFY(messageOf(object).contains(QStringLiteral("do locate isn't in this omaseed yet")));
     // What busctl might send that the CLI never does.
     object = run(*m_service, QStringLiteral(R"({"action":"pause","torrents":["3f9a1c0ea"]})"));
     QCOMPARE(codeOf(object), QStringLiteral("usage"));

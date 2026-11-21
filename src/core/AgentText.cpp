@@ -588,6 +588,9 @@ QString doAnswer(const QJsonObject &answer, const TextStyle &style)
     if (answer.value(QLatin1String("asked")).toBool() &&
         answer.value(QLatin1String("answer")).toString() == QLatin1String("allowed"))
         outcome = QStringLiteral("Allowed. ") + outcome;
+    // #293: a move answers at its start with its job, as `omaseed moves` names it.
+    if (const QString job = answer.value(QLatin1String("job")).toString(); !job.isEmpty())
+        outcome += QStringLiteral(" (job %1)").arg(job);
     const QJsonArray failed = answer.value(QLatin1String("failed")).toArray();
     const QJsonArray done = answer.value(QLatin1String("done")).toArray();
     const QString head = wrap(outcome, style.width, QString(), QStringLiteral("  "));

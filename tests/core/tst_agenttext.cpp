@@ -533,6 +533,19 @@ void TestAgentText::doAnswerSaysTheOutcome()
     answer.insert(QStringLiteral("asked"), true);
     answer.insert(QStringLiteral("answer"), QStringLiteral("allowed"));
     QCOMPARE(doLines(answer), QStringLiteral("Allowed. Lantern Festival sent to recheck\n"));
+
+    // #293: a move's job, as omaseed moves names it; a queued one has none.
+    const QJsonObject move = doJson(
+        R"({"v":1,"command":"do","action":"move","asked":true,"answer":"allowed","to":"/data/music",
+            "job":"j-5e02","done":[{"hash":"3f9a","name":"Lantern Festival"}],"failed":[],
+            "outcome":"Moving 1 torrent to /data/music: omaseed moves follows it"})");
+    QCOMPARE(doLines(move),
+             QStringLiteral("Allowed. Moving 1 torrent to /data/music: omaseed moves follows it "
+                            "(job j-5e02)\n"));
+    QJsonObject queued = move;
+    queued.insert(QStringLiteral("job"), QJsonValue());
+    queued.insert(QStringLiteral("outcome"), QStringLiteral("Queued"));
+    QCOMPARE(doLines(queued), QStringLiteral("Allowed. Queued\n"));
 }
 
 void TestAgentText::doAnswerSaysWhatFailed()

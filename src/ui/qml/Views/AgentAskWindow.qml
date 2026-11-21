@@ -232,7 +232,9 @@ Window {
 
                         Layout.fillWidth: true
                         spacing: 0
-                        Accessible.name: nameRow.modelData.name + ", " + nameRow.modelData.line
+                        Accessible.name: nameRow.modelData.line ? nameRow.modelData.name + ", "
+                                                                  + nameRow.modelData.line :
+                                                                  nameRow.modelData.name
                         Accessible.role: Accessible.StaticText
 
                         Label {
@@ -258,7 +260,9 @@ Window {
                                 ground: Theme.on.idle
                             }
                             size: "caption"
-                            text: nameRow.modelData.line
+                            text: nameRow.modelData.line ?? ""
+                            // A move's rows are names alone; its folder is `where`, below.
+                            visible: text.length > 0
                         }
                     }
                 }
@@ -275,7 +279,47 @@ Window {
                     text: root.request.more ?? ""
                     visible: text.length > 0
                 }
+
+                // A move's folder, how much and the room there (docs/62 §5's move ask).
+                Label {
+                    Layout.fillWidth: true
+                    dim: true
+                    elide: Text.ElideMiddle
+                    ink: Ink {
+                        animated: false
+                        ground: Theme.on.idle
+                    }
+                    objectName: "askWhere"
+                    size: "caption"
+                    text: root.request.where ?? ""
+                    visible: text.length > 0
+                }
             }
+        }
+
+        // The move sheet's lines that say something (names there, left out, a move running).
+        Repeater {
+            model: root.request.checks ?? []
+
+            Label {
+                required property string modelData
+
+                Layout.fillWidth: true
+                objectName: "askCheck"
+                size: "caption"
+                text: modelData
+                wrapMode: Text.Wrap
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            dim: true
+            objectName: "askNote"
+            size: "caption"
+            text: root.request.note ?? ""
+            visible: text.length > 0
+            wrapMode: Text.Wrap
         }
 
         Label {

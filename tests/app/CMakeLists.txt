@@ -270,6 +270,13 @@ omaseed_add_test(tst_app_agentdo
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #293 (DECISIONS C45 V14, V15, V17, V18): `do move` and `do move-back` against a stand-in
+# qBittorrent whose save paths are a temporary folder: the ask, the job's id, by an agent.
+omaseed_add_test(tst_app_agentmove
+    SOURCES tst_app_agentmove.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
 omaseed_add_test(tst_addroute
     SOURCES tst_addroute.cpp

@@ -60,7 +60,8 @@ TestCase {
                           });
         return {
             "action": "recheck",
-            "head": count === 1 ? "An agent asks to recheck a torrent" : "An agent asks to recheck " + count + " torrents",
+            "head": count === 1 ? "An agent asks to recheck a torrent" :
+                                  "An agent asks to recheck " + count + " torrents",
             "torrents": torrents,
             "more": count > 4 ? "and " + (count - 4) + " more" : "",
             "word": "omaseed do",
@@ -124,7 +125,8 @@ TestCase {
         verify(names !== null);
         compare(findChild(window.sheet, "askMore").text, "and 2 more");
         const who = findChild(window.sheet, "askWho").text;
-        verify(who.indexOf("omaseed do") > 0 && who.indexOf("claude") > 0 && who.indexOf("(process 48213), at 15:19.") > 0, who);
+        verify(who.indexOf("omaseed do") > 0 && who.indexOf("claude") > 0 && who.indexOf(
+                   "(process 48213), at 15:19.") > 0, who);
         compare(findChild(window.sheet, "askWarning").text,
                 "omaseed can't tell who is behind a command. Allow it only if you asked for this.");
         // The head carries the skin's kana word where it draws one (Console's 依頼).
@@ -132,6 +134,52 @@ TestCase {
         compare(head.labelId, "agentAsk");
         compare(head.kana, Theme.labelKana ? "依頼" : "");
         window.refuse();
+    }
+
+    // #293 (docs/62 §5's move ask): names alone, then where to, how much and the room, the
+    // sheet's lines, and that the move's own checks run; the allow button says the move.
+    function test_a_move_says_where_how_much_and_the_room() {
+        const opened = testCase.makeOpen({
+                                             "action": "move",
+                                             "head": "An agent asks to move 2 torrents",
+                                             "torrents": [
+                                                 {
+                                                     "name": "Lantern Festival",
+                                                     "line": ""
+                                                 },
+                                                 {
+                                                     "name": "Harbour Bells",
+                                                     "line": ""
+                                                 }
+                                             ],
+                                             "more": "",
+                                             "where": "to /data/music-new · 48.0 GB · 512 GB free there",
+                                             "checks": ["1 is already in /data/music-new: left out."],
+                                             "note": "The move's own checks still run: room on the drive, names already there. Moves always ask, whatever Settings says.",
+                                             "word": "omaseed do",
+                                             "wordPid": 900,
+                                             "parent": "claude",
+                                             "parentPid": 48213,
+                                             "at": "15:19",
+                                             "allowText": "allow the move"
+                                         });
+        const window = opened.window;
+        compare(window.sheet.title, "An agent asks to move 2 torrents");
+        compare(findChild(window.sheet, "askWhere").text,
+                "to /data/music-new · 48.0 GB · 512 GB free there");
+        compare(findChild(window.sheet, "askWhere").visible, true);
+        compare(findChild(window.sheet, "askCheck").text,
+                "1 is already in /data/music-new: left out.");
+        verify(findChild(window.sheet, "askNote").text.indexOf("Moves always ask") > 0);
+        window.refuse();
+        compare(opened.ask.refused, 1);
+
+        // A fix's ask has none of them.
+        const fix = testCase.makeOpen(testCase.recheckRequest(1));
+        compare(findChild(fix.window.sheet, "askWhere").visible, false);
+        compare(findChild(fix.window.sheet, "askNote").visible, false);
+        compare(findChild(fix.window.sheet, "askCheck"), null);
+        fix.window.refuse();
     }
 
     function test_enter_with_no_button_does_nothing() {

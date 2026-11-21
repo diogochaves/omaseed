@@ -6,14 +6,18 @@
 #include "core/AgentWords.hpp"
 #include "core/AnnounceMask.hpp"
 #include "core/Format.hpp"
+#include "core/MoveHistory.hpp"
+#include "core/MoveJob.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TorrentProblem.hpp"
 #include "core/Version.hpp"
+#include "ui/app/AgentAsk.hpp"
 #include "ui/app/AgentService.hpp"
 #include "ui/app/App.hpp"
+#include "ui/app/MoveController.hpp"
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -21,6 +25,9 @@
 #include <QJsonObject>
 #include <QPointer>
 #include <QTime>
+#include <QTimer>
+
+#include <memory>
 
 namespace omaseed::app {
 
@@ -132,6 +139,34 @@ QString subjectOf(const QList<Answers::LogTorrent> &torrents)
     return countOf(torrents.size(), QStringLiteral("torrent"), QStringLiteral("torrents"));
 }
 
+/// An answer that ran nothing because of the ask: refused, unanswered, or not asked at all.
+QString
+notAskedAnswer(const QString &action, const QString &code, const QString &message, bool shown)
+{
+    auto fields = envelope(action);
+    fields.append({QStringLiteral("asked"), shown});
+    fields.append({QStringLiteral("answer"),
+                   code == QLatin1String("refused") ? QStringLiteral("refused")
+                                                    : QStringLiteral("no-answer")});
+    fields.append(
+        {QStringLiteral("error"),
+         QJsonObject{{QStringLiteral("code"), code}, {QStringLiteral("message"), message}}});
+    return QString::fromUtf8(AgentWords::orderedJson(fields));
+}
+
+/// The journal names what started the word (V17), else the word's own pid.
+core::AgentOrigin originOf(const core::ProcParent::Caller &caller, bool asked)
+{
+    core::AgentOrigin origin;
+    origin.caller = caller.parent;
+    origin.pid = caller.parentPid != 0 ? caller.parentPid : caller.wordPid;
+    origin.asked = asked;
+    return origin;
+}
+
+/// How long an agent's move waits for its plan's file lists, listings and room (#293).
+constexpr int kPlanWaitMs = 20000;
+
 } // namespace
 
 AgentDo::AgentDo(App *app, AgentService *service)
@@ -181,11 +216,7 @@ void AgentDo::proceed(const QString &json,
     const AgentGate::Decision decision = gate.decide(action);
     // C45 V18: a refusal by the gate is still an agent's try, for the journal and the row's
     // last line; a dry run tried nothing (GT5).
-    // The journal names what started the word (V17), else the word's own pid.
-    core::AgentOrigin origin;
-    origin.caller = caller.parent;
-    origin.pid = caller.parentPid != 0 ? caller.parentPid : caller.wordPid;
-    origin.asked = asked;
+    const core::AgentOrigin origin = originOf(caller, asked);
     const auto noteRefused = [this, &options, &action, &origin](const QString &how,
                                                                 const QString &subject = {}) {
         if (!options.dryRun)
@@ -222,15 +253,34 @@ void AgentDo::proceed(const QString &json,
                                    QStringLiteral("reannounce"),
                                    QStringLiteral("dismiss"),
                                    QStringLiteral("pause"),
-                                   QStringLiteral("resume")};
+                                   QStringLiteral("resume"),
+                                   QStringLiteral("move"),
+                                   QStringLiteral("move-back")};
     if (!built.contains(action)) {
-        // move, move-back (S6), locate (S8), remove (S10).
+        // locate (S8), remove (S10).
         fail(QStringLiteral("usage"), AgentWords::notYet(QStringLiteral("do ") + action));
         return;
     }
     const bool serverWide = action == QLatin1String("pause") || action == QLatin1String("resume");
-    if (!options.to.isEmpty() || !options.move.isEmpty() ||
-        serverWide != options.torrents.isEmpty()) {
+    const bool isMove = action == QLatin1String("move");
+    const bool isBack = action == QLatin1String("move-back");
+    if (isMove &&
+        (options.to.trimmed().isEmpty() || !options.move.isEmpty() || options.torrents.isEmpty())) {
+        fail(QStringLiteral("usage"),
+             QStringLiteral("omaseed: do move takes the torrents' hashes and --to FOLDER: "
+                            "omaseed do move 3f9a1c0e --to /data/music."));
+        return;
+    }
+    if (isBack && (options.move.trimmed().isEmpty() || !options.to.isEmpty() ||
+                   !options.torrents.isEmpty())) {
+        fail(QStringLiteral("usage"),
+             QStringLiteral("omaseed: do move-back takes one move's id: omaseed moves --json "
+                            "gives them."));
+        return;
+    }
+    if (!isMove && !isBack &&
+        (!options.to.isEmpty() || !options.move.isEmpty() ||
+         serverWide != options.torrents.isEmpty())) {
         // The CLI never sends these (AgentWords::parse); busctl might.
         fail(QStringLiteral("usage"),
              serverWide ? QStringLiteral("omaseed: do %1 takes no torrents: it holds the whole "
@@ -284,6 +334,20 @@ void AgentDo::proceed(const QString &json,
             continue;
         hashes << match.torrent.hash;
         torrents << match.torrent;
+    }
+
+    // Moves plan first, as the window's sheet does (#293).
+    if (isMove || isBack) {
+        proceedMove(json,
+                    caller,
+                    reply,
+                    asked,
+                    options.dryRun,
+                    action,
+                    hashes,
+                    options.to.trimmed(),
+                    options.move.trimmed());
+        return;
     }
 
     // What each action needs of its torrents (refused: nothing runs).
@@ -356,62 +420,12 @@ void AgentDo::proceed(const QString &json,
     }
 
     if (decision == AgentGate::Decision::Ask && !asked) {
-        // V17: the person answers in the `omaseed · agent` window. Refused or unanswered, the
-        // answer says so and nothing runs; allowed, every check is made again (a setting turned
-        // off meanwhile wins, a torrent gone is unknown) and it runs as asked.
-        const QString subject = serverWide ? current.name : subjectOf(torrents);
-        const auto notAsked = [action](const QString &code, const QString &message, bool shown) {
-            auto fields = envelope(action);
-            fields.append({QStringLiteral("asked"), shown});
-            fields.append({QStringLiteral("answer"),
-                           code == QLatin1String("refused") ? QStringLiteral("refused")
-                                                            : QStringLiteral("no-answer")});
-            fields.append({QStringLiteral("error"),
-                           QJsonObject{{QStringLiteral("code"), code},
-                                       {QStringLiteral("message"), message}}});
-            return QString::fromUtf8(AgentWords::orderedJson(fields));
-        };
-        QPointer<AgentDo> self(this);
-        const bool opened = m_app->agentAsk()->ask(
-            askRequest(action, hashes, current.name, caller),
-            [self, json, caller, reply, action, subject, origin, notAsked](const QString &answer,
-                                                                           const QVariantList &) {
-                if (answer == QLatin1String("allowed")) {
-                    if (!self.isNull()) {
-                        self->proceed(json, caller, reply, true);
-                        return;
-                    }
-                    reply(notAsked(QStringLiteral("no-answer"),
-                                   QStringLiteral("omaseed went away before it could run it: "
-                                                  "not done."),
-                                   true));
-                    return;
-                }
-                const bool refused = answer == QLatin1String("refused");
-                if (!self.isNull())
-                    self->m_app->noteAgentRefusal(action,
-                                                  refused
-                                                      ? QStringLiteral("refused in the window")
-                                                      : QStringLiteral("no answer in the window"),
-                                                  origin,
-                                                  subject);
-                // docs/62 V13's words.
-                reply(refused ? notAsked(QStringLiteral("refused"),
-                                         QStringLiteral("Refused in omaseed's window: not done."),
-                                         true)
-                              : notAsked(QStringLiteral("no-answer"),
-                                         QStringLiteral("Nobody answered in omaseed's window for "
-                                                        "2 minutes: not done."),
-                                         true));
-            });
-        if (!opened) {
-            // PLAN Q5: one ask at a time, no queue.
-            noteRefused(QStringLiteral("not asked: another ask was open"), subject);
-            reply(notAsked(QStringLiteral("no-answer"),
-                           QStringLiteral("Another ask is open in omaseed's window, so this one "
-                                          "wasn't asked: not done. Ask again once it is answered."),
-                           false));
-        }
+        askFirst(json,
+                 caller,
+                 reply,
+                 action,
+                 serverWide ? current.name : subjectOf(torrents),
+                 askRequest(action, hashes, current.name, caller));
         return;
     }
 
@@ -558,14 +572,375 @@ QVariantMap AgentDo::askRequest(const QString &action,
                            ? QStringLiteral("and %1 more").arg(hashes.size() - kShown)
                            : QString());
     }
+    addCaller(&request, caller);
+    request.insert(QStringLiteral("allowText"), QStringLiteral("allow"));
+    return request;
+}
+
+void AgentDo::addCaller(QVariantMap *request, const core::ProcParent::Caller &caller)
+{
     // V17: the word as the person typed it when it is omaseed's, else the program's own name.
     const bool ours = caller.word.isEmpty() || caller.word == QLatin1String("omaseed");
-    request.insert(QStringLiteral("word"), ours ? QStringLiteral("omaseed do") : caller.word);
-    request.insert(QStringLiteral("wordPid"), caller.wordPid);
-    request.insert(QStringLiteral("parent"), caller.parent);
-    request.insert(QStringLiteral("parentPid"), caller.parentPid);
-    request.insert(QStringLiteral("at"), QTime::currentTime().toString(QStringLiteral("HH:mm")));
-    request.insert(QStringLiteral("allowText"), QStringLiteral("allow"));
+    request->insert(QStringLiteral("word"), ours ? QStringLiteral("omaseed do") : caller.word);
+    request->insert(QStringLiteral("wordPid"), caller.wordPid);
+    request->insert(QStringLiteral("parent"), caller.parent);
+    request->insert(QStringLiteral("parentPid"), caller.parentPid);
+    request->insert(QStringLiteral("at"), QTime::currentTime().toString(QStringLiteral("HH:mm")));
+}
+
+void AgentDo::askFirst(const QString &json,
+                       const core::ProcParent::Caller &caller,
+                       const Reply &reply,
+                       const QString &action,
+                       const QString &subject,
+                       const QVariantMap &request)
+{
+    // V17: the person answers in the `omaseed · agent` window. Refused or unanswered, the
+    // answer says so and nothing runs; allowed, every check is made again (a setting turned
+    // off meanwhile wins, a torrent gone is unknown) and it runs as asked.
+    const core::AgentOrigin origin = originOf(caller, false);
+    QPointer<AgentDo> self(this);
+    const bool opened = m_app->agentAsk()->ask(
+        request,
+        [self, json, caller, reply, action, subject, origin](const QString &answer,
+                                                             const QVariantList &) {
+            if (answer == QLatin1String("allowed")) {
+                if (!self.isNull()) {
+                    self->proceed(json, caller, reply, true);
+                    return;
+                }
+                reply(notAskedAnswer(action,
+                                     QStringLiteral("no-answer"),
+                                     QStringLiteral("omaseed went away before it could run it: "
+                                                    "not done."),
+                                     true));
+                return;
+            }
+            const bool refused = answer == QLatin1String("refused");
+            if (!self.isNull())
+                self->m_app->noteAgentRefusal(action,
+                                              refused ? QStringLiteral("refused in the window")
+                                                      : QStringLiteral("no answer in the window"),
+                                              origin,
+                                              subject);
+            // docs/62 V13's words.
+            reply(refused ? notAskedAnswer(action,
+                                           QStringLiteral("refused"),
+                                           QStringLiteral("Refused in omaseed's window: not done."),
+                                           true)
+                          : notAskedAnswer(action,
+                                           QStringLiteral("no-answer"),
+                                           QStringLiteral("Nobody answered in omaseed's window for "
+                                                          "2 minutes: not done."),
+                                           true));
+        });
+    if (!opened) {
+        // PLAN Q5: one ask at a time, no queue.
+        m_app->noteAgentRefusal(
+            action, QStringLiteral("not asked: another ask was open"), origin, subject);
+        reply(notAskedAnswer(action,
+                             QStringLiteral("no-answer"),
+                             QStringLiteral("Another ask is open in omaseed's window, so this one "
+                                            "wasn't asked: not done. Ask again once it is "
+                                            "answered."),
+                             false));
+    }
+}
+
+// ---- moves (#293, C45 V14, V15, V17) ---------------------------------------------------------
+
+void AgentDo::whenPlanned(const std::function<QVariantMap()> &make,
+                          const std::function<void(const QVariantMap &)> &done)
+{
+    // The sheet's plan fills in as the file lists, the listings and the server's room come in
+    // (planChanged); an agent's move is checked on the whole of it, as a start waits for it.
+    const QVariantMap first = make();
+    if (!first.value(QStringLiteral("pending")).toBool()) {
+        done(first);
+        return;
+    }
+    struct Wait
+    {
+        QMetaObject::Connection changed;
+        bool over = false;
+    };
+    auto wait = std::make_shared<Wait>();
+    const auto finish = [wait, make, done](bool timedOut) {
+        if (wait->over)
+            return;
+        const QVariantMap words = make();
+        if (!timedOut && words.value(QStringLiteral("pending")).toBool())
+            return;
+        wait->over = true;
+        QObject::disconnect(wait->changed);
+        done(words);
+    };
+    wait->changed =
+        connect(m_app->move(), &MoveController::planChanged, this, [finish]() { finish(false); });
+    QTimer::singleShot(kPlanWaitMs, this, [finish]() { finish(true); });
+}
+
+void AgentDo::proceedMove(const QString &json,
+                          const core::ProcParent::Caller &caller,
+                          const Reply &reply,
+                          bool asked,
+                          bool dryRun,
+                          const QString &action,
+                          const QStringList &hashes,
+                          const QString &to,
+                          const QString &moveQuery)
+{
+    MoveController *move = m_app->move();
+    const QString serverName = m_service->currentServer().name;
+    const bool back = action == QLatin1String("move-back");
+    const auto fail = [reply](const QString &code, const QString &message) {
+        reply(AgentService::failure(kCommand, code, message));
+    };
+    if (move == nullptr || move->job() == nullptr) {
+        fail(QStringLiteral("failed"),
+             QStringLiteral("omaseed can't move on %1 now: it has no move job there.")
+                 .arg(serverName));
+        return;
+    }
+
+    // move-back: MOVE is a landed move's id as `omaseed moves --json` gives it, or 8 or more of
+    // its first characters (as a hash is). PLAN Q7: one it doesn't know is refused.
+    QString id;
+    if (back) {
+        QStringList found;
+        for (const core::MoveRecord &record : move->history().records()) {
+            if (record.id == moveQuery) {
+                found = {record.id};
+                break;
+            }
+            if (moveQuery.size() >= 8 && record.id.startsWith(moveQuery, Qt::CaseInsensitive))
+                found << record.id;
+        }
+        if (found.size() > 1) {
+            fail(QStringLiteral("ambiguous"),
+                 QStringLiteral("%1 starts %2 of %3's landed moves: give more of its id.")
+                     .arg(moveQuery)
+                     .arg(found.size())
+                     .arg(serverName));
+            return;
+        }
+        if (found.isEmpty()) {
+            fail(QStringLiteral("refused"),
+                 QStringLiteral("Not moved back: %1 keeps no landed move %2. omaseed moves --json "
+                                "gives the ids of the last moves.")
+                     .arg(serverName, moveQuery));
+            return;
+        }
+        id = found.constFirst();
+    }
+
+    QPointer<AgentDo> self(this);
+    const auto make = [self, back, id, hashes, to]() -> QVariantMap {
+        if (self.isNull() || self->m_app->move() == nullptr)
+            return {};
+        MoveController *controller = self->m_app->move();
+        return back ? controller->planBackOf(id)
+                    : controller->planSelection(hashes, to, QStringLiteral("oneFolder"));
+    };
+    whenPlanned(
+        make,
+        [self, json, caller, reply, asked, dryRun, action, back, id, hashes, to, serverName, fail](
+            const QVariantMap &words) {
+            if (self.isNull())
+                return;
+            if (words.isEmpty()) {
+                fail(QStringLiteral("refused"),
+                     QStringLiteral("Not moved back: nothing of that move is left to move back."));
+                return;
+            }
+            if (words.value(QStringLiteral("pending")).toBool()) {
+                fail(
+                    QStringLiteral("failed"),
+                    QStringLiteral("omaseed couldn't read what the move needs from %1 in time: not "
+                                   "moved.")
+                        .arg(serverName));
+                return;
+            }
+            // C15, C16: a check that blocks the sheet's move refuses it here, in the sheet's words.
+            if (!words.value(QStringLiteral("canMove")).toBool()) {
+                QString why = words.value(QStringLiteral("blocker")).toString();
+                for (const QVariant &value : words.value(QStringLiteral("checks")).toList()) {
+                    const QVariantMap line = value.toMap();
+                    const QString kind = line.value(QStringLiteral("kind")).toString();
+                    if (why.isEmpty() &&
+                        (kind == QLatin1String("bad") || kind == QLatin1String("warn")))
+                        why = line.value(QStringLiteral("text")).toString();
+                }
+                if (why.isEmpty())
+                    why = QStringLiteral("nothing to move.");
+                if (!dryRun)
+                    self->m_app->noteAgentRefusal(action,
+                                                  QStringLiteral("refused: %1").arg(why),
+                                                  originOf(caller, asked),
+                                                  words.value(QStringLiteral("title")).toString());
+                fail(QStringLiteral("refused"),
+                     core::AnnounceMask::maskText((back ? QStringLiteral("Not moved back: %1")
+                                                        : QStringLiteral("Not moved: %1"))
+                                                      .arg(why)));
+                return;
+            }
+
+            // What it moves: the plan's torrents (some may be left out, the ask shows why).
+            const QStringList moving = words.value(QStringLiteral("moveHashes")).toStringList();
+            const core::TorrentModel *model = self->m_app->engine()->torrents();
+            QJsonArray done;
+            QStringList names;
+            for (const QString &hash : moving) {
+                const int row = model->indexOfHash(hash);
+                const QString name = row >= 0 ? model->torrentAt(row).name : QString();
+                names << name;
+                done.append(
+                    QJsonObject{{QStringLiteral("hash"), hash}, {QStringLiteral("name"), name}});
+            }
+            const QString many =
+                countOf(moving.size(), QStringLiteral("torrent"), QStringLiteral("torrents"));
+            const QString subject = moving.size() == 1 ? names.constFirst() : many;
+            const QString where = back ? QStringLiteral("back, each to where it was")
+                                       : QStringLiteral("to %1").arg(to);
+
+            if (dryRun) {
+                // GT5: every check made, nothing asked; moves always ask.
+                auto fields = envelope(action);
+                fields.append({QStringLiteral("dryRun"), true});
+                fields.append({QStringLiteral("would"), QStringLiteral("ask")});
+                if (!back)
+                    fields.append({QStringLiteral("to"), to});
+                fields.append({QStringLiteral("torrents"), done});
+                fields.append({QStringLiteral("outcome"),
+                               core::AnnounceMask::maskText(
+                                   QStringLiteral("%1 would ask in omaseed's window · %2 %3")
+                                       .arg(action, many, where))});
+                reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+                return;
+            }
+            if (!asked) {
+                // C45 V14, C50 GT3: a move always asks, whatever its line says (never allow).
+                self->askFirst(json,
+                               caller,
+                               reply,
+                               action,
+                               subject,
+                               self->moveRequest(action, words, to, id, caller));
+                return;
+            }
+
+            // Allowed in the window, checked again just now: the job starts, or waits behind the
+            // running one (L12, PLAN Q6).
+            MoveController *controller = self->m_app->move();
+            const core::MoveJob *job = controller->job();
+            const qsizetype queuedBefore = job->queuedTitles().size();
+            const QDateTime startedBefore = job->startedAt();
+            controller->startNextBy(QStringLiteral("agent")); // C45 V18
+            const bool started =
+                back ? controller->startBackOf(id)
+                     : controller->startSelection(hashes, to, QStringLiteral("oneFolder"));
+            if (!started) {
+                fail(QStringLiteral("failed"),
+                     QStringLiteral("omaseed couldn't start the move on %1: not moved.")
+                         .arg(serverName));
+                return;
+            }
+            const qsizetype queued = job->queuedTitles().size();
+            QJsonValue jobId; // null: queued, or still reading what it needs
+            if (queued <= queuedBefore && job->isActive() && job->startedAt().isValid() &&
+                job->startedAt() != startedBefore)
+                jobId = Answers::runningMoveId(job->startedAt());
+
+            App::AgentAct act;
+            act.word = action;
+            act.origin = originOf(caller, true);
+            core::ActionOutcome outcome;
+            outcome.action = back ? QStringLiteral("moveBack") : QStringLiteral("move");
+            outcome.hashes = moving;
+            self->m_app->noteAgentAct(act, subject, outcome);
+
+            auto fields = envelope(action);
+            fields.append({QStringLiteral("asked"), true});
+            fields.append({QStringLiteral("answer"), QStringLiteral("allowed")});
+            if (!back)
+                fields.append({QStringLiteral("to"), to});
+            fields.append({QStringLiteral("job"), jobId});
+            if (queued > queuedBefore)
+                fields.append({QStringLiteral("queued"), int(queued)});
+            fields.append({QStringLiteral("done"), done});
+            fields.append({QStringLiteral("failed"), QJsonArray()});
+            const QString said =
+                queued > queuedBefore
+                    ? QStringLiteral(
+                          "Queued behind the move of %1: %2 %3, omaseed moves follows it")
+                          .arg(job->title(), many, where)
+                    : QStringLiteral("Moving %1 %2: omaseed moves follows it").arg(many, where);
+            fields.append({QStringLiteral("outcome"), core::AnnounceMask::maskText(said)});
+            reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+        });
+}
+
+QVariantMap AgentDo::moveRequest(const QString &action,
+                                 const QVariantMap &words,
+                                 const QString &to,
+                                 const QString &moveId,
+                                 const core::ProcParent::Caller &caller) const
+{
+    // docs/62 §5's move ask: the torrents by name, then where to, how much and the room there
+    // ("to /data/music-new · 48.0 GB · 512 GB free there"), and that the move's own checks run.
+    constexpr qsizetype kShown = 4;
+    const bool back = action == QLatin1String("move-back");
+    const QStringList moving = words.value(QStringLiteral("moveHashes")).toStringList();
+    const core::TorrentModel *model = m_app->engine()->torrents();
+    const core::MoveRecord *record = back ? m_app->move()->history().find(moveId) : nullptr;
+    QVariantMap request;
+    request.insert(QStringLiteral("action"), action);
+    const QString count = moving.size() == 1 ? QStringLiteral("a torrent")
+                                             : QStringLiteral("%1 torrents").arg(moving.size());
+    request.insert(QStringLiteral("head"),
+                   back ? QStringLiteral("An agent asks to move %1 back").arg(count)
+                        : QStringLiteral("An agent asks to move %1").arg(count));
+    QVariantList torrents;
+    for (const QString &hash : moving) {
+        if (torrents.size() == kShown)
+            break;
+        const int row = model->indexOfHash(hash);
+        if (row < 0)
+            continue;
+        // A move back sends each to its own place: the line says which.
+        const QString line = record != nullptr && record->from.contains(hash)
+                                 ? QStringLiteral("back to %1").arg(record->from.value(hash))
+                                 : QString();
+        torrents.append(QVariantMap{{QStringLiteral("name"), model->torrentAt(row).name},
+                                    {QStringLiteral("line"), line}});
+    }
+    request.insert(QStringLiteral("torrents"), torrents);
+    request.insert(QStringLiteral("more"),
+                   moving.size() > kShown
+                       ? QStringLiteral("and %1 more").arg(moving.size() - kShown)
+                       : QString());
+    // "to FOLDER · SIZE · ROOM": the size on disk the sheet's header counts.
+    QStringList where{back ? QStringLiteral("each back to where it was")
+                           : QStringLiteral("to %1").arg(to)};
+    where << core::Format::size(words.value(QStringLiteral("bytes")).toLongLong());
+    if (const QString room = words.value(QStringLiteral("roomText")).toString(); !room.isEmpty())
+        where << room;
+    request.insert(QStringLiteral("where"), where.join(QStringLiteral(" · ")));
+    // The sheet's lines that say something (names there, left out, a move running first), in
+    // its words; its green "all fine" line is the room above.
+    QStringList checks;
+    for (const QVariant &value : words.value(QStringLiteral("checks")).toList()) {
+        const QVariantMap line = value.toMap();
+        if (line.value(QStringLiteral("kind")).toString() != QLatin1String("ok"))
+            checks << line.value(QStringLiteral("text")).toString();
+    }
+    request.insert(QStringLiteral("checks"), checks);
+    request.insert(QStringLiteral("note"),
+                   QStringLiteral("The move's own checks still run: room on the drive, names "
+                                  "already there. Moves always ask, whatever Settings says."));
+    addCaller(&request, caller);
+    request.insert(QStringLiteral("allowText"),
+                   back ? QStringLiteral("allow the move back") : QStringLiteral("allow the move"));
     return request;
 }
 

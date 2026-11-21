@@ -8,13 +8,19 @@
 // 1. the options (usage); `list` answers the gate's lines as they stand, whatever it says;
 // 2. a demo acts on nothing (not-allowed; PLAN Q15);
 // 3. the gate (AgentGate::decide): never, not-allowed (reads off, or the kind's line off);
-// 4. an action not in this build yet (move, move-back, locate, remove: usage);
+// 4. an action not in this build yet (locate, remove: usage);
 // 5. the server, as the reads check it: --server, not-current, first-sync, unreachable;
 // 6. every torrent matched (unknown-torrent, ambiguous) and checked for its action
 //    (start-here, dismiss, resume: refused, with why);
 // 7. --dry-run answers what would happen; ask opens the `omaseed · agent` window (AgentAsk,
 //    V17) and, once allowed there, makes every check again before it runs (a setting turned
 //    off meanwhile wins); allow runs it.
+//
+// Moves (#293, C45 V14, V15): `move --to FOLDER` and `move-back MOVE` plan as the window's move
+// sheet does (MoveController, C15/C16: room, names there) and wait for the plan's every check;
+// one that blocks is refused with the sheet's words, else they ask (never allow, C50 GT3) with
+// where to, how much and the room. Allowed, the job starts (or queues, L12) and the word
+// answers at its start with the job's id; the job, its record and the story say "by an agent".
 //
 // The fixes here: retry, start-here (a start, for a torrent the engine stopped after a failed
 // move; on an engine that pauses on error, recheck first), recheck, reannounce, dismiss, and
@@ -24,6 +30,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 
 #include <functional>
@@ -54,6 +61,37 @@ private:
                  const core::ProcParent::Caller &caller,
                  const Reply &reply,
                  bool asked);
+    /// The person's answer in the `omaseed · agent` window (V17), then the act once allowed
+    /// (proceed again, `asked`); refused, unanswered or another ask open, the answer says so.
+    void askFirst(const QString &json,
+                  const core::ProcParent::Caller &caller,
+                  const Reply &reply,
+                  const QString &action,
+                  const QString &subject,
+                  const QVariantMap &request);
+    /// A move or a move back (#293): planned, checked, asked, started.
+    void proceedMove(const QString &json,
+                     const core::ProcParent::Caller &caller,
+                     const Reply &reply,
+                     bool asked,
+                     bool dryRun,
+                     const QString &action,
+                     const QStringList &hashes,
+                     const QString &to,
+                     const QString &moveId);
+    /// MoveController's plan (`make`), once it has every check in (`pending` false), or after
+    /// a while with what it has: `done` gets it.
+    void whenPlanned(const std::function<QVariantMap()> &make,
+                     const std::function<void(const QVariantMap &)> &done);
+    /// The ask's map for a move: its torrents, where, how much and the room (C45 V17).
+    QVariantMap moveRequest(const QString &action,
+                            const QVariantMap &words,
+                            const QString &to,
+                            const QString &moveId,
+                            const core::ProcParent::Caller &caller) const;
+    /// The caller's part of an ask's map (word, parent, when).
+    static void addCaller(QVariantMap *request, const core::ProcParent::Caller &caller);
+
     /// The `omaseed · agent` window's map for one act (AgentAsk's `request`).
     QVariantMap askRequest(const QString &action,
                            const QStringList &hashes,

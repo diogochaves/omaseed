@@ -21,7 +21,11 @@
 //   parentPid  its pid
 //   at         when it asked, "15:19"
 //   allowText  the allow button's words ("allow")
-// S6, S8, S10 and S11 add keys of their own (a move's folder, a plan's lines and ticks).
+// A move (#293) adds, and its torrents' `line` is "" (a move) or "back to FOLDER" (a move back):
+//   where      "to /data/music-new · 48.0 GB · 512 GB free there"
+//   checks     the move sheet's lines that say something (names there, left out), as text
+//   note       that the move's own checks still run and moves always ask
+// S8, S10 and S11 add keys of their own (a plan's lines and ticks).
 
 #include <QObject>
 #include <QTimer>
