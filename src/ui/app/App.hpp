@@ -25,6 +25,7 @@
 
 #include "core/ActionOutcome.hpp"
 #include "core/AddFilesModel.hpp"
+#include "core/AgentGate.hpp"
 #include "core/AltPresets.hpp"
 #include "core/AltSpeed.hpp"
 #include "core/AutoBackup.hpp"
@@ -1885,6 +1886,44 @@ private:
     omaseed::integration::AgentSkill *m_agentSkill =
         new omaseed::integration::AgentSkill(QString(), this);
     // --- end #286 -------------------------------------------------------------------------------
+
+    // --- #291: what an agent may do (DECISIONS C50 GT3, GT8) -----------------------------------
+    // The gate in state.json's "agents" section, read the first time it is asked. Only the
+    // Agents row writes it: first run and the package never change it (GT3), and a demo's
+    // writes stay in memory like every other section's.
+public:
+    /// "on" (default) or "off" (GT8): off, every read and `do` answer not-allowed.
+    Q_PROPERTY(QString agentReads READ agentReads WRITE setAgentReads NOTIFY agentsChanged)
+    /// "off" (default) · "ask" · "allow".
+    Q_PROPERTY(QString agentFixes READ agentFixes WRITE setAgentFixes NOTIFY agentsChanged)
+    /// "off" (default) · "ask"; an "allow" is taken as ask (GT3).
+    Q_PROPERTY(QString agentMoves READ agentMoves WRITE setAgentMoves NOTIFY agentsChanged)
+    /// "off" (default) · "ask"; an "allow" is taken as ask (GT1, GT3).
+    Q_PROPERTY(QString agentRemove READ agentRemove WRITE setAgentRemove NOTIFY agentsChanged)
+    /// The row's last line (C45 V18): {text, at}; empty until something was done through `do`.
+    Q_PROPERTY(QVariantMap agentLast READ agentLast NOTIFY agentsChanged)
+    QString agentReads() const { return agentGate().readsLevel(); }
+    QString agentFixes() const;
+    QString agentMoves() const;
+    QString agentRemove() const;
+    QVariantMap agentLast() const;
+    void setAgentReads(const QString &level);
+    void setAgentFixes(const QString &level);
+    void setAgentMoves(const QString &level);
+    void setAgentRemove(const QString &level);
+    /// What the last act through `do` was (C45 V18), saved with the gate.
+    void setAgentLast(const QString &text, const QDateTime &at);
+    const omaseed::core::AgentGate &agentGate() const;
+
+Q_SIGNALS:
+    void agentsChanged();
+
+private:
+    void setAgentLevel(omaseed::core::AgentGate::Kind kind, const QString &level);
+    void saveAgentGate();
+    mutable omaseed::core::AgentGate m_agentGate;
+    mutable bool m_agentGateLoaded = false;
+    // --- end #291 -------------------------------------------------------------------------------
 
     // --- #24: the seed console (docs/22) -------------------------------------------------------
     // The ledger keeps what the server gave and took over time (one file per server); the

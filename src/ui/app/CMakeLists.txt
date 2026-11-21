@@ -5,6 +5,7 @@ qt_add_library(omaseed-app STATIC
     AddRoute.hpp
     App.cpp
     App.hpp
+    AppAgents.cpp
     AppBarMenu.cpp
     AppLibrary.cpp
     AppCreate.cpp
