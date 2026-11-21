@@ -515,7 +515,10 @@ int exitFor(const QString &code)
     static const QStringList notDone{QStringLiteral("not-allowed"),
                                      QStringLiteral("never"),
                                      QStringLiteral("refused"),
-                                     QStringLiteral("no-answer")};
+                                     QStringLiteral("no-answer"),
+                                     // C50 GT1, GT2: remove and locate's refusals.
+                                     QStringLiteral("not-removable"),
+                                     QStringLiteral("not-found")};
     // C37 U3, U5, U6: the skins' words.
     static const QStringList skinUsage{QStringLiteral("unknown-skin"),
                                        QStringLiteral("bad-name"),

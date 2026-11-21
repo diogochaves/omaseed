@@ -2,7 +2,8 @@
 
 // AgentService — the app's side of `io.github.diogochaves.omaseed.Agent` (DECISIONS C45 V3):
 // it reads App's models into core::AgentAnswers' plain inputs and answers with their JSON.
-// integration::AgentBus exports the interface and calls this; nothing here acts.
+// integration::AgentBus exports the interface and calls this; nothing here acts. While the
+// Agents row's Reads is off (C50 GT8), every read answers not-allowed; `skin use` stays.
 //
 // What it never reads (C45 V7): a server's username, its URL beyond host:port, the secret
 // store, a cookie. Every free text goes out through AgentAnswers, which masks it.
@@ -58,6 +59,8 @@ public Q_SLOTS:
 private:
     /// A failure the app makes for `command` (C45 V4).
     static QString failure(const QString &command, const QString &code, const QString &message);
+    /// C50 GT8's not-allowed for `command` while Reads is off in the Agents row; "" while on.
+    QString readsOff(const QString &command) const;
     /// `--server QUERY`'s failure for `command`, "" when it names a saved server; that one's
     /// id in `id`.
     QString serverFailure(const QString &command, const QString &query, QString *id) const;

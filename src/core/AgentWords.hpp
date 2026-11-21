@@ -97,8 +97,9 @@ QString notYet(const QString &word);
 
 /// The exit for an error code (C45 V13): 2 usage, unknown-server, ambiguous, and the skins'
 /// unknown-skin, bad-name, skin-exists, no-theme; 3 not-running, too-old, no-bus, no-reply;
-/// 4 not-current, unreachable, no-log, unknown-torrent, first-sync; 5 the actions' and
-/// not-written; 6 failed. 0 for "" (answered), 1 for unreadable and a code it doesn't know.
+/// 4 not-current, unreachable, no-log, unknown-torrent, first-sync; 5 the actions' (with
+/// C50's not-removable and not-found) and not-written; 6 failed. 0 for "" (answered), 1 for
+/// unreadable and a code it doesn't know.
 int exitFor(const QString &code);
 
 /// ISO 8601 in UTC with seconds and Z ("2026-11-12T14:03:11Z"); null when invalid (C45 V4).

@@ -452,7 +452,8 @@ void TestAgentWords::exitForEveryCode_data()
     for (const char *code :
          {"not-current", "unreachable", "no-log", "unknown-torrent", "first-sync"})
         QTest::newRow(code) << code << 4;
-    for (const char *code : {"not-allowed", "never", "refused", "no-answer"})
+    for (const char *code :
+         {"not-allowed", "never", "refused", "no-answer", "not-removable", "not-found"})
         QTest::newRow(code) << code << 5;
     QTest::newRow("failed") << "failed" << 6;
     QTest::newRow("a code it doesn't know") << "zebra" << 1;
