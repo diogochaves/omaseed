@@ -325,13 +325,17 @@ DelugeTorrentsExport::reach(DelugeEngine *engine, const QString &torrentsFolder,
 void DelugeTorrentsExport::start(const QString &path,
                                  const QString &serverName,
                                  const QString &serverUrl,
-                                 const QString &appVersion)
+                                 const QString &appVersion,
+                                 const QStringList &only)
 {
     if (m_busy)
         return;
     m_busy = true;
     ++m_generation;
     m_path = path;
+    m_only.clear();
+    for (const QString &hash : only)
+        m_only.insert(hash.toLower());
     m_manifest = TorrentsManifest();
     m_manifest.engine = EngineKind::Deluge; // DECISIONS C40 X1
     m_manifest.created = QDateTime::currentDateTimeUtc();
@@ -460,11 +464,14 @@ void DelugeTorrentsExport::readList()
                 const QString id = text(row, "hash");
                 if (id.isEmpty())
                     continue;
-                m_ids.append(id);
-                // Deluge queues only what isn't finished: -1 is "not in it".
+                // Deluge queues only what isn't finished: -1 is "not in it". Counted whatever
+                // `only` says: its place is among them all.
                 const qint64 queue = integer(row, "queue", -1);
                 if (queue >= 0)
                     unfinished.append({queue, id});
+                if (!m_only.isEmpty() && !m_only.contains(id.toLower()))
+                    continue; // C50 GT6: one torrent alone
+                m_ids.append(id);
                 // What the manifest says before the torrents are read: a link for want of
                 // metadata, or of a file to open. One that turns out to be another torrent's
                 // is only known when it is read, and counted in the outcome.

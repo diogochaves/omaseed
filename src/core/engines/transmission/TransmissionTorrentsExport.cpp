@@ -276,13 +276,17 @@ Reply<TransmissionTorrentsExport::Reach> *TransmissionTorrentsExport::reach(
 void TransmissionTorrentsExport::start(const QString &path,
                                        const QString &serverName,
                                        const QString &serverUrl,
-                                       const QString &appVersion)
+                                       const QString &appVersion,
+                                       const QStringList &only)
 {
     if (m_busy)
         return;
     m_busy = true;
     ++m_generation;
     m_path = path;
+    m_only.clear();
+    for (const QString &hash : only)
+        m_only.insert(hash.toLower());
     m_manifest = TorrentsManifest();
     m_manifest.engine = EngineKind::Transmission; // DECISIONS C40 X1
     m_manifest.created = QDateTime::currentDateTimeUtc();
@@ -384,14 +388,17 @@ void TransmissionTorrentsExport::readList()
                 const QString hash = text(row, "hash_string").toLower();
                 if (hash.isEmpty())
                     continue;
+                // Counted for the queue whatever `only` says: its place is among them all.
+                const bool metadata = hasMetadata(row);
+                if (!metadata || integer(row, "left_until_done") > 0)
+                    unfinished.append({integer(row, "queue_position"), hash});
+                if (!m_only.isEmpty() && !m_only.contains(hash))
+                    continue; // C50 GT6: one torrent alone
                 m_hashes.append(hash);
                 for (const QJsonValue &label : row.value(QLatin1String("labels")).toArray()) {
                     if (!m_manifest.tags.contains(label.toString()))
                         m_manifest.tags.append(label.toString());
                 }
-                const bool metadata = hasMetadata(row);
-                if (!metadata || integer(row, "left_until_done") > 0)
-                    unfinished.append({integer(row, "queue_position"), hash});
                 // What the manifest says before the torrents are read: a link for want of
                 // metadata, or of a file to open. One that turns out to be another torrent's
                 // is only known when it is read, and counted in the outcome.

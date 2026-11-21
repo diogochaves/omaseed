@@ -21,6 +21,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QSaveFile>
+#include <QSet>
 #include <QString>
 
 #include <memory>
@@ -52,10 +53,13 @@ public:
     explicit TorrentsExport(QbtEngine *engine, QObject *parent = nullptr);
     ~TorrentsExport() override;
 
+    /// Writes the server's torrents to `path`; with `only` (hashes, any case), just those, as
+    /// the removed folder keeps one (DECISIONS C50 GT6). A hash the server lacks is left out.
     void start(const QString &path,
                const QString &serverName,
                const QString &serverUrl,
-               const QString &appVersion);
+               const QString &appVersion,
+               const QStringList &only = {});
     void cancel();
     bool isBusy() const { return m_busy; }
 
@@ -84,6 +88,7 @@ private:
     QPointer<QbtClient> m_client;
     TorrentsManifest m_manifest;
     QJsonArray m_infos;
+    QSet<QString> m_only; ///< lower case; empty: every torrent
     std::unique_ptr<QSaveFile> m_file;
     std::unique_ptr<TarWriter> m_writer;
     QList<Item> m_batch;
