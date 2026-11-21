@@ -1,6 +1,7 @@
 #include "integration/AgentBus.hpp"
 
 #include <QDBusAbstractAdaptor>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QLoggingCategory>
 #include <QObject>
@@ -55,6 +56,20 @@ public Q_SLOTS:
     QString UseSkin(const QString &options, const QDBusMessage &message)
     {
         m_handler->useSkin(options, delayedReply(message));
+        return QString();
+    }
+
+    QString Do(const QString &options, const QDBusMessage &message)
+    {
+        // C45 V17: who asked, as the bus daemon knows the caller (the omaseed word's process,
+        // or busctl); 0 when it can't say.
+        uint pid = 0;
+        if (QDBusConnectionInterface *bus = m_connection.interface()) {
+            const QDBusReply<uint> reply = bus->servicePid(message.service());
+            if (reply.isValid())
+                pid = reply.value();
+        }
+        m_handler->doAction(options, pid, delayedReply(message));
         return QString();
     }
 

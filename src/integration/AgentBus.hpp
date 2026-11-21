@@ -9,8 +9,9 @@
 //   Log(s options) → s         qBittorrent's log, warnings and worse by default (C45 V10)
 //   Moves(s options) → s       the move running now and the last that landed (C45 V11)
 //   UseSkin(s options) → s     draw the skin {"name": NAME} and keep it (DECISIONS C37 U6)
+//   Do(s options) → s          an action, if the Agents row lets agents act (C45 V14, V15;
+//                              C50 GT3): {action, torrents, to, move, dryRun, list, server}
 //
-// Do comes with the actions.
 // It lives on the app's object path beside org.freedesktop.Application and Status (StatusBus),
 // which it leaves as they are. Every method answers later (a delayed reply), as StatusBus's
 // slow methods do. Nothing here knows the app: an AgentHandler (app::AgentService) answers.
@@ -44,6 +45,10 @@ public:
     /// C37 U6: `options` is {"name": NAME}; a skin that reads is drawn and saved as the
     /// choice, anything else is a failure and changes nothing.
     virtual void useSkin(const QString &options, Reply reply) = 0;
+    /// C45 V15, C50 GT3, GT5: `do`. Answers once the server has answered (and, from the ask
+    /// window on, the person). `callerPid` is the calling process's pid as the bus daemon
+    /// knows it (0 when unknown): who asked, for the ask window and the journal (V17, V18).
+    virtual void doAction(const QString &options, uint callerPid, Reply reply) = 0;
 };
 
 namespace AgentBus {

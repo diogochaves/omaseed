@@ -88,6 +88,15 @@ void AgentService::useSkin(const QString &options, Reply reply)
         name, picked.skin, true, QDateTime::currentDateTimeUtc(), core::version())));
 }
 
+void AgentService::doAction(const QString &options, uint callerPid, Reply reply)
+{
+    Q_UNUSED(options);
+    Q_UNUSED(callerPid);
+    reply(failure(QStringLiteral("do"),
+                  QStringLiteral("usage"),
+                  core::AgentWords::notYet(QStringLiteral("do"))));
+}
+
 void AgentService::status(const QString &options, Reply reply)
 {
     if (const QString off = readsOff(QStringLiteral("status")); !off.isEmpty()) {

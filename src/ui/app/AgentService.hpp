@@ -38,6 +38,8 @@ public:
     /// C37 U6: a built-in or a listed user skin that reads is drawn (App::setSkinChoice,
     /// which saves it); a bad name, an unknown skin or one that doesn't read changes nothing.
     void useSkin(const QString &options, Reply reply) override;
+    /// C45 V15, C50 GT3, GT5: `do`.
+    void doAction(const QString &options, uint callerPid, Reply reply) override;
 
     /// How long errors waits for the log before it answers with what is held (design 12).
     static constexpr int kErrorsWaitMs = 5000;

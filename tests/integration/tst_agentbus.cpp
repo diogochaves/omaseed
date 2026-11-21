@@ -62,6 +62,15 @@ public:
         calls << QStringLiteral("useSkin ") + options;
         reply(QStringLiteral(R"({"v":1,"command":"skin use"})"));
     }
+
+    uint doPid = 0;
+    void doAction(const QString &options, uint callerPid, Reply reply) override
+    {
+        calls << QStringLiteral("do ") + options;
+        doPid = callerPid;
+        // Answers later, as a do waits for the server (C45 V15).
+        QTimer::singleShot(150, [reply]() { reply(QStringLiteral(R"({"v":1,"command":"do"})")); });
+    }
 };
 
 /// The widget's handler, only so Status is there to compare.
@@ -202,14 +211,13 @@ void TestAgentBus::agentBesideStatusAndApplication()
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
     const QString agent = block(xml, AgentBus::interfaceName());
     QVERIFY2(!agent.isEmpty(), qPrintable(xml));
-    // Status, Errors, Log, Moves and UseSkin, each (s) → s (C45 V3, C37 U6; Do comes with
-    // the actions).
-    QCOMPARE(agent.count(QStringLiteral("<method ")), 5);
-    for (const char *method : {"Status", "Errors", "Log", "Moves", "UseSkin"})
+    // Status, Errors, Log, Moves, UseSkin and Do, each (s) → s (C45 V3, V15, C37 U6).
+    QCOMPARE(agent.count(QStringLiteral("<method ")), 6);
+    for (const char *method : {"Status", "Errors", "Log", "Moves", "UseSkin", "Do"})
         QVERIFY(agent.contains(QStringLiteral("method name=\"%1\"").arg(QLatin1String(method))));
-    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 5);
-    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 5);
-    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 10);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 6);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 6);
+    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 12);
     QVERIFY(!agent.contains(QStringLiteral("<property")));
     QVERIFY(!agent.contains(QStringLiteral("<signal")));
 }
@@ -254,6 +262,16 @@ void TestAgentBus::delayedReplyArrives()
     QCOMPARE(call(QStringLiteral("Moves"), {QStringLiteral("{}")}).arguments().value(0).toString(),
              QStringLiteral(R"({"v":1,"command":"moves"})"));
     QCOMPARE(m_agent.calls.last(), QStringLiteral("moves {}"));
+
+    // Do answers later too, and knows the caller's pid (C45 V15, V17): here, this process.
+    timer.restart();
+    const QDBusMessage done =
+        call(QStringLiteral("Do"), {QStringLiteral(R"({"action":"recheck"})")});
+    QCOMPARE(done.type(), QDBusMessage::ReplyMessage);
+    QCOMPARE(done.arguments().value(0).toString(), QStringLiteral(R"({"v":1,"command":"do"})"));
+    QVERIFY(timer.elapsed() >= 140);
+    QCOMPARE(m_agent.calls.last(), QStringLiteral(R"(do {"action":"recheck"})"));
+    QCOMPARE(m_agent.doPid, uint(QCoreApplication::applicationPid()));
 }
 
 void TestAgentBus::notExportedWithoutConnection()
