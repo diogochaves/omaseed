@@ -131,9 +131,8 @@ QString unmountedDrive(const QString &localFolder,
     if (!listed.isEmpty())
         return listed;
 
-    static const QStringList kRoots{QStringLiteral("/run/media"),
-                                    QStringLiteral("/media"),
-                                    QStringLiteral("/mnt")};
+    static const QStringList kRoots{
+        QStringLiteral("/run/media"), QStringLiteral("/media"), QStringLiteral("/mnt")};
     QString root;
     for (const QString &r : kRoots)
         if (path.startsWith(r + QLatin1Char('/')))

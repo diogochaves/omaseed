@@ -596,9 +596,8 @@ void TestAgentWords::wordPagesHaveUsageAndExit()
     // do's page names every action of every kind (#297: locate and remove were missing),
     // and points at the wall (C50 GT7).
     const QString doPage = AgentWords::wordPage(QStringLiteral("do"));
-    for (const auto kind : {AgentGate::Kind::Fixes,
-                            AgentGate::Kind::Moves,
-                            AgentGate::Kind::Remove})
+    for (const auto kind :
+         {AgentGate::Kind::Fixes, AgentGate::Kind::Moves, AgentGate::Kind::Remove})
         for (const QString &action : AgentGate::actionsOf(kind))
             QVERIFY2(doPage.contains(QRegularExpression(
                          QStringLiteral("[ ,]%1[ ,;:]").arg(QRegularExpression::escape(action)))),

@@ -18,10 +18,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QRect>
 #include <QLocalServer>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QRect>
 #include <QTemporaryDir>
 #include <QTest>
 
