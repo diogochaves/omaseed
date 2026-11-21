@@ -3974,14 +3974,28 @@ bool App::locate(const QStringList &hashes, const QString &path, const AgentAct 
     // C50 GT2: nothing moves; the engine's progress after a re-point isn't to be read
     // (research/294-locate), so the recheck always follows, and says.
     auto answer = tableAnswer(QStringLiteral("locate"), hashes, path, 1, agentOrNone(act));
-    m_client->pointAt(hashes, path)->then(this, [this, hashes, answer](const Result<Done> &result) {
-        if (result.isError()) {
-            answer(result);
-            return;
-        }
-        m_engine->problems()->noteRechecked(hashes);
-        m_client->recheck(hashes)->then(this, answer);
-    });
+    // The story says it was located, not moved outside omaseed: the poll that sees the new
+    // save path may come before pointAt's answer, so it is marked before it is sent.
+    QHash<QString, QString> was;
+    const QString server = storyServerId();
+    for (const QString &hash : hashes) {
+        was.insert(hash, m_engine->torrents()->torrent(hash).savePath);
+        m_locatedAt.insert(server + QLatin1Char('\n') + hash, QDateTime::currentDateTimeUtc());
+    }
+    const bool byAgent = !act.word.isEmpty();
+    m_client->pointAt(hashes, path)
+        ->then(this,
+               [this, hashes, answer, was, path, server, byAgent](const Result<Done> &result) {
+                   if (result.isError()) {
+                       for (const QString &hash : hashes)
+                           m_locatedAt.remove(server + QLatin1Char('\n') + hash);
+                       answer(result);
+                       return;
+                   }
+                   recordLocated(was, path, byAgent);
+                   m_engine->problems()->noteRechecked(hashes);
+                   m_client->recheck(hashes)->then(this, answer);
+               });
     return true;
 }
 

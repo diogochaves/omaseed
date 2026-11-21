@@ -357,6 +357,23 @@ void TestAppAgentLocate::foundRepointsAndRechecks()
     // Nothing moved on disk.
     QVERIFY(QFile::exists(found + QStringLiteral("/Lantern Festival/a.flac")));
     QCOMPARE(m_qbt.items.value(kLantern).savePath, found);
+
+    // #297: the story says it was located, by an agent; the polls that see the new save path
+    // add no "moved outside omaseed" line.
+    const auto titles = [this]() {
+        QStringList out;
+        for (const QVariant &event : m_app->torrentStory(kLantern))
+            out << event.toMap().value(QStringLiteral("title")).toString() + QStringLiteral(" | ") +
+                       event.toMap().value(QStringLiteral("detail")).toString();
+        return out;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(
+        titles().contains(QStringLiteral("Located in %1 | nothing moved · by an agent").arg(found)),
+        3000);
+    QTest::qWait(500); // five polls
+    const QStringList story = titles();
+    QVERIFY2(!story.join(QLatin1Char('\n')).contains(QStringLiteral("moved outside omaseed")),
+             qPrintable(story.join(QLatin1Char('\n'))));
 }
 
 // docs/67 §2: found 0 → not-found (exit 5), found and files on the line, nothing sent.

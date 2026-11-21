@@ -3166,6 +3166,14 @@ private:
     int m_storyRevision = 0;
     /// hash → the id of the line its last recorded rename landed in (the take-back's seam).
     QHash<QString, int> m_renameLineOf;
+    /// #297 (C50 GT2): "server\nhash" → when omaseed re-pointed it (do locate). The poll that
+    /// sees the save path change is the locate's line, not an outside move, for a minute (as
+    /// MoveController::ownsMoveOf is for a move).
+    QHash<QString, QDateTime> m_locatedAt;
+    /// Records a locate's line ("Located in FOLDER · nothing moved · by an agent") for each
+    /// of `was`'s torrents (hash → its save path before).
+    void recordLocated(const QHash<QString, QString> &was, const QString &path, bool byAgent);
+    bool locatedLately(const QString &hash) const;
     // --- end #236/#248 -------------------------------------------------------------------------
 
     // --- #275: the room (AppRoom.cpp; DECISIONS C47 I8–I12) ------------------------------------

@@ -97,6 +97,14 @@ std::pair<QString, QString> tagWords(const StoryEntry &edit, bool labels)
 // land in" while it waits in the incomplete folder.
 std::pair<QString, QString> placeWords(const StoryEntry &place)
 {
+    // #297 (C50 GT2): omaseed re-pointed it at files already there (do locate).
+    if (place.by == StoryEntry::By::Omaseed && place.cause == QLatin1String("locate")) {
+        QString detail = tr("nothing moved");
+        // C45 V18, as a move by an agent says.
+        if (place.causeName == QLatin1String("agent"))
+            detail += QStringLiteral(" · ") + tr("by an agent");
+        return {tr("Located in %1").arg(place.now), detail};
+    }
     const QString title = (place.landed ? tr("Moved to %1") : tr("Will land in %1")).arg(place.now);
     QString detail;
     if (place.by == StoryEntry::By::Server) {
