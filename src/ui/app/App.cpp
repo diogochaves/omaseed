@@ -13,6 +13,7 @@
 #include "core/PeerInput.hpp"
 #include "core/PrivateTrackers.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/RenamePlan.hpp"
 #include "core/ServerLog.hpp"
 #include "core/SharedData.hpp"
@@ -486,6 +487,11 @@ void App::start()
     });
     // DECISIONS C24 H4: a real run writes the display it decided (or was told) at once.
     saveDisplaysFirst();
+    // DECISIONS C50 GT6: what an agent removed is kept 30 days to add back, then goes.
+    if (const int pruned = RemovedKeep::prune(QDateTime::currentDateTimeUtc()); pruned > 0)
+        qInfo().noquote() << QStringLiteral("removed: %1 kept for over %2 days deleted")
+                                 .arg(pruned)
+                                 .arg(RemovedKeep::kDays);
 
     // #31: a copy when one is due, a minute in (the ledger has its first polls by then), then
     // a check every hour.
