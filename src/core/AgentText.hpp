@@ -49,6 +49,10 @@ QString doList(const QJsonObject &answer, const TextStyle &style);
 /// `do --dry-run` (C50 GT5): what would happen, nothing done.
 QString doDryRun(const QJsonObject &answer, const TextStyle &style);
 
+/// `do --plan` (C50 GT4, GT5; board 67 §6): the plan's head, what each line would do or did
+/// (done, failed, left unticked), and its last line.
+QString doPlan(const QJsonObject &answer, const TextStyle &style);
+
 /// A failure's words for stderr, wrapped at the width.
 QString failure(const QString &message, const TextStyle &style);
 

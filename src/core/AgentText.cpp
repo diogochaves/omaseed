@@ -698,6 +698,126 @@ QString doDryRun(const QJsonObject &answer, const TextStyle &style)
     return paint(line.chopped(1), asks ? Colour::Yellow : Colour::Green, style) + QLatin1Char('\n');
 }
 
+QString doPlan(const QJsonObject &answer, const TextStyle &style)
+{
+    // C50 GT4, GT5 (board 67 §6): the plan's head, a line each, then its last line.
+    const bool dry = answer.value(QLatin1String("dryRun")).toBool();
+    const QJsonArray lines = answer.value(QLatin1String("lines")).toArray();
+    QString out = paint(QStringLiteral("Plan for %1 · %2%3")
+                            .arg(answer.value(QLatin1String("server")).toString(),
+                                 torrents(answer.value(QLatin1String("torrents")).toInteger()),
+                                 dry ? QStringLiteral(" · dry run, nothing done") : QString()),
+                        Colour::Bold,
+                        style) +
+                  QLatin1Char('\n');
+    if (!dry && answer.value(QLatin1String("asked")).toBool() &&
+        answer.value(QLatin1String("answer")).toString() == QLatin1String("allowed")) {
+        qsizetype asking = 0;
+        qsizetype left = 0;
+        for (const QJsonValue &value : lines) {
+            const QJsonObject line = value.toObject();
+            if (!line.contains(QLatin1String("unticked")))
+                continue;
+            const qsizetype unticked = line.value(QLatin1String("unticked")).toArray().size();
+            left += unticked;
+            asking += unticked + line.value(QLatin1String("done")).toArray().size() +
+                      line.value(QLatin1String("failed")).toArray().size();
+        }
+        out += left == 0
+                   ? QStringLiteral("Allowed.\n")
+                   : QStringLiteral("Allowed, %1 of %2 ticked.\n").arg(asking - left).arg(asking);
+    }
+    const QString indent(14, QLatin1Char(' '));
+    for (const QJsonValue &value : lines) {
+        const QJsonObject line = value.toObject();
+        const QString action = line.value(QLatin1String("action")).toString();
+        const QString to = line.value(QLatin1String("to")).toString();
+        const QJsonArray listed = dry || line.contains(QLatin1String("would"))
+                                      ? line.value(QLatin1String("torrents")).toArray()
+                                      : line.value(QLatin1String("done")).toArray();
+        QString subject = action == QLatin1String("pause") || action == QLatin1String("resume")
+                              ? QString()
+                              : QString::number(listed.size());
+        if (action == QLatin1String("move-back"))
+            subject = line.value(QLatin1String("move")).toString();
+        else if (line.contains(QLatin1String("error")))
+            subject.clear(); // refused: it matched nothing to count
+        if (!to.isEmpty())
+            subject += QStringLiteral(" → ") + to;
+        QString head = QStringLiteral("  ") + action.leftJustified(12) + subject;
+        if (line.contains(QLatin1String("would"))) {
+            const QString would = line.value(QLatin1String("would")).toString();
+            QStringList said;
+            if (action == QLatin1String("locate") && !listed.isEmpty()) {
+                qint64 found = 0;
+                qint64 files = 0;
+                for (const QJsonValue &torrent : listed) {
+                    found += torrent.toObject().value(QLatin1String("found")).toInteger();
+                    files += torrent.toObject().value(QLatin1String("files")).toInteger();
+                }
+                said << QStringLiteral("found %1 of %2").arg(found).arg(files);
+            } else if (action == QLatin1String("remove") && !listed.isEmpty()) {
+                said << QStringLiteral("files gone");
+            }
+            const QString word = QStringLiteral("would ") + would;
+            said << (would == QLatin1String("run")   ? paint(word, Colour::Green, style)
+                     : would == QLatin1String("ask") ? paint(word, Colour::Yellow, style)
+                                                     : paint(would, Colour::Red, style));
+            out +=
+                head + QStringLiteral("  ") + said.join(QStringLiteral(" · ")) + QLatin1Char('\n');
+            const QJsonObject error = line.value(QLatin1String("error")).toObject();
+            if (!error.isEmpty()) {
+                const QString why =
+                    wrap(QStringLiteral("%1: %2").arg(
+                             would, error.value(QLatin1String("message")).toString()),
+                         style.width,
+                         indent,
+                         indent);
+                out += paint(why.chopped(1), Colour::Red, style) + QLatin1Char('\n');
+            }
+            continue;
+        }
+        const QString outcome = line.value(QLatin1String("outcome")).toString();
+        out += outcome.isEmpty() ? head + QLatin1Char('\n')
+                                 : wrap(outcome, style.width, head + QStringLiteral("  "), indent);
+        for (const QJsonValue &failedValue : line.value(QLatin1String("failed")).toArray()) {
+            const QJsonObject failed = failedValue.toObject();
+            const QString name = failed.value(QLatin1String("name")).toString();
+            const QString message = failed.value(QLatin1String("message")).toString();
+            const QString why =
+                wrap(name.isEmpty() ? message : QStringLiteral("%1: %2").arg(name, message),
+                     style.width,
+                     indent,
+                     indent);
+            out += paint(why.chopped(1), Colour::Red, style) + QLatin1Char('\n');
+        }
+        const QJsonArray unticked = line.value(QLatin1String("unticked")).toArray();
+        if (!unticked.isEmpty()) {
+            QStringList names;
+            for (const QJsonValue &torrent : unticked)
+                names << torrent.toObject().value(QLatin1String("name")).toString();
+            out += wrap(QStringLiteral("%1 left: unticked in the window · %2")
+                            .arg(unticked.size())
+                            .arg(names.join(QStringLiteral(", "))),
+                        style.width,
+                        indent,
+                        indent);
+        }
+    }
+    const bool refused = answer.contains(QLatin1String("error"));
+    bool failed = false;
+    for (const QJsonValue &value : lines)
+        failed = failed || !value.toObject().value(QLatin1String("failed")).toArray().isEmpty();
+    const QString last = wrap(answer.value(QLatin1String("outcome")).toString(),
+                              style.width,
+                              QString(),
+                              QStringLiteral("  "));
+    out += refused  ? paint(last.chopped(1), Colour::Red, style) + QLatin1Char('\n')
+           : failed ? paint(last.chopped(1), Colour::Yellow, style) + QLatin1Char('\n')
+                    : last;
+    return out;
+}
+
 QString lines(const QJsonObject &answer, const TextStyle &style)
 {
     const QString command = answer.value(QLatin1String("command")).toString();
@@ -712,6 +832,8 @@ QString lines(const QJsonObject &answer, const TextStyle &style)
     if (command == QLatin1String("do")) {
         if (answer.value(QLatin1String("list")).toBool())
             return doList(answer, style);
+        if (answer.value(QLatin1String("plan")).toBool())
+            return answer.contains(QLatin1String("lines")) ? doPlan(answer, style) : QString();
         if (answer.value(QLatin1String("dryRun")).toBool())
             return doDryRun(answer, style);
         return doAnswer(answer, style);

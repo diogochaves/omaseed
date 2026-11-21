@@ -220,6 +220,7 @@ private slots:
     void doAnswerSaysLocatesFind();
     void doListSaysTheLines();
     void doDryRunSaysWhatWould();
+    void doPlanSaysEachLine();
 };
 
 void TestAgentText::statusLinesAsTheBoard()
@@ -636,6 +637,42 @@ void TestAgentText::doDryRunSaysWhatWould()
     QCOMPARE(doLines(answer, true, 60),
              QStringLiteral("\x1b[33mDry run, nothing done: recheck would ask in omaseed's "
                             "window\n  · Lantern Festival\x1b[0m\n"));
+}
+
+// C50 GT4, GT5 (board 67 §6): a plan's head, a line each, its last line.
+void TestAgentText::doPlanSaysEachLine()
+{
+    const QJsonObject dry = doJson(
+        R"({"v":1,"command":"do","plan":true,"server":"attic","dryRun":true,"torrents":3,
+            "lines":[{"action":"recheck","would":"run","torrents":[{"hash":"a","name":"A"}]},
+                     {"action":"locate","to":"/data/b","would":"run",
+                      "torrents":[{"hash":"b","name":"B","found":12,"files":12}]},
+                     {"action":"remove","would":"refused","torrents":[],
+                      "error":{"code":"not-removable","message":"C has its files."}}],
+            "outcome":"1 line refused: nothing would run. Fix the plan and try again.",
+            "error":{"code":"not-removable","message":"…"}})");
+    QCOMPARE(doLines(dry),
+             QStringLiteral("Plan for attic · 3 torrents · dry run, nothing done\n"
+                            "  recheck     1  would run\n"
+                            "  locate      1 → /data/b  found 12 of 12 · would run\n"
+                            "  remove        refused\n"
+                            "              refused: C has its files.\n"
+                            "1 line refused: nothing would run. Fix the plan and try again.\n"));
+    const QJsonObject ran = doJson(
+        R"({"v":1,"command":"do","plan":true,"server":"attic","asked":true,"answer":"allowed",
+            "torrents":3,
+            "lines":[{"action":"recheck","done":[{"hash":"a","name":"A"}],"failed":[],
+                      "outcome":"A sent to recheck"},
+                     {"action":"remove","done":[{"hash":"b","name":"B"}],"failed":[],
+                      "unticked":[{"hash":"c","name":"C"}],"outcome":"Removed from attic · B"}],
+            "outcome":"Done: 2 of 3 · by an agent"})");
+    QCOMPARE(doLines(ran),
+             QStringLiteral("Plan for attic · 3 torrents\n"
+                            "Allowed, 1 of 2 ticked.\n"
+                            "  recheck     1  A sent to recheck\n"
+                            "  remove      1  Removed from attic · B\n"
+                            "              1 left: unticked in the window · C\n"
+                            "Done: 2 of 3 · by an agent\n"));
 }
 
 QTEST_GUILESS_MAIN(TestAgentText)

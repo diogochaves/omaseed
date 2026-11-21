@@ -9,7 +9,8 @@
 // - `help`, `status`, `errors`, `log`, `moves`, `check`, `skin`, `skill` (C48) and `do`
 //   (C45 V15, C50 GT5; #292) are built; nothing is reserved now.
 // - `do <action> <hash…>` takes the action and its torrents as positionals, `--to`,
-//   `--dry-run`, `--list`, `--server`; `--delete-files` is usage (C50 GT1), `--plan` not yet.
+//   `--dry-run`, `--list`, `--server`; `--delete-files` is usage (C50 GT1), `--plan FILE|-` (GT4)
+//   the CLI reads.
 // - `check <skin>` and `skin list | clone <from> <name> | use <name>` take positionals
 //   (C37 U3, U5, U6), `skill [page | link | unlink | status]` one (C48); every other word
 //   takes options only.
@@ -40,6 +41,9 @@ inline constexpr int kReplyTimeoutMs = 30000;
 /// `do` waits for the person's answer (2 minutes, C45 V17) and then the server's: 2 min + 30 s
 /// (assumed, PLAN S3).
 inline constexpr int kAskTimeoutMs = 150000;
+/// `do --plan` waits for the ask, then every line in turn (a remove keeps each torrent first):
+/// 2 min + 3 min (assumed, S11).
+inline constexpr int kPlanTimeoutMs = 300000;
 /// The levels `--level` takes, from the most to the least said; "warning" is the default.
 QStringList levels();
 inline const char *const kDefaultLevel = "warning";

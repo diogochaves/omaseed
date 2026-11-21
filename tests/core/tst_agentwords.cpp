@@ -153,6 +153,13 @@ void TestAgentWords::doParses_data()
                                << R"({"action":"move-back","move":"j-5e02"})" << false;
     QTest::newRow("--list") << QStringList{"--list"} << R"({"list":true})" << false;
     QTest::newRow("--list --json") << QStringList{"--list", "--json"} << R"({"list":true})" << true;
+    // C50 GT4: the CLI reads the file (or stdin) and sends its text (PLAN Q13).
+    QTest::newRow("--plan FILE") << QStringList{"--plan", "plan.json"}
+                                 << R"({"planFile":"plan.json"})" << false;
+    QTest::newRow("--plan - --dry-run --json") << QStringList{"--plan", "-", "--dry-run", "--json"}
+                                               << R"({"planFile":"-","dryRun":true})" << true;
+    QTest::newRow("--plan= --server") << QStringList{"--plan=p.json", "--server", "attic"}
+                                      << R"({"planFile":"p.json","server":"attic"})" << false;
     // C45 V14: never words reach the app, which answers never (PLAN Q4).
     QTest::newRow("delete") << QStringList{"delete", "3f9a1c0e"}
                             << R"({"action":"delete","torrents":["3f9a1c0e"]})" << false;
@@ -215,9 +222,19 @@ void TestAgentWords::doUsage_data()
     QTest::newRow("--list --dry-run")
         << QStringList{"--list", "--dry-run"}
         << "omaseed: do doesn't take \"--dry-run\". omaseed help do says what it takes.";
-    QTest::newRow("--plan not yet") << QStringList{"--plan", "plan.json"}
-                                    << "omaseed: do --plan isn't in this omaseed yet. omaseed "
-                                       "--help lists the words it has.";
+    // C50 GT4: a plan names its own actions and folders.
+    QTest::newRow("--plan with an action")
+        << QStringList{"--plan", "plan.json", "recheck"}
+        << "omaseed: do doesn't take \"recheck\". omaseed help do says what it takes.";
+    QTest::newRow("--plan with --to")
+        << QStringList{"--plan", "plan.json", "--to", "/x"}
+        << "omaseed: do doesn't take \"--to\". omaseed help do says what it takes.";
+    QTest::newRow("--plan without a file")
+        << QStringList{"--plan"}
+        << "omaseed: do doesn't take \"--plan\". omaseed help do says what it takes.";
+    QTest::newRow("--list --plan")
+        << QStringList{"--list", "--plan", "-"}
+        << "omaseed: do doesn't take \"--plan\". omaseed help do says what it takes.";
     QTest::newRow("unknown option")
         << QStringList{"recheck", "3f9a1c0e", "--force"}
         << "omaseed: do doesn't take \"--force\". omaseed help do says what it takes.";

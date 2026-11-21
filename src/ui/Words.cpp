@@ -15,6 +15,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -79,6 +80,42 @@ int fail(const QString &command, bool json, const QString &code, const QString &
     return AgentWords::exitFor(code);
 }
 
+/// `do --plan FILE|-` (C50 GT4): the CLI reads the plan, a file or stdin, and sends its text;
+/// the app never opens a path an agent names (PLAN Q13). "" with `why` set when it can't.
+QString readPlan(const QString &file, QString *why)
+{
+    constexpr qint64 kMost = 1 << 20; // a plan of thousands of lines is still far under it
+    QFile in;
+    const bool stdinPlan = file == QLatin1String("-");
+    const bool opened = stdinPlan ? in.open(stdin, QIODevice::ReadOnly)
+                                  : (in.setFileName(file), in.open(QIODevice::ReadOnly));
+    if (!opened) {
+        *why = QStringLiteral("omaseed: do --plan can't read %1: %2.").arg(file, in.errorString());
+        return QString();
+    }
+    const QByteArray bytes = in.read(kMost + 1);
+    if (bytes.size() > kMost) {
+        *why = QStringLiteral("omaseed: do --plan reads plans up to 1 MB; %1 is bigger.")
+                   .arg(stdinPlan ? QStringLiteral("stdin's") : file);
+        return QString();
+    }
+    if (bytes.trimmed().isEmpty()) {
+        *why = QStringLiteral("omaseed: do --plan found nothing in %1.")
+                   .arg(stdinPlan ? QStringLiteral("stdin") : file);
+        return QString();
+    }
+    return QString::fromUtf8(bytes);
+}
+
+/// True when any of a plan's lines has a failed entry (C45 V13: the server refused, exit 6).
+bool planFailed(const QJsonObject &object)
+{
+    for (const QJsonValue &line : object.value(QStringLiteral("lines")).toArray())
+        if (!line.toObject().value(QStringLiteral("failed")).toArray().isEmpty())
+            return true;
+    return false;
+}
+
 /// An answer the app made: its bytes with --json, else its lines. A failure the app made
 /// (an "error" object) exits with its code's exit and, without --json, says it on stderr.
 int answer(const QString &command, bool json, const QByteArray &bytes)
@@ -94,17 +131,23 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
     const QJsonObject failure = object.value(QStringLiteral("error")).toObject();
     if (!failure.isEmpty()) {
         const QString code = failure.value(QStringLiteral("code")).toString();
-        if (json)
+        if (json) {
             write(stdout, bytes);
-        else
+        } else {
+            // C50 GT4, GT5: a plan refused says its lines first, which one and why.
+            if (object.value(QStringLiteral("plan")).toBool())
+                if (const QString lines = AgentText::lines(object, styleFor(STDOUT_FILENO));
+                    !lines.isEmpty())
+                    write(stdout, lines.toUtf8());
             write(stderr, failureWords(failure.value(QStringLiteral("message")).toString()));
+        }
         return AgentWords::exitFor(code.isEmpty() ? QStringLiteral("failed") : code);
     }
     // C45 V13: a do the server refused, for one torrent or more, exits 6 (its lines still say
-    // what was done).
-    const int exit = object.value(QStringLiteral("failed")).toArray().isEmpty()
-                         ? 0
-                         : AgentWords::exitFor(QStringLiteral("failed"));
+    // what was done); a plan's per line.
+    const bool failed =
+        !object.value(QStringLiteral("failed")).toArray().isEmpty() || planFailed(object);
+    const int exit = failed ? AgentWords::exitFor(QStringLiteral("failed")) : 0;
     if (json) {
         write(stdout, bytes);
         return exit;
@@ -261,12 +304,21 @@ int runWord(int argc, char *argv[], const std::function<QString()> &qtHelp)
         if (!picked.code.isEmpty())
             return fail(command, request.json, picked.code, picked.message);
     }
+    QJsonObject options = request.options;
+    if (options.contains(QStringLiteral("planFile"))) {
+        QString why;
+        const QString plan = readPlan(options.take(QStringLiteral("planFile")).toString(), &why);
+        if (plan.isEmpty())
+            return fail(command, request.json, QStringLiteral("usage"), why);
+        options.insert(QStringLiteral("plan"), plan);
+    }
     // `do` waits for the person's answer, then the server's (C45 V15, V17).
     const integration::AgentClient::Reply reply = integration::AgentClient::call(
         AgentWords::method(command),
-        request.options,
-        request.word == QLatin1String("do") ? AgentWords::kAskTimeoutMs
-                                            : AgentWords::kReplyTimeoutMs);
+        options,
+        options.contains(QStringLiteral("plan")) ? AgentWords::kPlanTimeoutMs
+        : request.word == QLatin1String("do")    ? AgentWords::kAskTimeoutMs
+                                                 : AgentWords::kReplyTimeoutMs);
     if (request.subword == QLatin1String("use") &&
         (reply.code == QLatin1String("not-running") || reply.code == QLatin1String("no-bus")))
         return saved(request, picked.skin);

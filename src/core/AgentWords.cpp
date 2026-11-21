@@ -193,28 +193,30 @@ Request parseDo(const QStringList &rest, bool json)
             options.insert(key, true);
             continue;
         }
-        if (argument == QLatin1String("--plan") || argument.startsWith(QLatin1String("--plan=")))
-            return usage(word, json, notYet(QStringLiteral("do --plan"))); // C50 GT4: S11
         const qsizetype equals = argument.indexOf(QLatin1Char('='));
         const QString name = argument.startsWith(QLatin1String("--"))
                                  ? argument.mid(2, equals < 0 ? -1 : equals - 2)
                                  : QString();
-        if ((name != QLatin1String("to") && name != QLatin1String("server")) ||
-            options.contains(name))
+        // C50 GT4: --plan FILE, or - for stdin; the CLI reads it (planFile) and sends its text.
+        const QString key = name == QLatin1String("plan") ? QStringLiteral("planFile") : name;
+        if ((name != QLatin1String("to") && name != QLatin1String("server") &&
+             name != QLatin1String("plan")) ||
+            options.contains(key))
             return usage(word, json, doesNotTake(word, argument));
         QString value;
         QString given = argument;
         if (equals >= 0) {
             value = argument.mid(equals + 1);
         } else {
-            if (i + 1 >= rest.size() || rest.at(i + 1).startsWith(QLatin1String("--")))
+            if (i + 1 >= rest.size() || (rest.at(i + 1).startsWith(QLatin1Char('-')) &&
+                                         rest.at(i + 1) != QLatin1String("-")))
                 return usage(word, json, doesNotTake(word, argument));
             value = rest.at(++i);
             given += QLatin1Char(' ') + value;
         }
         if (value.trimmed().isEmpty())
             return usage(word, json, doesNotTake(word, given));
-        options.insert(name, value);
+        options.insert(key, value);
     }
 
     Request request;
@@ -227,12 +229,22 @@ Request parseDo(const QStringList &rest, bool json)
             return usage(word, json, doesNotTake(word, positionals.first()));
         for (const QString &key : options.keys())
             if (key != QLatin1String("list"))
-                return usage(word,
-                             json,
-                             doesNotTake(word,
-                                         key == QLatin1String("dryRun")
-                                             ? QStringLiteral("--dry-run")
-                                             : QStringLiteral("--") + key));
+                return usage(
+                    word,
+                    json,
+                    doesNotTake(word,
+                                key == QLatin1String("dryRun")     ? QStringLiteral("--dry-run")
+                                : key == QLatin1String("planFile") ? QStringLiteral("--plan")
+                                                                   : QStringLiteral("--") + key));
+        request.options = options;
+        return request;
+    }
+    if (options.contains(QStringLiteral("planFile"))) {
+        // A plan names its actions, torrents and folders itself (C50 GT4).
+        if (!positionals.isEmpty())
+            return usage(word, json, doesNotTake(word, positionals.first()));
+        if (options.contains(QStringLiteral("to")))
+            return usage(word, json, doesNotTake(word, QStringLiteral("--to")));
         request.options = options;
         return request;
     }
@@ -599,6 +611,7 @@ QString wordPage(const QString &word)
                    "Usage: omaseed do <action> <hash...> [--to FOLDER] [--dry-run] [--server "
                    "NAME]\n"
                    "                  [--json]\n"
+                   "       omaseed do --plan FILE|- [--dry-run] [--server NAME] [--json]\n"
                    "       omaseed do --list [--json]\n"
                    "A fix the window offers, run for you by the running omaseed, if Settings ›\n"
                    "General › Agents lets agents act. It waits for the server's answer.\n"
@@ -606,6 +619,8 @@ QString wordPage(const QString &word)
                    "                  pause, resume (the whole server, no hashes)\n"
                    "  moves           move <hash...> --to FOLDER, move-back <move>: always ask\n"
                    "  <hash>          a torrent's hash, or 8 or more of its first characters\n"
+                   "  --plan FILE|-   a JSON plan of lines, each an action and its torrents:\n"
+                   "                  every line checked first, one ask for the lot\n"
                    "  --dry-run       every check, nothing asked, nothing done\n"
                    "  --list          what the person lets agents do now\n"
                    "  --server NAME   only the server omaseed is on can act\n") +

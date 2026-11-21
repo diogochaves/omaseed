@@ -650,6 +650,37 @@ void TestWords::doOnARunningOmaseed()
     QVERIFY(run(recheck + QStringList{QStringLiteral("--dry-run")}, bus));
     QVERIFY2(m_exitCode == 0, qPrintable(m_err));
     QCOMPARE(m_out, QStringLiteral("Dry run, nothing done: recheck would run · t\n"));
+
+    // C50 GT4, GT5: the CLI reads the plan and sends its text; a file it can't read is usage.
+    QTemporaryDir plans;
+    QFile file(plans.filePath(QStringLiteral("plan.json")));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(R"({"v":1,"lines":[{"action":"recheck","torrents":["cccccccc"]}]})");
+    file.close();
+    QVERIFY(run({QStringLiteral("do"),
+                 QStringLiteral("--plan"),
+                 file.fileName(),
+                 QStringLiteral("--dry-run")},
+                bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    QVERIFY2(m_out.startsWith(QStringLiteral("Plan for ")) &&
+                 m_out.contains(QLatin1String("dry run, nothing done")) &&
+                 m_out.endsWith(QLatin1String("Every line would run.\n")),
+             qPrintable(m_out));
+    QVERIFY(run(
+        {QStringLiteral("do"), QStringLiteral("--plan"), file.fileName(), QStringLiteral("--json")},
+        bus));
+    QVERIFY2(m_exitCode == 0, qPrintable(m_err));
+    object = json();
+    QVERIFY(object.value(QLatin1String("plan")).toBool());
+    QCOMPARE(object.value(QLatin1String("outcome")).toString(),
+             QStringLiteral("Done: 1 of 1 · by an agent"));
+    QVERIFY(run({QStringLiteral("do"),
+                 QStringLiteral("--plan"),
+                 plans.filePath(QStringLiteral("none.json"))},
+                bus));
+    QCOMPARE(m_exitCode, 2);
+    QVERIFY2(m_err.contains(QLatin1String("do --plan can't read")), qPrintable(m_err));
 }
 
 void TestWords::aFileNamedCheckOpensAsDotSlash()
