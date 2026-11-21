@@ -1415,7 +1415,8 @@ QVariantList App::torrentStory(const QString &hash) const
         input.moves.append({record.finishedAt,
                             record.to.value(hash),
                             int(record.from.size()) - 1,
-                            record.kind == QLatin1String("folder") ? record.title : QString()});
+                            record.kind == QLatin1String("folder") ? record.title : QString(),
+                            record.by == QLatin1String("agent")}); // C45 V18
     }
     const QVariantMap problem = m_engine->torrents()->problem(hash);
     input.problem = problem.value(QStringLiteral("headline")).toString();

@@ -235,6 +235,12 @@ void TestTorrentStory::movesSayWithWhat()
     QCOMPARE(events.at(2).detail, QStringLiteral("with 1 other torrent"));
     QCOMPARE(events.at(1).detail, QStringLiteral("on its own"));
     QCOMPARE(events.at(0).detail, QStringLiteral("with the folder alone"));
+
+    // C45 V18 (#293): an agent's move says so in the dim line.
+    input.moves = {{at(24, 17, 50), QStringLiteral("/data/music"), 0, QString(), true}};
+    const QList<StoryEvent> agent = TorrentStory::events(input);
+    QCOMPARE(agent.at(0).title, QStringLiteral("Moved to /data/music"));
+    QCOMPARE(agent.at(0).detail, QStringLiteral("on its own · by an agent"));
 }
 
 void TestTorrentStory::theErrorAndTheFailureComeAtTheirLoggedTimes()

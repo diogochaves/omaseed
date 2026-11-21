@@ -223,6 +223,9 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
             detail = counted(move.others, "with %1 other torrent", "with %1 other torrents");
         else
             detail = tr("on its own");
+        // C45 V18: an agent's move says so, as C38 R4's "renamed outside omaseed" does.
+        if (move.byAgent)
+            detail += QStringLiteral(" · ") + tr("by an agent");
         add(move.at, StoryEvent::Kind::Move, tr("Moved to %1").arg(move.to), detail);
     }
 

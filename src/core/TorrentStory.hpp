@@ -30,6 +30,8 @@ struct StoryMove
     QString to;     ///< the torrent's save path after it
     int others = 0; ///< the other torrents that moved with it
     QString folder; ///< a folder move's title ("games"), "" for a selection
+    /// DECISIONS C45 V18 (#293): an agent started it (`omaseed do move`): "by an agent".
+    bool byAgent = false;
 };
 
 struct StoryInput
