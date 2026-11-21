@@ -561,9 +561,12 @@ bool MoveController::startBack(bool carry)
 bool MoveController::startSpec(const QJsonObject &specIn)
 {
     const QStringList asked = std::exchange(m_replace, {});
+    const QString by = std::exchange(m_nextBy, {});
     if (m_job == nullptr)
         return false;
     QJsonObject spec = specIn;
+    if (!by.isEmpty())
+        spec.insert(QStringLiteral("by"), by); // C45 V18
     if (!asked.isEmpty())
         spec.insert(QStringLiteral("replace"), QJsonArray::fromStringList(asked));
     MovePlan plan = planFor(spec);
@@ -735,6 +738,7 @@ void MoveController::recordFinished()
     }
     record.hadAutoTmm = m_job->hadAutoTmm();
     record.replaced = m_job->spec().value(QStringLiteral("replaced")).toVariant().toStringList();
+    record.by = m_job->spec().value(QStringLiteral("by")).toString(); // C45 V18
     if (m_carryDone && m_carryResult.carried > 0) {
         record.carried = m_carryResult.carried;
         record.carriedTo = m_job->newPath();
@@ -1783,7 +1787,10 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
             {QStringLiteral("cause"), why},
             {QStringLiteral("details"), details},
             {QStringLiteral("startHere"), stops && !m_features.pausesOnError},
-            {QStringLiteral("recheckFirst"), stops && m_features.pausesOnError}};
+            {QStringLiteral("recheckFirst"), stops && m_features.pausesOnError},
+            // C45 V18: "· by an agent" on the strip.
+            {QStringLiteral("byAgent"),
+             m_job->spec().value(QStringLiteral("by")).toString() == QLatin1String("agent")}};
 }
 
 void MoveController::onFinished()
