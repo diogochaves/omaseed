@@ -1062,9 +1062,11 @@ Item {
         return qsTr("%1 and %2").arg(names.slice(0, -1).join(", ")).arg(names[names.length - 1]);
     }
 
-    /// The Agents row's ⋯: unlink, in a menu under the chip (docs/65 §5).
+    /// The Agents row's ⋯: unlink, in a menu under the chip, its right edge on the chip's, so
+    /// it stays inside the card (docs/65 §5).
     function openAgentSkillMenu(): void {
-        const at = agentSkillMore.mapToItem(root, 0, agentSkillMore.height + Theme.space(4));
+        const at = agentSkillMore.mapToItem(root, agentSkillMore.width - agentSkillMenu.menuWidth,
+                                            agentSkillMore.height + Theme.space(4));
         agentSkillMenu.openAt(Math.round(at.x), Math.round(at.y));
     }
 
@@ -2338,6 +2340,11 @@ Item {
                                     width: parent ? parent.width : 0
 
                                     Label {
+                                        id: agentSkillLine
+
+                                        // A screen reader says the line too (and omabox tree finds it).
+                                        Accessible.name: agentSkillLine.text
+                                        Accessible.role: Accessible.StaticText
                                         Layout.fillWidth: true
                                         ink: agentsRow.ink
                                         objectName: "agentSkillLine"
@@ -2362,6 +2369,8 @@ Item {
                                     Chip {
                                         id: agentSkillMore
 
+                                        // The glyph alone has no words: a screen reader hears what it holds.
+                                        Accessible.name: qsTr("unlink")
                                         block: agentsRow.ground
                                         enabled: !App.agentSkill.busy
                                         glyph: Glyphs.more
