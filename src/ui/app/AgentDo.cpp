@@ -6,10 +6,13 @@
 #include "core/AgentWords.hpp"
 #include "core/AnnounceMask.hpp"
 #include "core/Format.hpp"
+#include "core/FreeSpace.hpp"
+#include "core/LocateCheck.hpp"
 #include "core/MoveHistory.hpp"
 #include "core/MoveJob.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
+#include "core/SharedData.hpp"
 #include "core/SyncEngine.hpp"
 #include "core/TorrentModel.hpp"
 #include "core/TorrentProblem.hpp"
@@ -255,15 +258,25 @@ void AgentDo::proceed(const QString &json,
                                    QStringLiteral("pause"),
                                    QStringLiteral("resume"),
                                    QStringLiteral("move"),
-                                   QStringLiteral("move-back")};
+                                   QStringLiteral("move-back"),
+                                   QStringLiteral("locate")};
     if (!built.contains(action)) {
-        // locate (S8), remove (S10).
+        // remove (S10).
         fail(QStringLiteral("usage"), AgentWords::notYet(QStringLiteral("do ") + action));
         return;
     }
     const bool serverWide = action == QLatin1String("pause") || action == QLatin1String("resume");
     const bool isMove = action == QLatin1String("move");
     const bool isBack = action == QLatin1String("move-back");
+    const bool isLocate = action == QLatin1String("locate");
+    if (isLocate &&
+        (options.to.trimmed().isEmpty() || !options.move.isEmpty() || options.torrents.isEmpty())) {
+        fail(QStringLiteral("usage"),
+             QStringLiteral("omaseed: do locate takes the torrents' hashes and --to FOLDER, the "
+                            "folder that holds their files: omaseed do locate 3f9a1c0e --to "
+                            "/data/music."));
+        return;
+    }
     if (isMove &&
         (options.to.trimmed().isEmpty() || !options.move.isEmpty() || options.torrents.isEmpty())) {
         fail(QStringLiteral("usage"),
@@ -278,7 +291,7 @@ void AgentDo::proceed(const QString &json,
                             "gives them."));
         return;
     }
-    if (!isMove && !isBack &&
+    if (!isMove && !isBack && !isLocate &&
         (!options.to.isEmpty() || !options.move.isEmpty() ||
          serverWide != options.torrents.isEmpty())) {
         // The CLI never sends these (AgentWords::parse); busctl might.
@@ -347,6 +360,19 @@ void AgentDo::proceed(const QString &json,
                     hashes,
                     options.to.trimmed(),
                     options.move.trimmed());
+        return;
+    }
+
+    // Locate finds the files first (#294, C50 GT2).
+    if (isLocate) {
+        proceedLocate(json,
+                      caller,
+                      reply,
+                      asked,
+                      options.dryRun,
+                      decision == AgentGate::Decision::Ask,
+                      hashes,
+                      options.to.trimmed());
         return;
     }
 
@@ -947,6 +973,419 @@ QVariantMap AgentDo::moveRequest(const QString &action,
     request.insert(QStringLiteral("allowText"),
                    back ? QStringLiteral("allow the move back") : QStringLiteral("allow the move"));
     return request;
+}
+
+// ---- locate (#294, C50 GT2) ------------------------------------------------------------------
+
+namespace {
+
+/// What the torrent's own state says of its files: gone from where it is (qBittorrent's
+/// missing files, Transmission's "No data found", a file that vanished), or a failed move
+/// Deluge forced into Error (K24, which a recheck clears).
+bool saysMissing(const core::Torrent &torrent, const core::TorrentProblem &problem)
+{
+    return torrent.status.phase == core::TorrentPhase::Missing || problem.missingFiles ||
+           problem.causeKey == QLatin1String("missingFiles") ||
+           problem.causeKey == QLatin1String("missing") || problem.failedMove;
+}
+
+/// "Rain on Tin Roofs/" for a torrent in a folder of its own, else its one file's name: what
+/// the folder to point at holds.
+QString heldName(const QList<core::ContentFile> &files)
+{
+    if (files.isEmpty())
+        return QString();
+    const QString first = files.constFirst().path;
+    const qsizetype slash = first.indexOf(QLatin1Char('/'));
+    return slash > 0 ? first.left(slash + 1) : first;
+}
+
+/// The find as a failed line says it (docs/67 §2): "found 0 of 12 files in /data/shelf-b",
+/// "found 7 of 12 files; 5 missing, the first "Lecture 08.mkv"".
+QString findWords(const core::LocateCheck::Result &find,
+                  const QList<core::ContentFile> &files,
+                  const QString &to)
+{
+    const QString of = QStringLiteral("found %1 of %2 %3")
+                           .arg(find.found)
+                           .arg(find.files)
+                           .arg(find.files == 1 ? QStringLiteral("file") : QStringLiteral("files"));
+    if (find.found == 0)
+        return QStringLiteral("%1 in %2").arg(of, to);
+    return QStringLiteral("%1; %2 missing, the first “%3”")
+        .arg(of)
+        .arg(find.files - find.found)
+        .arg(core::LocateCheck::shownName(files, find.firstMissing));
+}
+
+} // namespace
+
+void AgentDo::proceedLocate(const QString &json,
+                            const core::ProcParent::Caller &caller,
+                            const Reply &reply,
+                            bool asked,
+                            bool dryRun,
+                            bool asks,
+                            const QStringList &hashes,
+                            const QString &to)
+{
+    const Answers::Server current = m_service->currentServer();
+    const auto refuse = [reply](const QString &message) {
+        reply(AgentService::failure(
+            kCommand, QStringLiteral("refused"), core::AnnounceMask::maskText(message)));
+    };
+    const core::TorrentModel *model = m_app->engine()->torrents();
+    const core::ProblemLog *problems = m_app->engine()->problems();
+    for (const QString &hash : hashes) {
+        const core::Torrent &torrent = model->torrent(hash);
+        const core::TorrentProblem problem =
+            problems != nullptr ? problems->problem(hash) : core::TorrentProblem();
+        // research/294-locate (5): a Deluge torrent whose check hit a file error sits in
+        // Checking for good after a recheck, re-pointed or not. Its failed move (K24) is not
+        // that: a recheck clears it.
+        if (current.engine == QLatin1String("deluge") &&
+            torrent.status.phase == core::TorrentPhase::Errored && !problem.failedMove) {
+            refuse(QStringLiteral("Not located: Deluge can't recheck %1 in this error; remove it "
+                                  "and add it again from the window.")
+                       .arg(torrent.name));
+            return;
+        }
+        // PLAN Q10: its files sit in qBittorrent's incomplete folder until it completes.
+        if (current.engine == QLatin1String("qbittorrent") && !torrent.downloadPath.isEmpty() &&
+            !torrent.isComplete()) {
+            refuse(QStringLiteral("Not located: %1 keeps its files in qBittorrent's incomplete "
+                                  "folder until it completes; locate it from the window.")
+                       .arg(torrent.name));
+            return;
+        }
+    }
+    // C14 E11: the find reads this machine's disk, so FOLDER must be one it sees (the
+    // calibration, then the path map when there is one).
+    const QString localTo = m_app->freeSpaceProbe().localPathFor(to);
+    if (localTo.isEmpty()) {
+        refuse(QStringLiteral("Not located: omaseed can't see %1 from this machine (%2's disks "
+                              "aren't this machine's, or no path map in its settings covers it), "
+                              "so it can't check the files are there. Locate it from the window.")
+                   .arg(to, current.name));
+        return;
+    }
+
+    // Every torrent's file list, as the server has it.
+    struct Gather
+    {
+        qsizetype left = 0;
+        QHash<QString, QList<core::ContentFile>> files;
+        QString error;
+    };
+    auto gather = std::make_shared<Gather>();
+    gather->left = hashes.size();
+    QPointer<AgentDo> self(this);
+    const QString serverName = current.name;
+    for (const QString &hash : hashes) {
+        m_app->client()->files(hash)->then(
+            this,
+            [self,
+             gather,
+             hash,
+             json,
+             caller,
+             reply,
+             asked,
+             dryRun,
+             asks,
+             hashes,
+             to,
+             localTo,
+             serverName](const core::Result<QList<core::ContentFile>> &result) {
+                if (result.isError()) {
+                    if (gather->error.isEmpty())
+                        gather->error = result.error().toString();
+                } else {
+                    gather->files.insert(hash, result.value());
+                }
+                if (--gather->left > 0 || self.isNull())
+                    return;
+                if (!gather->error.isEmpty()) {
+                    reply(AgentService::failure(
+                        kCommand,
+                        QStringLiteral("failed"),
+                        core::AnnounceMask::maskText(
+                            QStringLiteral("omaseed couldn't read the torrents' files from %1: %2")
+                                .arg(serverName, gather->error))));
+                    return;
+                }
+                self->locateFound(
+                    json, caller, reply, asked, dryRun, asks, hashes, to, localTo, gather->files);
+            });
+    }
+}
+
+void AgentDo::locateFound(const QString &json,
+                          const core::ProcParent::Caller &caller,
+                          const Reply &reply,
+                          bool asked,
+                          bool dryRun,
+                          bool asks,
+                          const QStringList &hashes,
+                          const QString &to,
+                          const QString &localTo,
+                          const QHash<QString, QList<core::ContentFile>> &files)
+{
+    namespace LocateCheck = core::LocateCheck;
+    const Answers::Server current = m_service->currentServer();
+    const auto refuse = [reply](const QString &message) {
+        reply(AgentService::failure(
+            kCommand, QStringLiteral("refused"), core::AnnounceMask::maskText(message)));
+    };
+    const core::TorrentModel *model = m_app->engine()->torrents();
+    const core::ProblemLog *problems = m_app->engine()->problems();
+    const core::FreeSpaceProbe &probe = m_app->freeSpaceProbe();
+
+    struct Found
+    {
+        QString hash;
+        QString name;
+        LocateCheck::Result find;
+        bool autoTmm = false;
+    };
+    QList<Found> found;
+    QJsonArray short_;
+    QString firstShort;
+    for (const QString &hash : hashes) {
+        if (model->indexOfHash(hash) < 0) {
+            reply(AgentService::failure(
+                kCommand,
+                QStringLiteral("unknown-torrent"),
+                QStringLiteral("%1 has no torrent %2 any more.").arg(current.name, hash)));
+            return;
+        }
+        const core::Torrent &torrent = model->torrent(hash);
+        const QList<core::ContentFile> list = files.value(hash);
+        const LocateCheck::Result find = LocateCheck::check(list, localTo, LocateCheck::statLocal);
+        if (find.files == 0) {
+            refuse(
+                QStringLiteral("Not located: %1 lists no file to look for yet.").arg(torrent.name));
+            return;
+        }
+        // GT2: locate is for files that are missing; files all where the torrent is need no
+        // locate (a recheck checks them; elsewhere, that's a move).
+        const core::TorrentProblem problem =
+            problems != nullptr ? problems->problem(hash) : core::TorrentProblem();
+        if (!saysMissing(torrent, problem)) {
+            const QString here = probe.localPathFor(torrent.savePath);
+            if (here.isEmpty() || LocateCheck::check(list, here, LocateCheck::statLocal).all()) {
+                const bool same = core::SharedData::normalize(torrent.savePath) ==
+                                  core::SharedData::normalize(to);
+                refuse(same ? QStringLiteral("Not located: %1's files aren't missing: it is in %2 "
+                                             "already. omaseed do recheck checks them.")
+                                  .arg(torrent.name, torrent.savePath)
+                            : QStringLiteral("Not located: %1's files aren't missing: they are in "
+                                             "%2. Putting them in %3 is a move: omaseed do move "
+                                             "%4 --to %3.")
+                                  .arg(torrent.name, torrent.savePath, to, hash.left(8)));
+                return;
+            }
+        }
+        if (!find.all()) {
+            const QString words = findWords(find, list, to);
+            if (firstShort.isEmpty()) {
+                firstShort = find.found == 0
+                                 ? QStringLiteral("%1.\nPoint at the folder that holds “%2”.")
+                                       .arg(words, heldName(list))
+                                 : QStringLiteral("%1. A recheck there would download them again.")
+                                       .arg(words);
+                if (hashes.size() > 1)
+                    firstShort = QStringLiteral("%1: %2").arg(torrent.name, firstShort);
+            }
+            short_.append(QJsonObject{{QStringLiteral("hash"), hash},
+                                      {QStringLiteral("name"), torrent.name},
+                                      {QStringLiteral("code"), QStringLiteral("not-found")},
+                                      {QStringLiteral("found"), find.found},
+                                      {QStringLiteral("files"), find.files},
+                                      {QStringLiteral("message"), words}});
+            continue;
+        }
+        // qBittorrent's set location turns automatic management off (research/294-locate (3)).
+        found.append({hash,
+                      torrent.name,
+                      find,
+                      current.engine == QLatin1String("qbittorrent") && torrent.autoTmm});
+    }
+
+    // docs/67 §2: a short find is refused, not run: re-pointing and downloading the rest is
+    // the person's call, from the window. found and files on every line.
+    if (!short_.isEmpty()) {
+        const QString message =
+            hashes.size() == 1 ? QStringLiteral("Not located: ") + firstShort
+                               : QStringLiteral("Not located: %1 of %2 torrents aren't all in %3. ")
+                                         .arg(short_.size())
+                                         .arg(hashes.size())
+                                         .arg(to) +
+                                     firstShort;
+        auto fields = envelope(QStringLiteral("locate"));
+        fields.append({QStringLiteral("to"), to});
+        fields.append({QStringLiteral("done"), QJsonArray()});
+        fields.append({QStringLiteral("failed"), short_});
+        fields.append(
+            {QStringLiteral("error"),
+             QJsonObject{{QStringLiteral("code"), QStringLiteral("not-found")},
+                         {QStringLiteral("message"), core::AnnounceMask::maskText(message)}}});
+        reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+        return;
+    }
+
+    const qsizetype offCount =
+        std::count_if(found.cbegin(), found.cend(), [](const Found &f) { return f.autoTmm; });
+    const QString subject =
+        found.size() == 1
+            ? found.constFirst().name
+            : countOf(found.size(), QStringLiteral("torrent"), QStringLiteral("torrents"));
+    const auto line = [](const Found &f, bool rechecking) {
+        QJsonObject out{{QStringLiteral("hash"), f.hash},
+                        {QStringLiteral("name"), f.name},
+                        {QStringLiteral("found"), f.find.found},
+                        {QStringLiteral("files"), f.find.files},
+                        {QStringLiteral("bytes"), f.find.bytes}};
+        if (rechecking)
+            out.insert(QStringLiteral("rechecking"), true);
+        if (f.autoTmm)
+            out.insert(QStringLiteral("managementOff"), true);
+        return out;
+    };
+
+    if (dryRun) {
+        // GT5: every check made, the find too; nothing asked, nothing done.
+        QJsonArray torrents;
+        for (const Found &f : std::as_const(found))
+            torrents.append(line(f, false));
+        auto fields = envelope(QStringLiteral("locate"));
+        fields.append({QStringLiteral("dryRun"), true});
+        fields.append(
+            {QStringLiteral("would"), asks ? QStringLiteral("ask") : QStringLiteral("run")});
+        fields.append({QStringLiteral("to"), to});
+        fields.append({QStringLiteral("torrents"), torrents});
+        const QString every =
+            found.size() == 1
+                ? QStringLiteral("found %1 of %1 files").arg(found.constFirst().find.files)
+                : QStringLiteral("every file found");
+        fields.append(
+            {QStringLiteral("outcome"),
+             core::AnnounceMask::maskText(
+                 QStringLiteral("locate would %1 · %2 · %3 in %4")
+                     .arg(asks ? QStringLiteral("ask in omaseed's window") : QStringLiteral("run"),
+                          subject,
+                          every,
+                          to))});
+        reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+        return;
+    }
+
+    if (asks && !asked) {
+        // C45 V17: the ask shows the folder and the find, and what the re-point costs.
+        constexpr qsizetype kShown = 4;
+        QVariantMap request;
+        request.insert(QStringLiteral("action"), QStringLiteral("locate"));
+        request.insert(
+            QStringLiteral("head"),
+            found.size() == 1
+                ? QStringLiteral("An agent asks to locate a torrent")
+                : QStringLiteral("An agent asks to locate %1 torrents").arg(found.size()));
+        QVariantList torrents;
+        for (const Found &f : std::as_const(found)) {
+            if (torrents.size() == kShown)
+                break;
+            const core::Torrent &torrent = model->torrent(f.hash);
+            QStringList words{QStringLiteral("found %1 of %1 files").arg(f.find.files),
+                              core::Format::size(f.find.bytes)};
+            if (!torrent.savePath.isEmpty())
+                words << QStringLiteral("was in %1").arg(torrent.savePath);
+            torrents.append(
+                QVariantMap{{QStringLiteral("name"), f.name},
+                            {QStringLiteral("line"), words.join(QStringLiteral(" · "))}});
+        }
+        request.insert(QStringLiteral("torrents"), torrents);
+        request.insert(QStringLiteral("more"),
+                       found.size() > kShown
+                           ? QStringLiteral("and %1 more").arg(found.size() - kShown)
+                           : QString());
+        request.insert(QStringLiteral("where"),
+                       QStringLiteral("in %1 · nothing moves, then a recheck").arg(to));
+        QStringList checks;
+        if (offCount > 0)
+            checks << (found.size() == 1
+                           ? QStringLiteral("Automatic management goes off for it: qBittorrent's "
+                                            "set location does that.")
+                           : QStringLiteral("Automatic management goes off for %1 of them: "
+                                            "qBittorrent's set location does that.")
+                                 .arg(offCount));
+        request.insert(QStringLiteral("checks"), checks);
+        request.insert(QStringLiteral("note"),
+                       QStringLiteral("omaseed points the torrent at this folder without moving a "
+                                      "file, then rechecks it: the recheck says whether the files "
+                                      "are whole."));
+        addCaller(&request, caller);
+        request.insert(QStringLiteral("allowText"), QStringLiteral("allow"));
+        askFirst(json, caller, reply, QStringLiteral("locate"), subject, request);
+        return;
+    }
+
+    // Allowed: re-point, recheck, and answer once the server has.
+    App::AgentAct act;
+    act.word = QStringLiteral("locate");
+    act.origin = originOf(caller, asked);
+    QPointer<AgentDo> self(this);
+    const QString answered = asked ? QStringLiteral("allowed") : QStringLiteral("not-asked");
+    const QString serverName = current.name;
+    act.answered = [self, reply, found, line, to, asked, answered, serverName, subject, offCount](
+                       const core::ActionOutcome &outcome) {
+        if (self.isNull())
+            return;
+        QJsonArray done;
+        QJsonArray failed;
+        for (const Found &f : found) {
+            if (!outcome.failedHashes.contains(f.hash)) {
+                done.append(line(f, true));
+                continue;
+            }
+            failed.append(QJsonObject{{QStringLiteral("hash"), f.hash},
+                                      {QStringLiteral("name"), f.name},
+                                      {QStringLiteral("code"), QStringLiteral("failed")},
+                                      {QStringLiteral("message"),
+                                       outcome.cause.isEmpty()
+                                           ? QStringLiteral("%1 refused it").arg(serverName)
+                                           : outcome.cause}});
+        }
+        QString said =
+            failed.isEmpty()
+                ? (found.size() == 1
+                       ? QStringLiteral("Located · %1 · rechecking").arg(subject)
+                       : QStringLiteral("Located %1 in %2 · rechecking").arg(subject, to))
+                : QStringLiteral("Not located · %1: %2")
+                      .arg(subject,
+                           outcome.cause.isEmpty() ? QStringLiteral("%1 refused it").arg(serverName)
+                                                   : outcome.cause);
+        if (failed.isEmpty() && offCount > 0)
+            said += found.size() == 1
+                        ? QStringLiteral(". Automatic management went off for it.")
+                        : QStringLiteral(". Automatic management went off for %1 of them.")
+                              .arg(offCount);
+        auto fields = envelope(QStringLiteral("locate"));
+        fields.append({QStringLiteral("to"), to});
+        fields.append({QStringLiteral("asked"), asked});
+        fields.append({QStringLiteral("answer"), answered});
+        fields.append({QStringLiteral("done"), done});
+        fields.append({QStringLiteral("failed"), failed});
+        fields.append({QStringLiteral("outcome"), core::AnnounceMask::maskText(said)});
+        reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
+    };
+    QStringList sending;
+    for (const Found &f : std::as_const(found))
+        sending << f.hash;
+    if (!m_app->locate(sending, to, act))
+        reply(AgentService::failure(
+            kCommand,
+            QStringLiteral("failed"),
+            QStringLiteral("omaseed couldn't send locate to %1.").arg(current.name)));
 }
 
 } // namespace omaseed::app

@@ -52,6 +52,11 @@ Phrases phrases(const QString &action, const QString &target)
         return {tr("sent to recheck"), tr("didn't recheck"), tr("rechecking")};
     if (action == QLatin1String("reannounce"))
         return {tr("reannounced"), tr("didn't reannounce"), tr("reannounced")};
+    // #294 (C50 GT2): an agent's locate, re-pointed at %1 and sent to recheck.
+    if (action == QLatin1String("locate"))
+        return {tr("located in %1 · rechecking").arg(target),
+                tr("didn't locate"),
+                tr("located · %1").arg(leaf(target))};
     // #292: an agent's dismiss through `do` (the window's own dismiss puts no strip up).
     if (action == QLatin1String("dismiss"))
         return {tr("cleared"), tr("didn't clear"), tr("cleared")};

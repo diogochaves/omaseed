@@ -1949,6 +1949,11 @@ public:
     bool retryTorrents(const QStringList &hashes, const AgentAct &act);
     bool recheck(const QStringList &hashes, const AgentAct &act);
     bool reannounce(const QStringList &hashes, const AgentAct &act);
+    /// #294 (C50 GT2): `do locate`: re-points `hashes` at `path` (EngineClient::pointAt, nothing
+    /// moved), then rechecks them; answered once both went through, or at the first refusal.
+    bool locate(const QStringList &hashes, const QString &path, const AgentAct &act);
+    /// What this machine sees of the server's disks (`localPathFor`), for `do locate`'s find.
+    const omaseed::core::FreeSpaceProbe &freeSpaceProbe() const { return m_freeSpace; }
     /// dismissFailure for each of `hashes`; answered at once (nothing goes to the server).
     bool dismissFailures(const QStringList &hashes, const AgentAct &act);
     /// C36 M10's hold, as the window's: answered when PauseHold says it ended, with action

@@ -277,6 +277,13 @@ omaseed_add_test(tst_app_agentmove
     LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
 )
 
+# #294 (DECISIONS C50 GT2): `do locate` against a stand-in qBittorrent whose save paths are a
+# temporary folder: the find, set location and the recheck, not-found, the refusals, the ask.
+omaseed_add_test(tst_app_agentlocate
+    SOURCES tst_app_agentlocate.cpp
+    LIBRARIES omaseed::app omaseed::core omaseed::integration Qt6::Network
+)
+
 # #218 (DECISIONS C35 W1, W2, W6): where an add from outside the window opens, and the raise.
 omaseed_add_test(tst_addroute
     SOURCES tst_addroute.cpp

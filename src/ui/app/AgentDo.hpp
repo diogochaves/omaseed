@@ -8,7 +8,7 @@
 // 1. the options (usage); `list` answers the gate's lines as they stand, whatever it says;
 // 2. a demo acts on nothing (not-allowed; PLAN Q15);
 // 3. the gate (AgentGate::decide): never, not-allowed (reads off, or the kind's line off);
-// 4. an action not in this build yet (locate, remove: usage);
+// 4. an action not in this build yet (remove: usage);
 // 5. the server, as the reads check it: --server, not-current, first-sync, unreachable;
 // 6. every torrent matched (unknown-torrent, ambiguous) and checked for its action
 //    (start-here, dismiss, resume: refused, with why);
@@ -22,11 +22,19 @@
 // where to, how much and the room. Allowed, the job starts (or queues, L12) and the word
 // answers at its start with the job's id; the job, its record and the story say "by an agent".
 //
+// Locate (#294, C50 GT2), a fix: `locate --to FOLDER` re-points torrents whose files are
+// missing at a folder this machine sees, once each wanted file is found there by its relative
+// path and size (LocateCheck), then rechecks them; a short find is not-found, nothing run.
+//
 // The fixes here: retry, start-here (a start, for a torrent the engine stopped after a failed
 // move; on an engine that pauses on error, recheck first), recheck, reannounce, dismiss, and
 // pause and resume (C36 M10's hold, the whole server).
 
 #include "core/ProcParent.hpp"
+#include "core/engines/DetailsData.hpp"
+
+#include <QHash>
+#include <QList>
 
 #include <QObject>
 #include <QString>
@@ -79,6 +87,28 @@ private:
                      const QStringList &hashes,
                      const QString &to,
                      const QString &moveId);
+    /// A locate (#294, C50 GT2): the checks that need no disk, then every torrent's file list
+    /// read from the server, then locateFound.
+    void proceedLocate(const QString &json,
+                       const core::ProcParent::Caller &caller,
+                       const Reply &reply,
+                       bool asked,
+                       bool dryRun,
+                       bool asks,
+                       const QStringList &hashes,
+                       const QString &to);
+    /// The find in `localTo` (LocateCheck) on each torrent's `files`, then the dry run's
+    /// answer, the ask, or the re-point and the recheck.
+    void locateFound(const QString &json,
+                     const core::ProcParent::Caller &caller,
+                     const Reply &reply,
+                     bool asked,
+                     bool dryRun,
+                     bool asks,
+                     const QStringList &hashes,
+                     const QString &to,
+                     const QString &localTo,
+                     const QHash<QString, QList<core::ContentFile>> &files);
     /// MoveController's plan (`make`), once it has every check in (`pending` false), or after
     /// a while with what it has: `done` gets it.
     void whenPlanned(const std::function<QVariantMap()> &make,

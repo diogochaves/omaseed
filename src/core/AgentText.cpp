@@ -593,6 +593,27 @@ QString doAnswer(const QJsonObject &answer, const TextStyle &style)
         outcome += QStringLiteral(" (job %1)").arg(job);
     const QJsonArray failed = answer.value(QLatin1String("failed")).toArray();
     const QJsonArray done = answer.value(QLatin1String("done")).toArray();
+    // docs/67 §2: a locate says its find first ("Found 12 of 12 files in /data/b (3.4 GB).").
+    if (answer.value(QLatin1String("action")).toString() == QLatin1String("locate") &&
+        !done.isEmpty()) {
+        const QString to = answer.value(QLatin1String("to")).toString();
+        qint64 bytes = 0;
+        for (const QJsonValue &value : done)
+            bytes += value.toObject().value(QLatin1String("bytes")).toInteger();
+        const QJsonObject first = done.first().toObject();
+        const int files = first.value(QLatin1String("files")).toInt();
+        const QString found =
+            done.size() == 1
+                ? QStringLiteral("Found %1 of %2 %3 in %4 (%5).")
+                      .arg(first.value(QLatin1String("found")).toInt())
+                      .arg(files)
+                      .arg(files == 1 ? QStringLiteral("file") : QStringLiteral("files"))
+                      .arg(to, Format::size(bytes))
+                : QStringLiteral("Found every file of %1 torrents in %2 (%3).")
+                      .arg(done.size())
+                      .arg(to, Format::size(bytes));
+        out += wrap(found, style.width, QString(), QStringLiteral("  "));
+    }
     const QString head = wrap(outcome, style.width, QString(), QStringLiteral("  "));
     out += failed.isEmpty()
                ? head
@@ -629,6 +650,8 @@ QString doList(const QJsonObject &answer, const TextStyle &style)
             return QStringLiteral("move --to FOLDER");
         if (action == QLatin1String("move-back"))
             return QStringLiteral("move-back MOVE");
+        if (action == QLatin1String("locate"))
+            return QStringLiteral("locate --to FOLDER");
         return action;
     };
     QString out = paint(QStringLiteral("Settings › General › Agents"), Colour::Bold, style) +

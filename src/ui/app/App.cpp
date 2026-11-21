@@ -3943,6 +3943,24 @@ bool App::recheck(const QStringList &hashes, const AgentAct &act)
     return true;
 }
 
+bool App::locate(const QStringList &hashes, const QString &path, const AgentAct &act)
+{
+    if (hashes.isEmpty() || demoGuard(QStringLiteral("locate"), hashes.size()) || !m_hasServer)
+        return false;
+    // C50 GT2: nothing moves; the engine's progress after a re-point isn't to be read
+    // (research/294-locate), so the recheck always follows, and says.
+    auto answer = tableAnswer(QStringLiteral("locate"), hashes, path, 1, agentOrNone(act));
+    m_client->pointAt(hashes, path)->then(this, [this, hashes, answer](const Result<Done> &result) {
+        if (result.isError()) {
+            answer(result);
+            return;
+        }
+        m_engine->problems()->noteRechecked(hashes);
+        m_client->recheck(hashes)->then(this, answer);
+    });
+    return true;
+}
+
 void App::reannounce(const QStringList &hashes)
 {
     reannounce(hashes, AgentAct());

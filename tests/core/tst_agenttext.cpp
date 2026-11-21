@@ -217,6 +217,7 @@ private slots:
     void pausedSaysTheBand();
     void doAnswerSaysTheOutcome();
     void doAnswerSaysWhatFailed();
+    void doAnswerSaysLocatesFind();
     void doListSaysTheLines();
     void doDryRunSaysWhatWould();
 };
@@ -568,6 +569,28 @@ void TestAgentText::doAnswerSaysWhatFailed()
     QVERIFY(doLines(failed, true).startsWith(QStringLiteral("\x1b[31mHarbour Bells didn't")));
 }
 
+// C50 GT2, docs/67 §2: a locate says its find, then the outcome.
+void TestAgentText::doAnswerSaysLocatesFind()
+{
+    const QJsonObject one = doJson(
+        R"({"v":1,"command":"do","action":"locate","to":"/data/shelf-b/recordings",
+            "asked":false,"answer":"not-asked",
+            "done":[{"hash":"71ad","name":"Lantern Festival","found":12,"files":12,
+                     "bytes":2048,"rechecking":true}],"failed":[],
+            "outcome":"Located · Lantern Festival · rechecking"})");
+    QCOMPARE(doLines(one),
+             QStringLiteral("Found 12 of 12 files in /data/shelf-b/recordings (2 KB).\n"
+                            "Located · Lantern Festival · rechecking\n"));
+    QJsonObject two = one;
+    QJsonArray done = one.value(QStringLiteral("done")).toArray();
+    done.append(done.first());
+    two.insert(QStringLiteral("done"), done);
+    two.insert(QStringLiteral("outcome"), QStringLiteral("Located 2 torrents · rechecking"));
+    QVERIFY2(doLines(two).startsWith(QStringLiteral(
+                 "Found every file of 2 torrents in /data/shelf-b/recordings (4 KB).\n")),
+             qPrintable(doLines(two)));
+}
+
 // C50 GT3: the four lines as they stand, the never line last.
 void TestAgentText::doListSaysTheLines()
 {
@@ -587,7 +610,7 @@ void TestAgentText::doListSaysTheLines()
                  "                 status · errors · log · moves · do\n"
                  "  Fixes    allow run at once\n"
                  "                 retry · start-here · recheck · reannounce · pause · resume ·\n"
-                 "                 dismiss · locate\n"
+                 "                 dismiss · locate --to FOLDER\n"
                  "  Moves    ask   ask each time\n"
                  "                 move --to FOLDER · move-back MOVE\n"
                  "  Remove   off   not allowed\n"
