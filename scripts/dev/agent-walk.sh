@@ -4,7 +4,11 @@
 # checked with jq and their exit codes. omaseed starts on the Transmission playground: status
 # lists both servers, log has no log to read (exit 4), errors for the other server is not
 # current (exit 4), moves answers for it (exit 0), an unknown server is usage (exit 2), and
-# --skill prints the guide AGENTS.md holds. Then the Status interface switches to the :8081
+# --skill prints the guide AGENTS.md holds. The skill (C48, #286): `skill` prints the map
+# (plain and --json), `skill library` the exit-code table; in the box's home `skill link` links
+# ~/.agents and ~/.claude to omaseed's skill folder and leaves a folder of the box's own at
+# ~/.codex/skills/omaseed, `skill status` says so, a second link changes nothing, `skill unlink`
+# takes out only its links, and AGENTS.md is the printed map. Then the Status interface switches to the :8081
 # playground and a torrent goes into error: errors names its cause and fix with qBittorrent's
 # line about it (warning or worse), log has that line naming it, status counts it. Moved from the window (m) to a
 # folder it can write, moves has the landed move and what a move back would do, and errors has
@@ -223,6 +227,61 @@ agents_header() {
         [ "$(cat "$home/.config/omaseed/CLAUDE.md")" = "@AGENTS.md" ]
 }
 check "the box's .config/omaseed/AGENTS.md written with its header, CLAUDE.md points at it" agents_header
+
+# ---- 1b. the skill (DECISIONS C48, #286) -------------------------------------------------
+# Every link and unlink runs in the box (omabox run), whose HOME is the box's: never this home.
+echo "1b. the skill: printed, linked, unlinked in the box's home"
+word skill-map skill
+skill_map() { plain skill-map && grep -q '^Pages: omaseed skill library, skins, files\.$' "$ANSWERS/skill-map.txt"; }
+check "skill: exit 0, the map, plain, ending in the pages" skill_map
+word skill-map-json skill --json
+check "skill --json: page map, its text" answered 0 skill-map-json.json \
+    '.v == 1 and .command == "skill" and .page == "map" and (.text | contains("omaseed skill library"))
+     and (has("omaseed") | not)'
+word skill-library skill library
+skill_library() { plain skill-library && grep -q '^## Exit codes$' "$ANSWERS/skill-library.txt" &&
+    grep -q '^  5  not-written' "$ANSWERS/skill-library.txt"; }
+check "skill library: exit 0, the exit-code table" skill_library
+word skill-status0 skill status --json
+check "skill status --json: nothing linked yet" answered 0 skill-status0.json \
+    '.command == "skill status" and ([.folders[] | select(.state == "linked")] | length == 0)'
+# A folder of the box's own where Codex looks: a link must leave it, and unlink keep it.
+# shellcheck disable=SC2016 # $HOME expands in the box, to the box's home
+omabox run -b "$BOX" -- sh -c 'mkdir -p "$HOME/.codex/skills/omaseed" &&
+    printf -- "---\nname: \"omaseed\"\n---\nmine\n" >"$HOME/.codex/skills/omaseed/SKILL.md"' >/dev/null
+word skill-link skill link --json
+check "skill link --json: exit 0, the two always linked, Codex's folder left as yours" answered 0 skill-link.json \
+    '([.folders[] | select(.state == "linked") | .agent] | sort) == ["Claude Code", "the shared ~/.agents"]
+     and ([.folders[] | select(.agent == "Codex")][0] | .state == "yours" and .copy == true)
+     and (.changed | length == 2)'
+# ours_link REL: the box's ~/REL is a link to an omaseed skill folder (it holds the SKILL.md).
+ours_link() {
+    [ -L "$home/$1" ] && [[ "$(readlink "$home/$1")" =~ /(omaseed|data)/agents/skill$ ]] &&
+        [ -f "$(readlink "$home/$1")/SKILL.md" ]
+}
+check "the box's ~/.agents/skills/omaseed links to omaseed's skill" ours_link .agents/skills/omaseed
+check "the box's ~/.claude/skills/omaseed links to omaseed's skill" ours_link .claude/skills/omaseed
+word skill-status1 skill status
+skill_status() { plain skill-status1 && grep -q '^linked ' "$ANSWERS/skill-status1.txt" &&
+    grep -q '^yours  *Codex' "$ANSWERS/skill-status1.txt"; }
+check "skill status: linked, Codex's own copy said as yours" skill_status
+word skill-link2 skill link --json
+check "skill link again: exit 0, nothing changed, Codex's folder still left" answered 0 skill-link2.json \
+    '(.changed | length == 0) and ([.folders[] | select(.agent == "Codex")][0].state == "yours")'
+word skill-unlink skill unlink --json
+unlinked() {
+    answered 0 skill-unlink.json '.changed | length == 2' &&
+        [ ! -e "$home/.agents/skills/omaseed" ] && [ ! -L "$home/.agents/skills/omaseed" ] &&
+        [ ! -L "$home/.claude/skills/omaseed" ] && [ -d "$home/.claude/skills" ] &&
+        [ "$(tail -n 1 "$home/.codex/skills/omaseed/SKILL.md")" = mine ]
+}
+check "skill unlink: only ours gone, the folders kept, Codex's folder untouched" unlinked
+agents_is_map() {
+    local file="$home/.config/omaseed/AGENTS.md"
+    [ "$(head -n 1 "$file")" = "Written by omaseed on every start. Edits here are overwritten." ] &&
+        grep -q 'omaseed skill library' "$file" && ! grep -q 'ref: ' "$file"
+}
+check "AGENTS.md is the printed map: its header, omaseed skill library, no ref:" agents_is_map
 
 # ---- 2. onto the playground, and a torrent in error ---------------------------------------
 echo "2. switched to the playground; $BROKEN breaks"
