@@ -462,6 +462,13 @@ omaseed_add_test(tst_torrentsbackup
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# C50 GT6 (#295): a removed torrent kept 30 days in its own folder, to add back.
+omaseed_add_test(tst_removedkeep
+    SOURCES tst_removedkeep.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_torrentsbackup_live LIVE
     SOURCES tst_torrentsbackup_live.cpp
     LIBRARIES omaseed::core

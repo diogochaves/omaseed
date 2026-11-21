@@ -2210,6 +2210,20 @@ public:
     /// How long between two looks at the journal's links; a test shortens it.
     void setLinksInterval(std::chrono::milliseconds interval) { m_linksInterval = interval; }
 
+    // docs/DECISIONS.md C50 GT6 (#295): a torrent an agent removes is kept 30 days to add back
+    // (core/RemovedKeep). `do remove` and the Agents row's add back… use these.
+    /// Keeps `hash` of the server on show in the removed folder: a one-torrent export by the
+    /// engine's own exporter, as Backup's. `done(id, error)`: the kept entry's id, or why not
+    /// ("" id): not connected, not on the server, or its .torrent out of reach (a Transmission
+    /// or Deluge whose disk this machine doesn't see: Q11, the remove is then refused).
+    void keepRemoved(const QString &hash,
+                     const std::function<void(const QString &id, const QString &error)> &done);
+    /// Adds kept torrent `id` back to the server on show by the engine's own importer: stopped,
+    /// unchecked, at the save path it had. Forgets the entry once it is in. `done(error)`: ""
+    /// when added; why not otherwise (another server's: switch to it first, Q12; on the
+    /// server already; an export or import running).
+    void addBackRemoved(const QString &id, const std::function<void(const QString &error)> &done);
+
     // A Transmission and a Deluge keep their .torrent files on their own disk, not in their
     // API (docs/57 §4, docs/DECISIONS.md C40 X3; #88): whether this machine can read them,
     // asked when Settings › ENGINE › Backup shows and after a folder is given. A Deluge may
@@ -2260,6 +2274,12 @@ private:
                                  const QString &source) const;
     QList<omaseed::core::TorrentsImport::PathRow> torrentsRows(const QVariantList &rows) const;
     QVariantMap torrentsImportInfo();
+    /// What the server has now for an import's plan: every id, category and tag, read afresh.
+    void readServerHere(const std::function<void(const omaseed::core::TorrentsImport::Here &here,
+                                                 const QString &error)> &done);
+    omaseed::core::TorrentsImport::Plan
+    torrentsPlanHere(const omaseed::core::TorrentsBackup::Contents &contents,
+                     const omaseed::core::TorrentsImport::Here &here) const;
     QPointer<omaseed::core::TorrentsExport> m_torrentsExport;
     QPointer<omaseed::core::TransmissionTorrentsExport> m_transmissionExport;
     QPointer<omaseed::core::DelugeTorrentsExport> m_delugeExport;

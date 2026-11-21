@@ -187,6 +187,8 @@ qt_add_library(omaseed-core STATIC
     ProblemLog.hpp
     Reply.cpp
     Reply.hpp
+    RemovedKeep.cpp
+    RemovedKeep.hpp
     RenameDisk.cpp
     RenameDisk.hpp
     RenamePlan.cpp
