@@ -1900,7 +1900,8 @@ public:
     Q_PROPERTY(QString agentMoves READ agentMoves WRITE setAgentMoves NOTIFY agentsChanged)
     /// "off" (default) · "ask"; an "allow" is taken as ask (GT1, GT3).
     Q_PROPERTY(QString agentRemove READ agentRemove WRITE setAgentRemove NOTIFY agentsChanged)
-    /// The row's last line (C45 V18): {text, at}; empty until something was done through `do`.
+    /// The row's last line (C45 V18): {text ("last: … · today 15:20"), what (as saved), at};
+    /// empty until something was done through `do`.
     Q_PROPERTY(QVariantMap agentLast READ agentLast NOTIFY agentsChanged)
     QString agentReads() const { return agentGate().readsLevel(); }
     QString agentFixes() const;
@@ -1920,9 +1921,25 @@ public:
     /// line), and what to call once the server has answered, with the strip's outcome.
     struct AgentAct
     {
+        /// The word the agent asked ("recheck", "start-here"); "" for the window's own act.
+        QString word;
         omaseed::core::AgentOrigin origin;
         std::function<void(const omaseed::core::ActionOutcome &)> answered;
     };
+    /// C45 V18: an agent's act that went to the server, said in the journal (`qInfo`) and
+    /// saved as the row's last line. `subject` is the torrent's name, "3 torrents" or the
+    /// server. Nothing for the window's own act (`act.word` empty).
+    void noteAgentAct(const AgentAct &act,
+                      const QString &subject,
+                      const omaseed::core::ActionOutcome &outcome);
+    /// An agent's `do` refused before anything ran by the gate (not-allowed, never): the
+    /// journal's line and the last line, so the person sees an agent tried.
+    void noteAgentRefusal(const QString &word,
+                          const QString &how,
+                          const omaseed::core::AgentOrigin &origin);
+    /// pauseTorrents/resumeTorrents' answer: `act.answered`, and for an agent the strip and
+    /// the note first.
+    std::function<void(const omaseed::core::ActionOutcome &)> holdAnswered(const AgentAct &act);
     /// retryTorrents, recheck, reannounce as the window runs them, and `act.answered` once the
     /// server answered. False when nothing was sent (a demo, no server): `answered` isn't
     /// called then.
@@ -2442,13 +2459,14 @@ private:
     /// answers are in (limits takes up to three requests), the strip says how it went, in
     /// ErrorWords' words when one failed. The torrent's name is read now, while it is still
     /// in the list (a delete).
-    /// `answered` (#292: an agent's `do`) is called with the outcome after the strip has it.
+    /// `agent` (#292: an agent's `do`): the strip says "by an agent" (C45 V18), the act is
+    /// noted (noteAgentAct), and its `answered` is called with the outcome after the strip.
     std::function<void(const omaseed::core::Result<omaseed::core::Done> &)>
     tableAnswer(const QString &action,
                 const QStringList &hashes,
                 const QString &target = QString(),
                 int calls = 1,
-                std::function<void(const omaseed::core::ActionOutcome &)> answered = {});
+                std::optional<AgentAct> agent = std::nullopt);
 
     bool m_serverRefused = false;
     /// C25 K8: the server's engine answered with a version omaseed refuses (SyncEngine's

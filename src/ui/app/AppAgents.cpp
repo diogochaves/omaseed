@@ -41,7 +41,11 @@ QVariantMap App::agentLast() const
     const AgentGate &gate = agentGate();
     if (gate.lastText().isEmpty())
         return {};
-    return {{QStringLiteral("text"), gate.lastText()}, {QStringLiteral("at"), gate.lastAt()}};
+    // `text` is the line as the row shows it ("last: recheck · Arcade Set 01 · today 15:20"),
+    // `what` as saved.
+    return {{QStringLiteral("text"), AgentGate::lastShown(gate.lastText(), gate.lastAt())},
+            {QStringLiteral("what"), gate.lastText()},
+            {QStringLiteral("at"), gate.lastAt()}};
 }
 
 void App::setAgentReads(const QString &level)
@@ -79,6 +83,35 @@ void App::setAgentLast(const QString &text, const QDateTime &at)
     agentGate();
     m_agentGate.setLast(text, at);
     saveAgentGate();
+}
+
+void App::noteAgentAct(const AgentAct &act,
+                       const QString &subject,
+                       const core::ActionOutcome &outcome)
+{
+    if (act.word.isEmpty())
+        return;
+    // C45 V18: the journal and the row's last line say what came of it.
+    QString how = act.origin.asked ? QStringLiteral("allowed in the window")
+                                   : QStringLiteral("allowed in Settings");
+    QString result;
+    const bool serverWide = outcome.hashes.isEmpty();
+    const qsizetype failed = outcome.failedHashes.size();
+    if (serverWide ? !outcome.cause.isEmpty() : failed > 0) {
+        const bool all = serverWide || failed == outcome.hashes.size();
+        result = all ? QStringLiteral("didn't") : QStringLiteral("%1 didn't").arg(failed);
+        how += QStringLiteral(", %1").arg(result);
+        if (!outcome.cause.isEmpty())
+            how += QStringLiteral(": %1").arg(outcome.cause);
+    }
+    qInfo().noquote() << AgentGate::journalLine(act.word, subject, how, act.origin);
+    setAgentLast(AgentGate::lastLine(act.word, subject, result), QDateTime::currentDateTimeUtc());
+}
+
+void App::noteAgentRefusal(const QString &word, const QString &how, const core::AgentOrigin &origin)
+{
+    qInfo().noquote() << AgentGate::journalLine(word, QString(), how, origin);
+    setAgentLast(AgentGate::lastLine(word, QString(), how), QDateTime::currentDateTimeUtc());
 }
 
 void App::saveAgentGate()

@@ -79,6 +79,20 @@ public:
     QDateTime lastAt() const { return m_lastAt; }
     void setLast(const QString &text, const QDateTime &at);
 
+    /// C45 V18: an act's line in omaseed's journal (`journalctl --user`), `qInfo`'s words:
+    /// "agent: recheck on Arcade Set 01, allowed in Settings (claude, pid 48213)". `subject`
+    /// is the torrent's name, "3 torrents" or the server ("seedbox"); `how` what came of it
+    /// ("allowed in Settings", "allowed in the window", "not allowed", "never").
+    static QString journalLine(const QString &action,
+                               const QString &subject,
+                               const QString &how,
+                               const AgentOrigin &origin);
+    /// The row's last line as saved, before its time: "recheck · Arcade Set 01", "recheck ·
+    /// 3 torrents · 1 didn't", "delete · never". `result` is "" when it all landed.
+    static QString lastLine(const QString &action, const QString &subject, const QString &result);
+    /// The row's last line as shown (board 62 §8, board 67's row): "last: TEXT · today 15:20".
+    static QString lastShown(const QString &text, const QDateTime &at);
+
     /// state.json's "agents" section: {reads, fixes, moves, remove, last: {text, at}}.
     QJsonObject toJson() const;
     /// The section read back; a missing or unknown value is the default (reads on, the rest

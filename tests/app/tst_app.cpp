@@ -1212,8 +1212,13 @@ void TestApp::theAgentsGateIsKeptInState()
     QCOMPARE(app.agentReads(), QStringLiteral("off"));
     QCOMPARE(app.agentFixes(), QStringLiteral("allow"));
     QCOMPARE(app.agentMoves(), QStringLiteral("ask"));
-    QCOMPARE(app.agentLast().value(QStringLiteral("text")).toString(),
+    QCOMPARE(app.agentLast().value(QStringLiteral("what")).toString(),
              QStringLiteral("recheck · 1 done"));
+    // C45 V18: the row shows it with its time.
+    QVERIFY(app.agentLast()
+                .value(QStringLiteral("text"))
+                .toString()
+                .startsWith(QStringLiteral("last: recheck · 1 done · ")));
     QCOMPARE(app.agentGate().decide(QStringLiteral("recheck")),
              omaseed::core::AgentGate::Decision::Off);
     // A hand edit: remove "allow" reads as ask.

@@ -853,6 +853,15 @@ bool App::dismissFailures(const QStringList &hashes, const AgentAct &act)
     outcome.hashes = hashes;
     if (hashes.size() == 1)
         outcome.name = m_engine->torrents()->torrent(hashes.constFirst()).name;
+    // C45 V18: the window's own dismiss says nothing; an agent's puts the strip up.
+    if (!act.word.isEmpty()) {
+        outcome.byAgent = true;
+        m_outcomes->report(outcome);
+        noteAgentAct(act,
+                     outcome.name.isEmpty() ? tr("%n torrents", "", int(hashes.size()))
+                                            : outcome.name,
+                     outcome);
+    }
     if (act.answered)
         act.answered(outcome);
     return true;
@@ -1021,6 +1030,14 @@ void answerOnce(PauseHold *hold,
         });
 }
 
+/// The act for tableAnswer: only an agent's (`word` set) says "by an agent".
+std::optional<App::AgentAct> agentOrNone(const App::AgentAct &act)
+{
+    if (act.word.isEmpty())
+        return std::nullopt;
+    return act;
+}
+
 ActionOutcome holdOutcome(const QString &action, int count, const QString &error)
 {
     ActionOutcome outcome;
@@ -1031,6 +1048,36 @@ ActionOutcome holdOutcome(const QString &action, int count, const QString &error
 }
 
 } // namespace
+
+std::function<void(const ActionOutcome &)> App::holdAnswered(const AgentAct &act)
+{
+    if (act.word.isEmpty())
+        return act.answered;
+    // C45 V18: the hold has no strip of its own; an agent's puts one up, with its count.
+    return [this, act](const ActionOutcome &outcome) {
+        const bool paused = outcome.action == QLatin1String("pause");
+        const bool failed = !outcome.cause.isEmpty();
+        const QString count = outcome.target;
+        QString headline;
+        if (failed)
+            headline = paused ? tr("%1 didn't pause").arg(m_server.name)
+                              : tr("%1 didn't resume").arg(m_server.name);
+        else if (paused && count == QLatin1String("0"))
+            headline = tr("Nothing was running: nothing paused");
+        else
+            headline = paused ? tr("%1 paused").arg(count) : tr("%1 resumed").arg(count);
+        m_outcomes->reportWords({
+            {QStringLiteral("kind"), failed ? QStringLiteral("failed") : QStringLiteral("done")},
+            {QStringLiteral("mark"), failed ? QStringLiteral("✕") : QStringLiteral("✓")},
+            {QStringLiteral("headline"), headline},
+            {QStringLiteral("line"), outcome.cause},
+            {QStringLiteral("agent"), ActionOutcome::byAnAgent()},
+        });
+        noteAgentAct(act, m_server.name, outcome);
+        if (act.answered)
+            act.answered(outcome);
+    };
+}
 
 bool App::pauseTorrents(const AgentAct &act)
 {
@@ -1044,9 +1091,10 @@ bool App::pauseTorrents(const AgentAct &act)
     if (!m_pauseHold->pause())
         return false;
     // PauseHold answers later (its list of what runs comes first): listen once it is sent.
-    answerOnce(m_pauseHold, this, &PauseHold::paused, act.answered, [](int count, QString error) {
-        return holdOutcome(QStringLiteral("pause"), count, error);
-    });
+    answerOnce(
+        m_pauseHold, this, &PauseHold::paused, holdAnswered(act), [](int count, QString error) {
+            return holdOutcome(QStringLiteral("pause"), count, error);
+        });
     return true;
 }
 
@@ -1061,10 +1109,13 @@ bool App::resumeTorrents(const AgentAct &act)
     }
     if (!m_pauseHold->resume())
         return false;
-    answerOnce(
-        m_pauseHold, this, &PauseHold::resumed, act.answered, [](int count, int, QString error) {
-            return holdOutcome(QStringLiteral("resume"), count, error);
-        });
+    answerOnce(m_pauseHold,
+               this,
+               &PauseHold::resumed,
+               holdAnswered(act),
+               [](int count, int, QString error) {
+                   return holdOutcome(QStringLiteral("resume"), count, error);
+               });
     return true;
 }
 
@@ -3743,12 +3794,11 @@ void App::reportActionResult(const QString &action,
     Q_EMIT actionFailed(QString(), actionFailureText(result.error(), torrent, folder));
 }
 
-std::function<void(const Result<Done> &)>
-App::tableAnswer(const QString &action,
-                 const QStringList &hashes,
-                 const QString &target,
-                 int calls,
-                 std::function<void(const ActionOutcome &)> answered)
+std::function<void(const Result<Done> &)> App::tableAnswer(const QString &action,
+                                                           const QStringList &hashes,
+                                                           const QString &target,
+                                                           int calls,
+                                                           std::optional<AgentAct> agent)
 {
     struct Answers
     {
@@ -3760,7 +3810,7 @@ App::tableAnswer(const QString &action,
     const QString name =
         hashes.size() == 1 ? m_engine->torrents()->torrent(hashes.constFirst()).name : QString();
     return
-        [this, answers, action, hashes, target, name, answered](const Result<Done> &result) {
+        [this, answers, action, hashes, target, name, agent](const Result<Done> &result) {
             if (result.isError() && !answers->error)
                 answers->error = result.error();
             if (--answers->left > 0)
@@ -3786,9 +3836,15 @@ App::tableAnswer(const QString &action,
                                       ? words.details
                                       : words.line + QStringLiteral("\n\n") + words.details;
             }
+            outcome.byAgent = agent.has_value(); // C45 V18
             m_outcomes->report(outcome);
-            if (answered)
-                answered(outcome);
+            if (agent) {
+                noteAgentAct(*agent,
+                             name.isEmpty() ? tr("%n torrents", "", int(hashes.size())) : name,
+                             outcome);
+                if (agent->answered)
+                    agent->answered(outcome);
+            }
         };
 }
 
@@ -3847,7 +3903,7 @@ bool App::retryTorrents(const QStringList &hashes, const AgentAct &act)
 {
     if (hashes.isEmpty() || demoGuard(QStringLiteral("retry"), hashes.size()) || !m_hasServer)
         return false;
-    auto answer = tableAnswer(QStringLiteral("retry"), hashes, QString(), 1, act.answered);
+    auto answer = tableAnswer(QStringLiteral("retry"), hashes, QString(), 1, agentOrNone(act));
     m_engine->problems()->noteStarted(hashes); // DECISIONS C39
     m_client->start(hashes)->then(this, [this, answer](const Result<Done> &result) {
         answer(result);
@@ -3882,7 +3938,7 @@ bool App::recheck(const QStringList &hashes, const AgentAct &act)
     // Board 44 §2: a hybrid that errors after this is libtorrent's hybrid error (C17 D3).
     m_engine->problems()->noteRechecked(hashes);
     m_client->recheck(hashes)->then(
-        this, tableAnswer(QStringLiteral("recheck"), hashes, QString(), 1, act.answered));
+        this, tableAnswer(QStringLiteral("recheck"), hashes, QString(), 1, agentOrNone(act)));
     return true;
 }
 
@@ -3896,7 +3952,7 @@ bool App::reannounce(const QStringList &hashes, const AgentAct &act)
     if (hashes.isEmpty() || demoGuard(QStringLiteral("reannounce"), hashes.size()) || !m_hasServer)
         return false;
     m_client->reannounce(hashes)->then(
-        this, tableAnswer(QStringLiteral("reannounce"), hashes, QString(), 1, act.answered));
+        this, tableAnswer(QStringLiteral("reannounce"), hashes, QString(), 1, agentOrNone(act)));
     return true;
 }
 

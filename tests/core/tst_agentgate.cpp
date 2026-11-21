@@ -26,6 +26,7 @@ private slots:
     void unknownLevelIsTheDefault();
     void roundTrip();
     void listLinesAsTheyStand();
+    void journalAndLastWords();
 };
 
 void TestAgentGate::defaultsReadOnly()
@@ -181,6 +182,40 @@ void TestAgentGate::listLinesAsTheyStand()
     QCOMPARE(lines.at(1).toObject().value(QStringLiteral("actions")).toArray().size(), 8);
     QCOMPARE(lines.at(2).toObject().value(QStringLiteral("levels")).toArray().size(), 2);
     QVERIFY(AgentGate::neverActions().contains(QStringLiteral("delete")));
+}
+
+// C45 V18 (board 62 §5): the journal's line and the row's last line.
+void TestAgentGate::journalAndLastWords()
+{
+    AgentOrigin origin;
+    origin.pid = 48213;
+    QCOMPARE(AgentGate::journalLine(QStringLiteral("recheck"),
+                                    QStringLiteral("Arcade Set 01"),
+                                    QStringLiteral("allowed in Settings"),
+                                    origin),
+             QStringLiteral("agent: recheck on Arcade Set 01, allowed in Settings (pid 48213)"));
+    origin.caller = QStringLiteral("claude");
+    QCOMPARE(AgentGate::journalLine(QStringLiteral("recheck"),
+                                    QStringLiteral("1 torrent"),
+                                    QStringLiteral("allowed in the window"),
+                                    origin),
+             QStringLiteral("agent: recheck on 1 torrent, allowed in the window (claude, pid "
+                            "48213)"));
+    QCOMPARE(AgentGate::journalLine(
+                 QStringLiteral("delete"), QString(), QStringLiteral("never"), AgentOrigin()),
+             QStringLiteral("agent: delete, never"));
+
+    QCOMPARE(AgentGate::lastLine(QStringLiteral("recheck"), QStringLiteral("Arcade Set 01"), {}),
+             QStringLiteral("recheck · Arcade Set 01"));
+    QCOMPARE(AgentGate::lastLine(QStringLiteral("recheck"),
+                                 QStringLiteral("3 torrents"),
+                                 QStringLiteral("1 didn't")),
+             QStringLiteral("recheck · 3 torrents · 1 didn't"));
+    const QDateTime now = QDateTime::currentDateTime();
+    QCOMPARE(AgentGate::lastShown(QStringLiteral("recheck · 3 torrents"), now),
+             QStringLiteral("last: recheck · 3 torrents · today %1")
+                 .arg(now.toString(QStringLiteral("HH:mm"))));
+    QCOMPARE(AgentGate::lastShown(QString(), now), QString());
 }
 
 QTEST_GUILESS_MAIN(TestAgentGate)

@@ -1,5 +1,7 @@
 #include "core/AgentGate.hpp"
 
+#include "core/Format.hpp"
+
 namespace omaseed::core {
 
 namespace {
@@ -167,6 +169,45 @@ QString AgentGate::decisionName(Decision decision)
         return QStringLiteral("never");
     }
     return kOff;
+}
+
+QString AgentGate::journalLine(const QString &action,
+                               const QString &subject,
+                               const QString &how,
+                               const AgentOrigin &origin)
+{
+    QStringList who;
+    if (!origin.caller.isEmpty())
+        who << origin.caller;
+    if (origin.pid != 0)
+        who << QStringLiteral("pid %1").arg(origin.pid);
+    QString line = QStringLiteral("agent: %1").arg(action);
+    if (!subject.isEmpty())
+        line += QStringLiteral(" on %1").arg(subject);
+    if (!how.isEmpty())
+        line += QStringLiteral(", %1").arg(how);
+    if (!who.isEmpty())
+        line += QStringLiteral(" (%1)").arg(who.join(QStringLiteral(", ")));
+    return line;
+}
+
+QString AgentGate::lastLine(const QString &action, const QString &subject, const QString &result)
+{
+    QStringList parts{action};
+    if (!subject.isEmpty())
+        parts << subject;
+    if (!result.isEmpty())
+        parts << result;
+    return parts.join(QStringLiteral(" · "));
+}
+
+QString AgentGate::lastShown(const QString &text, const QDateTime &at)
+{
+    if (text.isEmpty())
+        return QString();
+    const QString when = Format::relativeTime(at.toLocalTime());
+    return when.isEmpty() ? QStringLiteral("last: %1").arg(text)
+                          : QStringLiteral("last: %1 · %2").arg(text, when);
 }
 
 void AgentGate::setLast(const QString &text, const QDateTime &at)

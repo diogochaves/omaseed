@@ -4,6 +4,7 @@
 // server as the window sends it, the server's refusal as failed, a dry run that sends nothing,
 // and pause and resume as the whole server's hold (C36 M10).
 
+#include "core/ActionOutcome.hpp"
 #include "core/AgentWords.hpp"
 #include "core/GlobalState.hpp"
 #include "core/PauseHold.hpp"
@@ -17,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -140,6 +142,7 @@ private slots:
     void refusedBeforeAnythingRuns();
     void pauseAndResumeHoldTheServer();
     void notYetAndBusUsage();
+    void saidByAnAgent();
 
 private:
     /// An app on the fake server, synced with both torrents.
@@ -481,6 +484,71 @@ void TestAppAgentDo::notYetAndBusUsage()
     QCOMPARE(codeOf(object), QStringLiteral("usage"));
     object = run(*m_service, QStringLiteral("not json"));
     QCOMPARE(codeOf(object), QStringLiteral("usage"));
+}
+
+// C45 V18 (board 62 §5): an agent's act says so in the strip, the journal and the Agents row's
+// last line; a refusal by the gate is noted too; the window's own act says nothing more.
+void TestAppAgentDo::saidByAnAgent()
+{
+    start();
+    QTest::ignoreMessage(QtInfoMsg, "agent: recheck, not allowed: Fixes is off (pid 4242)");
+    run(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QVERIFY2(m_app->agentLast()
+                 .value(QStringLiteral("text"))
+                 .toString()
+                 .startsWith(QStringLiteral("last: recheck · not allowed: Fixes is off · today ")),
+             qPrintable(m_app->agentLast().value(QStringLiteral("text")).toString()));
+    QVERIFY(m_app->outcomes()->current().isEmpty());
+
+    m_app->setAgentFixes(QStringLiteral("allow"));
+    QTest::ignoreMessage(QtInfoMsg,
+                         "agent: recheck on Lantern Festival, allowed in Settings (pid 4242)");
+    run(*m_service, QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"]})"));
+    QVariantMap strip = m_app->outcomes()->current();
+    QCOMPARE(strip.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("Lantern Festival sent to recheck"));
+    QCOMPARE(strip.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("recheck · Lantern Festival"));
+
+    // The server refusing two: the journal says why, the line says they didn't.
+    m_qbt.refuse = {QStringLiteral("/api/v2/torrents/reannounce")};
+    QTest::ignoreMessage(QtInfoMsg,
+                         QRegularExpression(QStringLiteral(
+                             "^agent: reannounce on 2 torrents, allowed in Settings, didn't: .+ "
+                             "\\(pid 4242\\)$")));
+    run(*m_service,
+        QStringLiteral(R"({"action":"reannounce","torrents":["3f9a1c0ea","3f9a1c0eb"]})"));
+    QCOMPARE(m_app->outcomes()->current().value(QStringLiteral("agent")).toString(),
+             QStringLiteral("by an agent"));
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("reannounce · 2 torrents · didn't"));
+    m_qbt.refuse.clear();
+
+    // The window's own recheck: no suffix, the last line kept.
+    m_app->recheck({kHarbour});
+    QTRY_COMPARE(m_app->outcomes()->current().value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("Harbour Bells sent to recheck"));
+    QCOMPARE(m_app->outcomes()->current().value(QStringLiteral("agent")).toString(), QString());
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("reannounce · 2 torrents · didn't"));
+
+    // The hold has no strip of its own: an agent's pause puts one up.
+    run(*m_service, QStringLiteral(R"({"action":"pause"})"));
+    strip = m_app->outcomes()->current();
+    QCOMPARE(strip.value(QStringLiteral("headline")).toString(), QStringLiteral("2 paused"));
+    QCOMPARE(strip.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
+    QVERIFY(m_app->agentLast()
+                .value(QStringLiteral("what"))
+                .toString()
+                .startsWith(QStringLiteral("pause · ")));
+
+    // A dry run tried nothing: the last line stays.
+    m_app->setAgentFixes(QStringLiteral("off"));
+    const QString before = m_app->agentLast().value(QStringLiteral("what")).toString();
+    run(*m_service,
+        QStringLiteral(R"({"action":"recheck","torrents":["3f9a1c0ea"],"dryRun":true})"));
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(), before);
 }
 
 QTEST_GUILESS_MAIN(TestAppAgentDo)

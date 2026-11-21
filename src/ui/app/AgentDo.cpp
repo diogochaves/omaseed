@@ -167,7 +167,16 @@ void AgentDo::run(const QString &json, uint callerPid, const Reply &reply)
         return;
     }
     const AgentGate::Decision decision = gate.decide(action);
+    // C45 V18: a refusal by the gate is still an agent's try, for the journal and the row's
+    // last line; a dry run tried nothing (GT5).
+    core::AgentOrigin origin;
+    origin.pid = callerPid;
+    const auto noteRefused = [this, &options, &action, &origin](const QString &how) {
+        if (!options.dryRun)
+            m_app->noteAgentRefusal(action, how, origin);
+    };
     if (decision == AgentGate::Decision::Never) {
+        noteRefused(QStringLiteral("never"));
         // C45 V14, docs/62 V13's words.
         fail(QStringLiteral("never"),
              QStringLiteral("omaseed do doesn't delete, rename or change settings: those stay "
@@ -176,11 +185,14 @@ void AgentDo::run(const QString &json, uint callerPid, const Reply &reply)
     }
     if (decision == AgentGate::Decision::Off) {
         if (const QString off = m_service->readsOff(kCommand); !off.isEmpty()) {
+            noteRefused(QStringLiteral("not allowed: Reads is off"));
             reply(off); // C50 GT8
             return;
         }
         const AgentGate::Kind kind = AgentGate::kindOf(action);
         const QString line = AgentGate::keyOf(kind);
+        noteRefused(
+            QStringLiteral("not allowed: %1 is off").arg(line.left(1).toUpper() + line.mid(1)));
         fail(QStringLiteral("not-allowed"),
              QStringLiteral("omaseed doesn't let agents %1: %2 is off in Settings › General › "
                             "Agents. Only the person can change that.")
@@ -338,8 +350,8 @@ void AgentDo::run(const QString &json, uint callerPid, const Reply &reply)
 
     // Allowed: run it as the window does, and answer once the server has.
     App::AgentAct act;
-    act.origin.pid = callerPid;
-    act.origin.asked = false;
+    act.word = action;
+    act.origin = origin;
     const QString serverName = current.name;
     QPointer<AgentDo> self(this);
     act.answered = [self, reply, action, torrents, serverName](const core::ActionOutcome &outcome) {
