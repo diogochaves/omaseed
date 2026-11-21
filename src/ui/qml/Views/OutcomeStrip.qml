@@ -67,6 +67,8 @@ Item {
     /// A failed move offers to try again, as the error block's "set location" does (docs/32 D1).
     readonly property bool canMove: root.kind === "failed" && (root.outcome.action === "move")
                                     && (root.outcome.failedHashes ?? []).length > 0
+    /// C50 GT6 (#295): an agent's remove kept what it removed; "add back" brings it back paused.
+    readonly property bool canAddBack: root.kind !== "failed" && (root.outcome.keptIds ?? []).length > 0
 
     /// "show": the cursor on the one torrent, or the several selected.
     signal showRequested(var hashes)
@@ -76,6 +78,8 @@ Item {
     signal startHereRequested(var hashes)
     /// "recheck": the failed ones rechecked (C25 K24, Deluge).
     signal recheckRequested(var hashes)
+    /// "add back": the kept torrents added back, paused where they were (C50 GT6).
+    signal addBackRequested(var ids)
     /// "move…": the move sheet again, on the ones that didn't move.
     signal moveRequested(var hashes, string target)
     /// #146: the outcome's own action (`outcome.more`: {id, text}, "create again…").
@@ -232,6 +236,14 @@ Item {
                 visible: root.canRecheck
 
                 onActivated: root.recheckRequested(root.outcome.failedHashes)
+            }
+
+            StripLink {
+                objectName: "outcomeAddBack"
+                text: qsTr("add back")
+                visible: root.canAddBack
+
+                onActivated: root.addBackRequested(root.outcome.keptIds)
             }
 
             StripLink {

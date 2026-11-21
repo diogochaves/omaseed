@@ -2229,6 +2229,9 @@ public:
     /// when added; why not otherwise (another server's: switch to it first, Q12; on the
     /// server already; an export or import running).
     void addBackRemoved(const QString &id, const std::function<void(const QString &error)> &done);
+    /// The window's add back (the outcome strip's, the removed sheet's): kept torrents `ids`
+    /// added back one after another, the strip saying how it went ("2 added back · stopped").
+    Q_INVOKABLE void addBack(const QStringList &ids);
 
     // A Transmission and a Deluge keep their .torrent files on their own disk, not in their
     // API (docs/57 §4, docs/DECISIONS.md C40 X3; #88): whether this machine can read them,
@@ -2507,6 +2510,10 @@ private:
                 const QString &target = QString(),
                 int calls = 1,
                 std::optional<AgentAct> agent = std::nullopt);
+
+    /// addBack's run, one kept torrent after another.
+    struct AddingBack;
+    void addBackNext(const std::shared_ptr<AddingBack> &run);
 
     bool m_serverRefused = false;
     /// C25 K8: the server's engine answered with a version omaseed refuses (SyncEngine's

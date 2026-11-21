@@ -86,6 +86,13 @@ TestCase {
         target: strip
     }
 
+    SignalSpy {
+        id: addBackSpy
+
+        signalName: "addBackRequested"
+        target: strip
+    }
+
     readonly property var done: ({
                                      "kind": "done",
                                      "mark": "✓",
@@ -280,6 +287,44 @@ TestCase {
         compare(findChild(strip, "outcomeMark").color, Theme.yellow);
         verify(findChild(strip, "outcomeShow").visible);
         verify(!findChild(strip, "outcomeMove").visible);
+    }
+
+    // C50 GT6 (#295): an agent's remove kept what it removed: "add back" takes the ids back; a
+    // strip with nothing kept, or a failed remove, offers none.
+    function test_a_kept_remove_offers_add_back() {
+        addBackSpy.clear();
+        const removed = {
+            "kind": "done",
+            "mark": "✓",
+            "headline": "5 removed · kept 30 days",
+            "line": "",
+            "details": "",
+            "action": "remove",
+            "doneRow": "",
+            "doneHashes": ["a", "b"],
+            "failedHashes": [],
+            "agent": "by an agent",
+            "keptIds": ["20261121-aaaaaaaa", "20261121-bbbbbbbb"],
+            "serial": 7
+        };
+        strip.outcome = removed;
+        const link = findChild(strip, "outcomeAddBack");
+        verify(link.visible);
+        compare(link.text, "add back");
+        verify(!findChild(strip, "outcomeShow").visible);
+        laidOut();
+        mouseClick(link);
+        compare(addBackSpy.count, 1);
+        compare(addBackSpy.signalArguments[0][0], ["20261121-aaaaaaaa", "20261121-bbbbbbbb"]);
+        strip.outcome = testCase.done;
+        verify(!findChild(strip, "outcomeAddBack").visible);
+        strip.outcome = Object.assign({}, removed, {
+                                          "kind": "failed",
+                                          "doneHashes": [],
+                                          "failedHashes": ["a"],
+                                          "keptIds": []
+                                      });
+        verify(!findChild(strip, "outcomeAddBack").visible);
     }
 
     // C45 V18 (board 62 §5): an agent's act says so after the headline, dim; the window's own

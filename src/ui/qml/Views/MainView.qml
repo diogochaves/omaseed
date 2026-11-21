@@ -2866,6 +2866,11 @@ Item {
                 // C25 K24: Deluge's failed move, rechecked first (C21's sheet: libtorrent).
                 onRecheckRequested: hashes => moveRecheckSheet.openFor(hashes)
                 onMoreRequested: id => App.createAction(id)
+                // C50 GT6: an agent's remove, taken back.
+                onAddBackRequested: ids => {
+                    App.outcomes.dismiss();
+                    App.addBack(ids);
+                }
                 onExpired: serial => App.outcomes.expire(serial)
                 onMoveRequested: (hashes, target) => moveSheet.openSelection(hashes, target)
                 onShowRequested: hashes => root.showOutcome(hashes)

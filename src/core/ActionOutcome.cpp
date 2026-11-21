@@ -210,6 +210,7 @@ QVariantMap ActionOutcome::words() const
         {QStringLiteral("startHere"), startHere && k != Kind::Done},
         {QStringLiteral("recheckFirst"), recheckFirst && k != Kind::Done},
         {QStringLiteral("agent"), byAgent ? byAnAgent() : QString()},
+        {QStringLiteral("keptIds"), keptIds},
     };
 }
 
@@ -227,6 +228,7 @@ ActionOutcome ActionOutcome::fromMap(const QVariantMap &map)
     outcome.startHere = map.value(QStringLiteral("startHere")).toBool();
     outcome.recheckFirst = map.value(QStringLiteral("recheckFirst")).toBool();
     outcome.byAgent = map.value(QStringLiteral("byAgent")).toBool();
+    outcome.keptIds = map.value(QStringLiteral("keptIds")).toStringList();
     return outcome;
 }
 

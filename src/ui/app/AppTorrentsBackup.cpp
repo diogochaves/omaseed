@@ -43,6 +43,8 @@
 #include <QUrl>
 #include <QWindow>
 
+#include <memory>
+
 namespace omaseed::app {
 
 using namespace omaseed::core;
@@ -1231,6 +1233,71 @@ void App::addBackRemoved(const QString &id, const std::function<void(const QStri
             run(new DelugeTorrentsImport(deluge, this));
         else
             run(new TorrentsImport(qbtEngine(), this));
+    });
+}
+
+/// One add back from the window on its way: what is left, and how it went (C50 GT6).
+struct App::AddingBack
+{
+    QStringList ids;
+    qsizetype next = 0;
+    QStringList names;  ///< what came back
+    QString failedName; ///< the first that didn't
+    QString cause;      ///< why
+    int failed = 0;
+};
+
+void App::addBack(const QStringList &ids)
+{
+    if (ids.isEmpty())
+        return;
+    auto run = std::make_shared<AddingBack>();
+    run->ids = ids;
+    addBackNext(run);
+}
+
+void App::addBackNext(const std::shared_ptr<AddingBack> &run)
+{
+    if (run->next >= run->ids.size()) {
+        // C18 D1–D3's strip, in its own words: no row marks (the rows are new).
+        const qsizetype back = run->names.size();
+        QVariantMap words;
+        if (run->failed == 0) {
+            words = {{QStringLiteral("kind"), QStringLiteral("done")},
+                     {QStringLiteral("mark"), QStringLiteral("✓")},
+                     {QStringLiteral("headline"),
+                      back == 1 ? tr("%1 added back · stopped").arg(run->names.constFirst())
+                                : tr("%1 added back · stopped").arg(back)}};
+        } else {
+            words = {
+                {QStringLiteral("kind"),
+                 back == 0 ? QStringLiteral("failed") : QStringLiteral("mixed")},
+                {QStringLiteral("mark"), back == 0 ? QStringLiteral("✕") : QStringLiteral("!")},
+                {QStringLiteral("headline"),
+                 back == 0 ? (run->failed == 1 ? tr("%1 didn't come back").arg(run->failedName)
+                                               : tr("%1 didn't come back").arg(run->failed))
+                           : tr("%1 added back, %2 didn't").arg(back).arg(run->failed)},
+                {QStringLiteral("line"),
+                 back == 0 && run->failed == 1 ? run->cause
+                                               : tr("%1: %2").arg(run->failedName, run->cause)}};
+        }
+        m_outcomes->reportWords(words);
+        return;
+    }
+    const QString id = run->ids.at(run->next++);
+    const std::optional<RemovedKeep::Entry> entry = RemovedKeep::entry(id);
+    const QString name = entry ? entry->name : id;
+    addBackRemoved(id, [this, run, name](const QString &error) {
+        if (error.isEmpty()) {
+            run->names << name;
+        } else {
+            if (run->failed++ == 0) {
+                run->failedName = name;
+                run->cause = error;
+            }
+        }
+        // Out of the import's own answer before the next one starts.
+        QTimer::singleShot(0, this, [this, run]() { addBackNext(run); });
     });
 }
 

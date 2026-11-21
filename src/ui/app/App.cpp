@@ -3846,9 +3846,16 @@ std::function<void(const Result<Done> &)> App::tableAnswer(const QString &action
             outcome.byAgent = agent.has_value(); // C45 V18
             if (agent) {
                 // C50 GT6: what the server didn't remove needs no way back.
-                for (const QString &hash : outcome.failedHashes)
-                    if (const QString id = agent->kept.value(hash); !id.isEmpty())
+                // The strip's add back takes the others back (GT6).
+                for (const QString &hash : hashes) {
+                    const QString id = agent->kept.value(hash);
+                    if (id.isEmpty())
+                        continue;
+                    if (outcome.failedHashes.contains(hash))
                         RemovedKeep::forget(id);
+                    else
+                        outcome.keptIds << id;
+                }
             }
             m_outcomes->report(outcome);
             if (agent) {

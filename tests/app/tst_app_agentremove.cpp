@@ -453,6 +453,7 @@ void TestAppAgentRemove::alwaysAsksThenKeepsAndRemoves()
     QCOMPARE(strip.value(QStringLiteral("headline")).toString(),
              QStringLiteral("2 removed · kept 30 days"));
     QCOMPARE(strip.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
+    QCOMPARE(strip.value(QStringLiteral("keptIds")).toStringList().size(), 2);
 }
 
 // GT1: a server whose disks omaseed can't see: the server's word alone, and the ask says so.
@@ -539,10 +540,12 @@ void TestAppAgentRemove::addBackAddsItStoppedWhereItWas()
 
     QTest::ignoreMessage(QtInfoMsg,
                          QRegularExpression(QStringLiteral("^removed: Single.bin added back")));
-    QString back = QStringLiteral("never");
-    m_app->addBackRemoved(kept.first().id, [&back](const QString &why) { back = why; });
-    QTRY_VERIFY_WITH_TIMEOUT(back != QLatin1String("never"), 8000);
-    QVERIFY2(back.isEmpty(), qPrintable(back));
+    // The strip's add back (App::addBack), its own strip after.
+    m_app->addBack({kept.first().id});
+    QTRY_COMPARE_WITH_TIMEOUT(
+        m_app->outcomes()->current().value(QStringLiteral("headline")).toString(),
+        QStringLiteral("Single.bin added back · stopped"),
+        8000);
     QCOMPARE(sent("/api/v2/torrents/add"), 1);
     QVERIFY(m_qbt.lastAdd.contains(m_qbt.savePath.toUtf8()));
     QVERIFY(m_qbt.lastAdd.contains("stopped"));

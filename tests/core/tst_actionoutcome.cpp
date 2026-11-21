@@ -144,6 +144,25 @@ private Q_SLOTS:
         QVERIFY(ActionOutcome::fromMap({{QStringLiteral("byAgent"), true}}).byAgent);
     }
 
+    // C50 GT1, GT6 (#295): an agent's remove says kept, and carries what it kept for add back.
+    void aRemoveKeepsItsWayBack()
+    {
+        ActionOutcome o =
+            outcome(QStringLiteral("remove"), {QStringLiteral("a"), QStringLiteral("b")}, {});
+        o.keptIds = {QStringLiteral("20261121-aaaaaaaa"), QStringLiteral("20261121-bbbbbbbb")};
+        const QVariantMap w = o.words();
+        QCOMPARE(w.value(QStringLiteral("headline")).toString(),
+                 QStringLiteral("2 removed · kept 30 days"));
+        QCOMPARE(w.value(QStringLiteral("doneRow")).toString(), QString());
+        QCOMPARE(w.value(QStringLiteral("keptIds")).toStringList(), o.keptIds);
+        QCOMPARE(ActionOutcome::fromMap(w).keptIds, o.keptIds);
+        QVERIFY(outcome(QStringLiteral("remove"), {QStringLiteral("a")}, {})
+                    .words()
+                    .value(QStringLiteral("keptIds"))
+                    .toStringList()
+                    .isEmpty());
+    }
+
     // D2: every action on torrents from the table has its words.
     void everyTableAction_data()
     {
