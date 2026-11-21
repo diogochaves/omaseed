@@ -63,6 +63,12 @@ o.window(class, { tag = "-default-opacity", opacity = "1 1" })
 -- title as well records only the add window.
 o.window({ initial_title = "^omaseed · add$", title = "^omaseed · add$" }, { float = true, center = true })
 
+-- The ask (docs/DECISIONS.md C45 V17, docs/62 §5): an agent's `omaseed do` that Settings says
+-- to ask about waits in a small window of its own, `omaseed · agent`, under the add window's
+-- rules: floating and centred where you are, its size fixed, matched by its title alone
+-- (src/ui/qml/Views/AgentAskWindow.qml).
+o.window({ initial_title = "^omaseed · agent$", title = "^omaseed · agent$" }, { float = true, center = true })
+
 -- Touchpad scrolling at the terminals' pace. Omarchy slows every touchpad to
 -- `scroll_factor = 0.4` and gives terminals 1.5 back per window
 -- (/usr/share/omarchy/default/hypr/input.lua); omaseed's long lists want the same.
