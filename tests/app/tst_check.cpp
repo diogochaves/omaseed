@@ -18,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRect>
 #include <QLocalServer>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -25,6 +26,58 @@
 #include <QTest>
 
 #include <memory>
+
+namespace {
+
+/// "" when the two pictures are the same; else what differs (sizes, or how many pixels,
+/// where, and the first few), so a failure on CI says what it saw (#298).
+QString imageDiff(const QImage &actual, const QImage &expected)
+{
+    if (actual.isNull() || expected.isNull())
+        return QStringLiteral("a null picture (actual %1, expected %2)")
+            .arg(actual.isNull())
+            .arg(expected.isNull());
+    if (actual.size() != expected.size())
+        return QStringLiteral("sizes %1x%2 and %3x%4")
+            .arg(actual.width())
+            .arg(actual.height())
+            .arg(expected.width())
+            .arg(expected.height());
+    const QImage a = actual.convertToFormat(QImage::Format_ARGB32);
+    const QImage b = expected.convertToFormat(QImage::Format_ARGB32);
+    int count = 0;
+    QRect box;
+    QStringList first;
+    for (int y = 0; y < a.height(); ++y) {
+        for (int x = 0; x < a.width(); ++x) {
+            const QRgb pa = a.pixel(x, y);
+            const QRgb pb = b.pixel(x, y);
+            if (pa == pb)
+                continue;
+            ++count;
+            box |= QRect(x, y, 1, 1);
+            if (first.size() < 6)
+                first << QStringLiteral("(%1,%2) %3≠%4")
+                             .arg(x)
+                             .arg(y)
+                             .arg(pa, 8, 16, QLatin1Char('0'))
+                             .arg(pb, 8, 16, QLatin1Char('0'));
+        }
+    }
+    if (count == 0)
+        return QString();
+    return QStringLiteral("%1 pixels differ in %2,%3 %4x%5 of %6x%7: %8")
+        .arg(count)
+        .arg(box.x())
+        .arg(box.y())
+        .arg(box.width())
+        .arg(box.height())
+        .arg(a.width())
+        .arg(a.height())
+        .arg(first.join(QStringLiteral(", ")));
+}
+
+} // namespace
 
 class TestCheck : public QObject
 {
@@ -434,7 +487,8 @@ void TestCheck::savedTwiceShowsTheSecond()
     clone(QStringLiteral("omarchy"), QStringLiteral("warm"));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QCOMPARE(QImage(picture(QStringLiteral("warm.dark"))), omarchy);
+    QVERIFY2(imageDiff(QImage(picture(QStringLiteral("warm.dark"))), omarchy).isEmpty(),
+             qPrintable(imageDiff(QImage(picture(QStringLiteral("warm.dark"))), omarchy)));
 
     clone(QStringLiteral("console"), QStringLiteral("console-copy"));
     QFile copy(home(QStringLiteral("config/omaseed/skins/console-copy/skin.json")));
@@ -442,7 +496,8 @@ void TestCheck::savedTwiceShowsTheSecond()
     writeSkin(QStringLiteral("warm"), copy.readAll());
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    QCOMPARE(QImage(picture(QStringLiteral("warm.dark"))), console);
+    QVERIFY2(imageDiff(QImage(picture(QStringLiteral("warm.dark"))), console).isEmpty(),
+             qPrintable(imageDiff(QImage(picture(QStringLiteral("warm.dark"))), console)));
 }
 
 void TestCheck::aCloneOfOmarchyDrawsAsOmarchy()
@@ -451,9 +506,11 @@ void TestCheck::aCloneOfOmarchyDrawsAsOmarchy()
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("omarchy")}));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    for (const QString &mode : {QStringLiteral(".light"), QStringLiteral(".dark")})
-        QCOMPARE(QImage(picture(QStringLiteral("warm") + mode)),
-                 QImage(picture(QStringLiteral("omarchy") + mode)));
+    for (const QString &mode : {QStringLiteral(".light"), QStringLiteral(".dark")}) {
+        const QString diff = imageDiff(QImage(picture(QStringLiteral("warm") + mode)),
+                                       QImage(picture(QStringLiteral("omarchy") + mode)));
+        QVERIFY2(diff.isEmpty(), qPrintable(mode + QStringLiteral(": ") + diff));
+    }
 }
 
 void TestCheck::aCloneOfConsoleDrawsAsConsole()
@@ -462,9 +519,11 @@ void TestCheck::aCloneOfConsoleDrawsAsConsole()
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("console")}));
     QVERIFY(run({QStringLiteral("check"), QStringLiteral("warm")}));
     QCOMPARE(m_exitCode, 0);
-    for (const QString &mode : {QStringLiteral(".light"), QStringLiteral(".dark")})
-        QCOMPARE(QImage(picture(QStringLiteral("warm") + mode)),
-                 QImage(picture(QStringLiteral("console") + mode)));
+    for (const QString &mode : {QStringLiteral(".light"), QStringLiteral(".dark")}) {
+        const QString diff = imageDiff(QImage(picture(QStringLiteral("warm") + mode)),
+                                       QImage(picture(QStringLiteral("console") + mode)));
+        QVERIFY2(diff.isEmpty(), qPrintable(mode + QStringLiteral(": ") + diff));
+    }
 }
 
 void TestCheck::aCloneOfOmarchyLiftsNothing()
