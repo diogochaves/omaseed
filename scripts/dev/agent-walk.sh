@@ -641,7 +641,7 @@ printf '{"lines": [{"action": "recheck", "torrents": ["%s"]}, {"action": "remove
     "$TA" "$TA" >"$TW/plan-refused.json"
 word plan-dry-refused "do" --plan "$TW/plan-refused.json" --dry-run --json
 check "dry run, a remove of a healthy torrent: exit 5, the line refused, nothing would run" answered 5 plan-dry-refused.json \
-    '.error.code == "not-removable" and .lines[0].would == "run" and .lines[1].would == "refused"'
+    '.error.code == "not-removable" and .lines[0].would == "run" and .lines[1].would == "refused" and (.lines[1].torrents | length) == 1 and .lines[1].torrents[0].name == "'"$TA_NAME"'"'
 word plan-dry-refused-text "do" --plan "$TW/plan-refused.json" --dry-run
 indented() { exits 5 && ! grep -q '^omaseed do removes' "$ANSWERS/plan-dry-refused-text.txt"; }
 check "…its text: the refusal's second line under its indent" indented

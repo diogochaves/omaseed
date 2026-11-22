@@ -14,6 +14,7 @@
 //    as allowed in the window; one Settings allowed that asks now is refused, `inPlan`), and
 //    the answer lists, per line, what was done, what failed and what was left unticked.
 
+#include "core/AgentAnswers.hpp"
 #include "core/AgentGate.hpp"
 #include "core/AgentPlan.hpp"
 #include "core/AgentWords.hpp"
@@ -36,6 +37,7 @@
 namespace omaseed::app {
 
 namespace AgentPlan = core::AgentPlan;
+namespace Answers = core::AgentAnswers;
 namespace AgentWords = core::AgentWords;
 
 namespace {
@@ -137,6 +139,9 @@ struct AgentDo::PlanRun
     QList<QJsonObject> answers; ///< each line's answer as it ran
     QList<QJsonArray> unticked; ///< each line's torrents left unticked
     int next = 0;
+    QHash<int, QJsonArray> refused;       ///< a refused line's torrents, each with why (#303)
+    QList<std::pair<int, QString>> alone; ///< a refused line's torrents still to check alone
+    int nextAlone = 0;
 };
 
 void AgentDo::runPlan(const QString &text,
@@ -204,7 +209,11 @@ void AgentDo::planChecked(const std::shared_ptr<PlanRun> &run)
         failing = failing || isFailure(check);
         asking = asking || asks;
     }
-    if (run->dryRun || failing) {
+    if (failing) {
+        planRefusals(run);
+        return;
+    }
+    if (run->dryRun) {
         run->reply(planChecks(run));
         return;
     }
@@ -216,6 +225,96 @@ void AgentDo::planChecked(const std::shared_ptr<PlanRun> &run)
     }
     run->next = 0;
     planRunNext(run);
+}
+
+namespace {
+
+/// One torrent a refused line names, as its `torrents` lists it (#303): {hash, name, code,
+/// message}, the hash and name as the library has them (the query when none matches).
+QJsonObject refusalOf(const QList<Answers::LogTorrent> &library,
+                      const QString &query,
+                      const QString &serverName,
+                      const QJsonObject &check)
+{
+    const Answers::TorrentMatch match = Answers::matchTorrent(library, query, serverName);
+    return QJsonObject{
+        {QStringLiteral("hash"), match.code.isEmpty() ? match.torrent.hash : query},
+        {QStringLiteral("name"), match.code.isEmpty() ? match.torrent.name : QString()},
+        {QStringLiteral("code"), codeOf(check)},
+        {QStringLiteral("message"), messageOf(check)}};
+}
+
+} // namespace
+
+void AgentDo::planRefusals(const std::shared_ptr<PlanRun> &run)
+{
+    // #303: a refused line names every torrent it refuses, each with why, so one dry run finds
+    // them all. A line's check stops at its first refusal (or, for a short find, lists them in
+    // `failed`); a line of more torrents is checked again one torrent at a time. A line that is
+    // off is off for every torrent: its error says so once.
+    const QList<Answers::LogTorrent> library = m_service->logLibrary();
+    const QString serverName = m_service->currentServer().name;
+    run->refused.clear();
+    run->alone.clear();
+    for (qsizetype i = 0; i < run->plan.lines.size(); ++i) {
+        const QJsonObject check = run->checks.value(i);
+        const AgentPlan::Line &line = run->plan.lines.at(i);
+        if (!isFailure(check) || codeOf(check) == QLatin1String("not-allowed") ||
+            line.torrents.isEmpty())
+            continue;
+        const QJsonArray failed = check.value(QStringLiteral("failed")).toArray();
+        if (!failed.isEmpty()) {
+            run->refused.insert(int(i), failed);
+        } else if (line.torrents.size() == 1) {
+            run->refused.insert(
+                int(i),
+                QJsonArray{refusalOf(library, line.torrents.constFirst(), serverName, check)});
+        } else {
+            for (const QString &query : line.torrents)
+                run->alone.append({int(i), query});
+        }
+    }
+    run->nextAlone = 0;
+    planRefusalNext(run);
+}
+
+void AgentDo::planRefusalNext(const std::shared_ptr<PlanRun> &run)
+{
+    const QList<Answers::LogTorrent> library = m_service->logLibrary();
+    const QString serverName = m_service->currentServer().name;
+    if (run->nextAlone == run->alone.size()) {
+        // Every torrent passing alone: the line refuses them together; each says the line's why.
+        for (const auto &[i, query] : std::as_const(run->alone))
+            if (run->refused.value(i).isEmpty())
+                for (const QString &each : run->plan.lines.at(i).torrents)
+                    run->refused[i].append(refusalOf(library, each, serverName, run->checks.at(i)));
+        run->reply(planChecks(run));
+        return;
+    }
+    const auto [i, query] = run->alone.at(run->nextAlone++);
+    AgentPlan::Line line = run->plan.lines.at(i);
+    line.torrents = QStringList{query};
+    QPointer<AgentDo> self(this);
+    proceed(
+        compact(AgentPlan::options(line, run->server, true)),
+        run->caller,
+        [self, run, i, query, library, serverName](const QString &json) {
+            const QJsonObject check = QJsonDocument::fromJson(json.toUtf8()).object();
+            if (isFailure(check)) {
+                const QJsonArray failed = check.value(QStringLiteral("failed")).toArray();
+                if (!failed.isEmpty()) {
+                    for (const QJsonValue &each : failed)
+                        run->refused[i].append(each);
+                } else {
+                    run->refused[i].append(refusalOf(library, query, serverName, check));
+                }
+            }
+            QTimer::singleShot(0, self, [self, run]() {
+                if (!self.isNull())
+                    self->planRefusalNext(run);
+            });
+        },
+        false);
 }
 
 QString AgentDo::planChecks(const std::shared_ptr<PlanRun> &run) const
@@ -242,7 +341,10 @@ QString AgentDo::planChecks(const std::shared_ptr<PlanRun> &run) const
             out.insert(QStringLiteral("would"),
                        code == QLatin1String("not-allowed") ? QStringLiteral("off")
                                                             : QStringLiteral("refused"));
-            out.insert(QStringLiteral("torrents"), QJsonArray());
+            // #303: every torrent it refuses, each with why; `of` counts the line's torrents.
+            out.insert(QStringLiteral("torrents"), run->refused.value(int(i)));
+            if (!line.torrents.isEmpty())
+                out.insert(QStringLiteral("of"), int(line.torrents.size()));
             out.insert(QStringLiteral("error"),
                        QJsonObject{{QStringLiteral("code"), code},
                                    {QStringLiteral("message"), messageOf(check)}});

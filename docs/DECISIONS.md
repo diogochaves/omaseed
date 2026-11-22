@@ -3236,7 +3236,12 @@ left to the build:
   naming it. Each line is checked as its own dry run and run as its own `do` (its journal line,
   last line and strip); one off or refused line refuses the plan with that line's code and every
   line's `would`. Ticks are per torrent (`LINE:HASH`), a line with no torrents one box. "Done: X of
-  Y · by an agent" counts done only; unticked lines exit 0. A plan waits 5 minutes in all.
+  Y · by an agent" counts done only; unticked lines exit 0. A plan waits 5 minutes in all. A
+  refused line lists every torrent it refuses in its `torrents` (`{hash, name, code, message}`,
+  `of` the line's count; v0.17.1, #303): a line of more than one is checked again a torrent at a
+  time once the plan is refused; an off line lists none (the gate refuses them all). The text
+  says each under its line ("2 of 3 refused", hash and why) and the plan's last line once, on
+  stderr; a locate line counts files apart from torrents ("11 files found").
 - **`help agents`** is the CLI's own: it asks the running omaseed's `Status` for the address (5 s)
   and prints `<host>:<port>` with a line saying so when none answers; exit 0 always. A loopback
   server is named both as 127.0.0.1 and localhost. Claude Code: `Bash(*ADDR*)`, the bus tools on

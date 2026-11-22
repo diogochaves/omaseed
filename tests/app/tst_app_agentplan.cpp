@@ -268,6 +268,7 @@ private slots:
     void mixedAsksOnceAndSaysUnticked();
     void lineRefusedAfterTheAskFailsAlone();
     void refusedAskRunsNone();
+    void refusedLineNamesEveryTorrent();
     void dryRunAsksAndSendsNothing();
     void usageFromTheBus();
 
@@ -393,6 +394,48 @@ void TestAppAgentPlan::oneRefusedLineRunsNone()
                 .contains(QStringLiteral("Unicode Pack has its files")));
     QVERIFY(!m_app->agentAsk()->isOpen());
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+    QCOMPARE(sent("/api/v2/torrents/delete"), 0);
+}
+
+// #303: a refused line names every torrent it refuses, each with why, and its count; the
+// torrents it would let through aren't listed.
+void TestAppAgentPlan::refusedLineNamesEveryTorrent()
+{
+    QVERIFY(writeFile(m_qbt.savePath + QStringLiteral("/Unicode Pack/a.txt"), 10));
+    QVERIFY(writeFile(m_qbt.savePath + QStringLiteral("/Single.bin"), 10));
+    start();
+    m_app->setAgentFixes(QStringLiteral("allow"));
+    m_app->setAgentRemove(QStringLiteral("ask"));
+    QJsonObject object = run(*m_service, planJson(mixedPlan(true), true));
+    QCOMPARE(codeOf(object), QStringLiteral("not-removable"));
+    QJsonObject line = lineOf(object, 1);
+    QCOMPARE(line.value(QLatin1String("would")).toString(), QStringLiteral("refused"));
+    QCOMPARE(line.value(QLatin1String("of")).toInt(), 2);
+    QJsonArray refused = line.value(QLatin1String("torrents")).toArray();
+    QCOMPARE(refused.size(), 2);
+    QStringList hashes;
+    for (const QJsonValue &value : std::as_const(refused)) {
+        const QJsonObject torrent = value.toObject();
+        hashes << torrent.value(QLatin1String("hash")).toString();
+        QCOMPARE(torrent.value(QLatin1String("code")).toString(), QStringLiteral("not-removable"));
+        QVERIFY2(torrent.value(QLatin1String("message"))
+                     .toString()
+                     .contains(torrent.value(QLatin1String("name")).toString() +
+                               QStringLiteral(" has its files")),
+                 qPrintable(torrent.value(QLatin1String("message")).toString()));
+    }
+    hashes.sort();
+    QCOMPARE(hashes, (QStringList{kPack, kSingle}));
+
+    // One of the two gone after all: only the other is refused.
+    QVERIFY(QFile::remove(m_qbt.savePath + QStringLiteral("/Single.bin")));
+    object = run(*m_service, planJson(mixedPlan(true), true));
+    line = lineOf(object, 1);
+    refused = line.value(QLatin1String("torrents")).toArray();
+    QCOMPARE(refused.size(), 1);
+    QCOMPARE(refused.at(0).toObject().value(QLatin1String("hash")).toString(), kPack);
+    QCOMPARE(refused.at(0).toObject().value(QLatin1String("name")).toString(),
+             QStringLiteral("Unicode Pack"));
     QCOMPARE(sent("/api/v2/torrents/delete"), 0);
 }
 

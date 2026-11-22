@@ -175,6 +175,9 @@ private:
     struct PlanRun;
     void planCheckNext(const std::shared_ptr<PlanRun> &run);
     void planChecked(const std::shared_ptr<PlanRun> &run);
+    /// A refused line's every torrent and why (#303), before the plan's answer.
+    void planRefusals(const std::shared_ptr<PlanRun> &run);
+    void planRefusalNext(const std::shared_ptr<PlanRun> &run);
     /// The dry run's answer, or the failure of a plan with a line off or refused.
     QString planChecks(const std::shared_ptr<PlanRun> &run) const;
     void planProbeNext(const std::shared_ptr<PlanRun> &run);
