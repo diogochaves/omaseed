@@ -414,7 +414,9 @@ void SyncEngine::enterLostState(const ApiError &error)
     const QHostAddress address(host);
     const bool local = host.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0 ||
                        (!address.isNull() && address.isLoopback());
-    const auto delay = lostRetryDelay(m_lostRetries++, m_firstRetry, m_retryInterval,
+    const auto delay = lostRetryDelay(m_lostRetries++,
+                                      m_firstRetry,
+                                      m_retryInterval,
                                       local && error.kind() == ApiError::Kind::Network);
 
     m_globalState->setRetryInSeconds(int(delay.count() / 1000));
