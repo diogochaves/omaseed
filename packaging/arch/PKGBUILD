@@ -39,7 +39,7 @@ optdepends=(
     'omabox: check a skin in every theme, in a desktop of its own'
 )
 source=("$pkgname-$pkgver.tar.gz::https://github.com/diogochaves/omaseed/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('45de5b0025829e9236ad580e3e021217f8cc774cb883310497200809e0577c33')
 
 # omaseed.install only speaks (DECISIONS C48 AS8, AS10): on install, and on the upgrade that
 # crosses 0.16.0, it says how to link the agent skill (omaseed skill link); before removal, that
