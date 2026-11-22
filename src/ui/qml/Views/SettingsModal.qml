@@ -45,6 +45,7 @@ Item {
     readonly property alias serverSheet: serverSheet
     readonly property alias confirm: confirm
     readonly property alias restoreSheet: restoreSheet
+    readonly property alias removedSheet: removedSheet
 
     /// Which pane is on show: 0–6 are omaseed's own (General, Servers, Notifications,
     /// Keybindings, Appearance, Backup, About, the order of `navRows`), 7 on the qBittorrent
@@ -943,6 +944,17 @@ Item {
     readonly property var scrollHints: root.settings.allOptions("appearance.scrollHint")
     // Start at login (charter §2, opt-in): no entry, in the tray (`--hidden`), or the window.
     readonly property var loginStarts: root.settings.allOptions("general.startAtLogin")
+    /// Board 67 §3's `KINDS` (C50 GT8, GT3): [kind, what it covers, objectName stem].
+    readonly property var agentGateLines: [["reads", qsTr("status, errors, log, moves. Off: every word says no."), "agentReads"],
+        ["fixes", qsTr("retry, start-here, recheck, reannounce, pause, resume, dismiss, locate"), "agentFixes"],
+        ["moves", qsTr("move to a folder, move back. Never without asking."), "agentMoves"],
+        ["remove", qsTr("a torrent whose files are gone; never its files. Never without asking."), "agentRemove"]]
+    readonly property var agentGateTitles: ({
+                                                "reads": qsTr("Reads"),
+                                                "fixes": qsTr("Fixes"),
+                                                "moves": qsTr("Moves"),
+                                                "remove": qsTr("Remove")
+                                            })
     /// C32 D2 a: where ↓ and ↑ are drawn, as [place, chip text].
     readonly property var speedsPlaces: root.settings.allOptions("appearance.speedsPlace")
     /// C32 D16 a: the rail's tint, as [percent, chip text].
@@ -2322,7 +2334,13 @@ Item {
                                 id: agentsRow
 
                                 Layout.fillWidth: true
-                                description: qsTr("Agents can read your library through omaseed's commands (omaseed status, errors…). They can't change anything.")
+                                // Board 67 §3 (C50 GT8): what the lines below allow, in one sentence.
+                                description: App.agentReads === "off" ? qsTr(
+                                                                            "Agents get nothing from omaseed's commands. That's omaseed's side only: your agent's own settings are the wall (omaseed help agents).")
+                                                                      : App.agentFixes === "off" && App.agentMoves === "off"
+                                                                        && App.agentRemove === "off" ? qsTr(
+                                                                                                           "Agents can read your library through omaseed's commands. They can't change anything.")
+                                                                                                     : qsTr("Agents can read your library and do what the lines below allow. Deleting files, renaming and settings stay yours.")
                                 glyph: Glyphs.agents
                                 hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf("general.agents")
                                 objectName: "agentsRow"
@@ -2335,51 +2353,140 @@ Item {
                                     root.activateOwn("general.agents");
                                 }
 
-                                below: RowLayout {
-                                    spacing: Theme.space(12)
+                                below: ColumnLayout {
+                                    spacing: Theme.space(6)
                                     width: parent ? parent.width : 0
 
-                                    Label {
-                                        id: agentSkillLine
-
-                                        // A screen reader says the line too (and omabox tree finds it).
-                                        Accessible.name: agentSkillLine.text
-                                        Accessible.role: Accessible.StaticText
+                                    RowLayout {
                                         Layout.fillWidth: true
-                                        ink: agentsRow.ink
-                                        objectName: "agentSkillLine"
-                                        size: "small"
-                                        text: App.agentSkill.linked ? qsTr("Skill · linked for %1. Your agent loads it when you ask about a download or omaseed's look.").arg(
-                                                                          root._joinedAgents(App.agentSkill.agents)) : qsTr(
-                                                                          "Skill · not linked. Linked, an agent started anywhere finds omaseed's guide.")
-                                        wrapMode: Text.Wrap
+                                        spacing: Theme.space(12)
+
+                                        Label {
+                                            id: agentSkillLine
+
+                                            // A screen reader says the line too (and omabox tree finds it).
+                                            Accessible.name: agentSkillLine.text
+                                            Accessible.role: Accessible.StaticText
+                                            Layout.fillWidth: true
+                                            ink: agentsRow.ink
+                                            objectName: "agentSkillLine"
+                                            size: "small"
+                                            text: App.agentSkill.linked ? qsTr("Skill · linked for %1. Your agent loads it when you ask about a download or omaseed's look.").arg(
+                                                                              root._joinedAgents(App.agentSkill.agents)) : qsTr(
+                                                                              "Skill · not linked. Linked, an agent started anywhere finds omaseed's guide.")
+                                            wrapMode: Text.Wrap
+                                        }
+
+                                        Chip {
+                                            block: agentsRow.ground
+                                            enabled: !App.agentSkill.busy
+                                            objectName: "agentSkillLink"
+                                            opacity: enabled ? 1 : 0.45
+                                            text: qsTr("link the skill")
+                                            visible: !App.agentSkill.linked
+
+                                            onClicked: App.agentSkill.link()
+                                        }
+
+                                        Chip {
+                                            id: agentSkillMore
+
+                                            // The glyph alone has no words: a screen reader hears what it holds.
+                                            Accessible.name: qsTr("unlink")
+                                            block: agentsRow.ground
+                                            enabled: !App.agentSkill.busy
+                                            glyph: Glyphs.more
+                                            objectName: "agentSkillMore"
+                                            opacity: enabled ? 1 : 0.45
+                                            tooltip: qsTr("unlink")
+                                            visible: App.agentSkill.linked
+
+                                            onClicked: root.openAgentSkillMenu()
+                                        }
                                     }
 
-                                    Chip {
-                                        block: agentsRow.ground
-                                        enabled: !App.agentSkill.busy
-                                        objectName: "agentSkillLink"
-                                        opacity: enabled ? 1 : 0.45
-                                        text: qsTr("link the skill")
-                                        visible: !App.agentSkill.linked
+                                    // C45 V18: what the last act through `do` was; empty until one.
+                                    // C50 GT6: add back… while anything an agent removed is kept.
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: Theme.space(12)
+                                        // Not the children's own visible: those read false while
+                                        // this row is hidden, so it would never show.
+                                        visible: (App.agentLast.text ?? "").length > 0 || App.removedKept.length > 0
 
-                                        onClicked: App.agentSkill.link()
+                                        Label {
+                                            id: agentLastLine
+
+                                            Accessible.name: agentLastLine.text
+                                            Accessible.role: Accessible.StaticText
+                                            Layout.fillWidth: true
+                                            dim: true
+                                            ink: agentsRow.ink
+                                            objectName: "agentLastLine"
+                                            size: "caption"
+                                            text: App.agentLast.text ?? ""
+                                            visible: agentLastLine.text.length > 0
+                                            wrapMode: Text.Wrap
+                                        }
+
+                                        Item {
+                                            Layout.fillWidth: true
+                                            visible: agentLastLine.text.length === 0
+                                        }
+
+                                        Chip {
+                                            id: agentAddBack
+
+                                            block: agentsRow.ground
+                                            objectName: "agentAddBack"
+                                            text: qsTr("add back… (%1 kept)").arg(App.removedKept.length)
+                                            visible: App.removedKept.length > 0
+
+                                            onClicked: removedSheet.open()
+                                        }
                                     }
 
-                                    Chip {
-                                        id: agentSkillMore
+                                    Hairline {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: Theme.hairWidth
+                                        Layout.topMargin: Theme.space(2)
+                                    }
 
-                                        // The glyph alone has no words: a screen reader hears what it holds.
-                                        Accessible.name: qsTr("unlink")
-                                        block: agentsRow.ground
-                                        enabled: !App.agentSkill.busy
-                                        glyph: Glyphs.more
-                                        objectName: "agentSkillMore"
-                                        opacity: enabled ? 1 : 0.45
-                                        tooltip: qsTr("unlink")
-                                        visible: App.agentSkill.linked
+                                    // Board 67 §3 (C50 GT8, GT3): Reads, then the three acting
+                                    // kinds, greyed while Reads is off (their levels kept).
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 0
 
-                                        onClicked: root.openAgentSkillMenu()
+                                        Repeater {
+                                            model: root.agentGateLines
+
+                                            AgentGateLine {
+                                                id: gateLine
+
+                                                required property var modelData
+                                                readonly property string rowId: "general.agents." + gateLine.modelData[0]
+
+                                                Layout.fillWidth: true
+                                                block: agentsRow.ground
+                                                chipPrefix: gateLine.modelData[2] + "Chip_"
+                                                greyed: gateLine.modelData[0] !== "reads" && App.agentReads === "off"
+                                                hasCursor: root.area === "pane" && root.paneCursor === root.settings.cursorOf(gateLine.rowId)
+                                                ink: agentsRow.ink
+                                                objectName: gateLine.modelData[2] + "Line"
+                                                offered: value => root.settings.offers(gateLine.rowId, value)
+                                                options: root.settings.allOptions(gateLine.rowId)
+                                                subtitle: gateLine.modelData[1]
+                                                title: root.agentGateTitles[gateLine.modelData[0]]
+                                                value: root.settings.own(gateLine.rowId).read()
+
+                                                onChosen: value => root.settings.own(gateLine.rowId).write(value)
+                                                onClicked: {
+                                                    root.paneCursor = root.settings.cursorOf(gateLine.rowId);
+                                                    root.area = "pane";
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -4145,6 +4252,19 @@ Item {
             bodyItem.forceActiveFocus();
         }
         onRejected: bodyItem.forceActiveFocus()
+    }
+
+    // C50 GT6 (#295): what an agent removed, to add back; over the modal like the restore sheet.
+    RemovedSheet {
+        id: removedSheet
+
+        anchors.fill: parent
+        busy: App.torrentsBackupRunning.length > 0
+        entries: App.removedKept
+        objectName: "removedSheet"
+        z: 1
+
+        onAddBackRequested: id => App.addBack([id])
     }
 
     // #32, docs/24 §5: the import sheet, over the modal like the restore sheet.

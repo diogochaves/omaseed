@@ -807,6 +807,61 @@ private slots:
                  QStringList({QStringLiteral("/mnt/fast/shooters")}));
     }
 
+    // DECISIONS C45 V18 (#293): who started a move rides in its job's spec into its record and
+    // the strip's outcome; the next start forgets it.
+    void anAgentsMoveSaysSoInItsRecord()
+    {
+        m_move->setServer(QStringLiteral("home"));
+        QSignalSpy outcomes(m_move, &MoveController::outcome);
+        m_move->startNextBy(QStringLiteral("agent"));
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/shooters"),
+                                       QStringLiteral("oneFolder")));
+        QCOMPARE(m_move->job()->spec().value(QStringLiteral("by")).toString(),
+                 QStringLiteral("agent"));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QVERIFY(!m_move->history().isEmpty());
+        QCOMPARE(m_move->history().newest()->by, QStringLiteral("agent"));
+        QVERIFY(!outcomes.isEmpty());
+        QCOMPARE(outcomes.last().at(0).toMap().value(QStringLiteral("byAgent")).toBool(), true);
+
+        // The window's own next move is its own.
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/other"),
+                                       QStringLiteral("oneFolder")));
+        QVERIFY(!m_move->job()->spec().contains(QStringLiteral("by")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+    }
+
+    // Two moves of the same torrent (one title) that start at the same instant are two
+    // records: the history knows a job's record by the id it gave it, not by its start and
+    // title (the second was taken for the first's and never recorded), and keeps knowing it
+    // after the job is read back from its file.
+    void twoMovesInOneInstantAreTwoRecords()
+    {
+        m_at = QDateTime::currentDateTime();
+        make();
+        m_move->setServer(QStringLiteral("home"));
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/shooters"),
+                                       QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        QCOMPARE(m_move->history().records().size(), 1);
+        QVERIFY(m_move->startSelection({QStringLiteral("a1")},
+                                       QStringLiteral("/mnt/fast/other"),
+                                       QStringLiteral("oneFolder")));
+        landSent();
+        QTRY_COMPARE(m_move->stateName(), QStringLiteral("idle"));
+        const QList<omaseed::core::MoveRecord> records = m_move->history().records();
+        QCOMPARE(records.size(), 2);
+        QCOMPARE(records.at(0).newPath, QStringLiteral("/mnt/fast/other"));
+        QCOMPARE(records.at(1).newPath, QStringLiteral("/mnt/fast/shooters"));
+        QVERIFY(records.at(0).id != records.at(1).id);
+    }
+
     void ownsAMoveWhileRunningAndAMinuteAfter()
     {
         // DECISIONS C43 Y6: the save path a move changes is the move's story, not an outside

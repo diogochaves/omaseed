@@ -10,12 +10,14 @@
 #include <QDBusError>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusReply>
-#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QTimer>
 
 namespace omaseed::integration::AgentClient {
 
@@ -44,6 +46,27 @@ Reply failed(const QString &code, const QString &message)
 }
 
 } // namespace
+
+/// Hears the app's Asking signal and passes on the words meant for this process (its pid).
+class AskingWatch : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit AskingWatch(Asking asking)
+        : m_asking(std::move(asking))
+    {}
+
+public Q_SLOTS:
+    void heard(uint callerPid, const QString &words)
+    {
+        if (m_asking && callerPid == static_cast<uint>(QCoreApplication::applicationPid()))
+            m_asking(words);
+    }
+
+private:
+    Asking m_asking;
+};
 
 QString interfaceName()
 {
@@ -93,7 +116,7 @@ QString tooOldWords(const QString &running, const QString &mine)
         .arg(which, mine);
 }
 
-Reply call(const QString &method, const QJsonObject &options, int timeoutMs)
+Reply call(const QString &method, const QJsonObject &options, int timeoutMs, const Asking &asking)
 {
     const QString address = busAddress();
     if (address.isEmpty())
@@ -112,15 +135,34 @@ Reply call(const QString &method, const QJsonObject &options, int timeoutMs)
                    !owned.isValid() || !owned.value()) {
             reply = failed(QStringLiteral("not-running"), notRunningWords());
         } else {
+            // docs/62 §5: told before the person is asked, while the call still waits.
+            AskingWatch watch(asking);
+            if (asking)
+                connection.connect(service,
+                                   AppIdentity::dbusObjectPath(),
+                                   interfaceName(),
+                                   QStringLiteral("Asking"),
+                                   &watch,
+                                   SLOT(heard(uint, QString)));
             QDBusMessage message = QDBusMessage::createMethodCall(
                 service, AppIdentity::dbusObjectPath(), interfaceName(), method);
             message << QString::fromUtf8(QJsonDocument(options).toJson(QJsonDocument::Compact));
             QDBusPendingCall pending = connection.asyncCall(message, timeoutMs);
-            // Pumped, as SingleInstance's hand-off is: no event loop runs yet.
-            QElapsedTimer timer;
-            timer.start();
-            while (!pending.isFinished() && timer.elapsed() < timeoutMs + 500)
-                QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+            // No event loop runs yet: one of its own until the answer or the limit. It sleeps
+            // between events (processEvents with a time limit only returns at once, and spun a
+            // core for the whole of a two-minute ask: the agent walk, #293).
+            if (!pending.isFinished()) {
+                QEventLoop loop;
+                QDBusPendingCallWatcher watcher(pending);
+                QObject::connect(
+                    &watcher, &QDBusPendingCallWatcher::finished, &loop, &QEventLoop::quit);
+                QTimer limit;
+                limit.setSingleShot(true);
+                QObject::connect(&limit, &QTimer::timeout, &loop, &QEventLoop::quit);
+                limit.start(timeoutMs + 500);
+                if (!pending.isFinished())
+                    loop.exec();
+            }
             const QDBusError::ErrorType error =
                 pending.isFinished() ? pending.error().type() : QDBusError::Timeout;
             switch (error) {
@@ -157,3 +199,5 @@ Reply call(const QString &method, const QJsonObject &options, int timeoutMs)
 }
 
 } // namespace omaseed::integration::AgentClient
+
+#include "AgentClient.moc"

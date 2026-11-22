@@ -561,9 +561,12 @@ bool MoveController::startBack(bool carry)
 bool MoveController::startSpec(const QJsonObject &specIn)
 {
     const QStringList asked = std::exchange(m_replace, {});
+    const QString by = std::exchange(m_nextBy, {});
     if (m_job == nullptr)
         return false;
     QJsonObject spec = specIn;
+    if (!by.isEmpty())
+        spec.insert(QStringLiteral("by"), by); // C45 V18
     if (!asked.isEmpty())
         spec.insert(QStringLiteral("replace"), QJsonArray::fromStringList(asked));
     MovePlan plan = planFor(spec);
@@ -690,13 +693,11 @@ void MoveController::rememberDestination(const QString &path)
 
 QString MoveController::recordIdOfJob() const
 {
-    if (m_job == nullptr || !m_job->startedAt().isValid())
+    // The id recordFinished gave the job: two moves of one title that start in the same
+    // instant (a test's clock, a queued move that lands at once) are two records.
+    if (m_job == nullptr || m_job->recordId().isEmpty())
         return {};
-    for (const core::MoveRecord &record : m_history.records()) {
-        if (record.startedAt == m_job->startedAt() && record.title == m_job->title())
-            return record.id;
-    }
-    return {};
+    return m_history.find(m_job->recordId()) != nullptr ? m_job->recordId() : QString();
 }
 
 void MoveController::recordFinished()
@@ -718,7 +719,8 @@ void MoveController::recordFinished()
             saveHistory();
         return;
     }
-    if (from.isEmpty() || !recordIdOfJob().isEmpty())
+    // Once per job, even when it ends again after being read back from its file.
+    if (from.isEmpty() || !m_job->recordId().isEmpty())
         return;
     core::MoveRecord record;
     record.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -735,6 +737,7 @@ void MoveController::recordFinished()
     }
     record.hadAutoTmm = m_job->hadAutoTmm();
     record.replaced = m_job->spec().value(QStringLiteral("replaced")).toVariant().toStringList();
+    record.by = m_job->spec().value(QStringLiteral("by")).toString(); // C45 V18
     if (m_carryDone && m_carryResult.carried > 0) {
         record.carried = m_carryResult.carried;
         record.carriedTo = m_job->newPath();
@@ -745,6 +748,7 @@ void MoveController::recordFinished()
         if (!at.isEmpty())
             record.carriedFiles = core::LooseCarry::asCarried(at, m_carryResult.files);
     }
+    m_job->setRecordId(record.id);
     m_history.add(std::move(record), now());
     saveHistory();
 }
@@ -1783,7 +1787,10 @@ QVariantMap MoveController::quietOutcome(const MoveJob::Summary &summary,
             {QStringLiteral("cause"), why},
             {QStringLiteral("details"), details},
             {QStringLiteral("startHere"), stops && !m_features.pausesOnError},
-            {QStringLiteral("recheckFirst"), stops && m_features.pausesOnError}};
+            {QStringLiteral("recheckFirst"), stops && m_features.pausesOnError},
+            // C45 V18: "· by an agent" on the strip.
+            {QStringLiteral("byAgent"),
+             m_job->spec().value(QStringLiteral("by")).toString() == QLatin1String("agent")}};
 }
 
 void MoveController::onFinished()

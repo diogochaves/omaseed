@@ -1780,7 +1780,7 @@ TestCase {
         const modal = createTemporaryObject(modalComponent, testCase);
         modal.open();
         compare(modal.paneIndex, 0);
-        compare(modal.paneRowCount, 6);
+        compare(modal.paneRowCount, 10);
 
         const row = testCase.childNamed(modal, "deleteFilesRow");
         verify(row, "the General pane has no delete-files row");
@@ -1835,7 +1835,7 @@ TestCase {
         const row = testCase.agentsRowSettled(modal);
         verify(row, "the General pane has no Agents row");
         compare(row.title, "Agents");
-        compare(row.description, "Agents can read your library through omaseed's commands (omaseed status, errors…). They can't change anything.");
+        compare(row.description, "Agents can read your library through omaseed's commands. They can't change anything.");
         // After Start at login.
         verify(row.y > testCase.childNamed(modal, "startAtLoginRow").y);
         verify(!App.agentSkill.linked);
@@ -1886,6 +1886,92 @@ TestCase {
         verify(!menu.opened);
         tryVerify(() => !App.agentSkill.busy && !App.agentSkill.linked, 5000);
         verify(testCase.childNamed(modal, "agentSkillLink").visible);
+    }
+
+    // Board 67 §3 (DECISIONS C50 GT3, GT8): the gate's four lines under the Agents row. Each
+    // chip writes App's level; allow is struck on moves and remove and doesn't click; Reads off
+    // greys the three acting lines (their levels kept); the row's sentence follows.
+    function test_the_agents_gate_lines() {
+        const modal = createTemporaryObject(modalComponent, testCase);
+        modal.open();
+        const row = testCase.agentsRowSettled(modal);
+        compare([App.agentReads, App.agentFixes, App.agentMoves, App.agentRemove], ["on", "off", "off", "off"]);
+        const line = name => testCase.childNamed(modal, name + "Line");
+        const chip = (name, level) => testCase.childNamed(line(name), name + "Chip_" + level);
+        const scroller = testCase.childNamed(modal, "paneScroller");
+        // The cursor on a line scrolls the pane to it, so a click lands on what it aims at.
+        const reveal = cursor => {
+            modal.area = "pane";
+            modal.paneCursor = cursor;
+            const target = ["agentReads", "agentFixes", "agentMoves", "agentRemove"][cursor - 6];
+            verify(line(target).hasCursor, target);
+            tryVerify(() => {
+                          const top = line(target).mapToItem(scroller, 0, 0).y;
+                          return top >= -1 && top + line(target).height <= scroller.height + 1;
+                      }, 1000, target + " is out of the pane's sight");
+        };
+        compare(["agentReads", "agentFixes", "agentMoves", "agentRemove"].map(name => line(name).title),
+                ["Reads", "Fixes", "Moves", "Remove"]);
+        compare(line("agentFixes").subtitle, "retry, start-here, recheck, reannounce, pause, resume, dismiss, locate");
+        // Under the Skill line.
+        verify(line("agentReads").mapToItem(row, 0, 0).y > testCase.childNamed(modal, "agentSkillLine").mapToItem(row, 0, 0).y);
+        verify(!testCase.childNamed(modal, "agentLastLine").visible);
+        verify(chip("agentFixes", "off").selected);
+
+        reveal(7);
+        mouseClick(chip("agentFixes", "allow"));
+        compare(App.agentFixes, "allow");
+        verify(chip("agentFixes", "allow").selected);
+        compare(row.description, "Agents can read your library and do what the lines below allow. Deleting files, renaming and settings stay yours.");
+
+        // allow is struck on moves and remove, and is never taken.
+        for (const [name, cursor] of [["agentMoves", 8], ["agentRemove", 9]]) {
+            reveal(cursor);
+            const never = chip(name, "allow");
+            verify(never.struck, name);
+            verify(!never.enabled, name);
+            compare(never.Accessible.name, "allow, never offered");
+            mouseClick(never);
+        }
+        compare([App.agentMoves, App.agentRemove], ["off", "off"]);
+        reveal(8);
+        mouseClick(chip("agentMoves", "ask"));
+        compare(App.agentMoves, "ask");
+
+        // enter on a line's cursor moves its level on.
+        reveal(9);
+        modal.activateRow();
+        compare(App.agentRemove, "ask");
+
+        // Reads off: the acting lines grey out, keep their levels, and their chips don't click.
+        reveal(6);
+        mouseClick(chip("agentReads", "off"));
+        compare(App.agentReads, "off");
+        compare(row.description, "Agents get nothing from omaseed's commands. That's omaseed's side only: your agent's own settings are the wall (omaseed help agents).");
+        for (const name of ["agentFixes", "agentMoves", "agentRemove"]) {
+            verify(line(name).greyed, name);
+            verify(line(name).opacity < 1, name);
+            verify(!chip(name, "off").enabled, name);
+        }
+        verify(!line("agentReads").greyed);
+        reveal(7);
+        mouseClick(chip("agentFixes", "off"));
+        compare([App.agentFixes, App.agentMoves, App.agentRemove], ["allow", "ask", "ask"]);
+        // A click on a greyed line is the line's, never the row's (which links the skill).
+        modal.paneCursor = 9;
+        reveal(7);
+        modal.paneCursor = 9;
+        mouseClick(line("agentFixes"), 4, 4);
+        compare(modal.paneCursor, 7);
+        verify(!App.agentSkill.busy && !App.agentSkill.linked);
+
+        reveal(6);
+        mouseClick(chip("agentReads", "on"));
+        verify(!line("agentFixes").greyed);
+        App.agentFixes = "off";
+        App.agentMoves = "off";
+        App.agentRemove = "off";
+        compare(row.description, "Agents can read your library through omaseed's commands. They can't change anything.");
     }
 
     // The everything palette reaches a row by its id (C42 Z7): enter there links the skill,

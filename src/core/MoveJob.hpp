@@ -254,6 +254,10 @@ public:
     State state() const { return m_state; }
     bool isActive() const;
     QJsonObject spec() const { return m_spec; }
+    /// The history record made for it once it finished ("" before, or never: a move back
+    /// isn't recorded). Kept in its file, so a job read back still knows its record.
+    QString recordId() const { return m_recordId; }
+    void setRecordId(const QString &id);
     /// "folder", "selection", "back" (L11), "retry" (M16).
     QString kind() const;
     /// "films" for a folder; a selection's from its spec ("6 torrents").
@@ -373,6 +377,7 @@ private:
     PauseReason m_pauseReason = PauseReason::None;
     QString m_serverId;
     QJsonObject m_spec;
+    QString m_recordId;
     bool m_shown = false;
     QTimer m_showTimer;
     QTimer m_liveTimer;

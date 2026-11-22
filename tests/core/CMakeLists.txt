@@ -462,6 +462,13 @@ omaseed_add_test(tst_torrentsbackup
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# C50 GT6 (#295): a removed torrent kept 30 days in its own folder, to add back.
+omaseed_add_test(tst_removedkeep
+    SOURCES tst_removedkeep.cpp
+    LIBRARIES omaseed::core
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
 omaseed_add_test(tst_torrentsbackup_live LIVE
     SOURCES tst_torrentsbackup_live.cpp
     LIBRARIES omaseed::core
@@ -658,6 +665,21 @@ omaseed_add_test(tst_delugeengine
     DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 
+# #294, C50 GT2: pointAt, re-pointing a torrent over files already there, per engine against
+# the fakes (setLocation, torrent_set_location move:false, core.move_storage).
+omaseed_add_test(tst_pointat
+    SOURCES tst_pointat.cpp
+    LIBRARIES omaseed::core Qt6::Network
+    DEFINES OMASEED_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+)
+
+# The same on the playgrounds (:8081, :8085, :8086): nothing at the new place or the old one is
+# moved, replaced or deleted, and a recheck finds the torrent whole (research/294-locate).
+omaseed_add_test(tst_pointat_live LIVE
+    SOURCES tst_pointat_live.cpp
+    LIBRARIES omaseed::core Qt6::Network
+)
+
 # The same against the real deluge-web test server (:8086, test-server.sh --deluge;
 # DELUGE_TEST_PASS from dev.env in the environment).
 omaseed_add_test(tst_delugeengine_live LIVE
@@ -816,6 +838,36 @@ omaseed_add_test(tst_omarchymenublock
 # DECISIONS C45 V1, V2, V4, V13 (#163): the words' table, arguments, pages, exits, failures.
 omaseed_add_test(tst_agentwords
     SOURCES tst_agentwords.cpp
+    LIBRARIES omaseed::core
+)
+
+# DECISIONS C50 GT3, GT8 (#291): what an agent may do, by kind; the agents section.
+omaseed_add_test(tst_agentgate
+    SOURCES tst_agentgate.cpp
+    LIBRARIES omaseed::core
+)
+
+# DECISIONS C45 V17 (#293): the program that started `omaseed do`, from /proc/PID/stat.
+omaseed_add_test(tst_procparent
+    SOURCES tst_procparent.cpp
+    LIBRARIES omaseed::core
+)
+
+# DECISIONS C50 GT2 (#294): do locate's find, each file's relative path and size in a folder.
+omaseed_add_test(tst_locatecheck
+    SOURCES tst_locatecheck.cpp
+    LIBRARIES omaseed::core
+)
+
+# #297 (DECISIONS C50 GT7): help agents' deny rules, each agent's syntax, the rules left out.
+omaseed_add_test(tst_agentdeny
+    SOURCES tst_agentdeny.cpp
+    LIBRARIES omaseed::core
+)
+
+# #296 (DECISIONS C50 GT4): an agent's plan read: usage, a never word kept, groups, last line.
+omaseed_add_test(tst_agentplan
+    SOURCES tst_agentplan.cpp
     LIBRARIES omaseed::core
 )
 

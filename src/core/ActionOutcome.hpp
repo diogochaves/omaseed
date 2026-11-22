@@ -58,17 +58,25 @@ struct ActionOutcome
     /// Board 47's strip on Deluge (C25 K24): it paused the ones that failed and only a
     /// recheck clears their error, so the strip offers "recheck" in place of "details".
     bool recheckFirst = false;
+    /// C45 V18 (board 62 §5): an agent asked for it through `do`; the strip says "by an
+    /// agent" after the headline, dim (`agent` in words()).
+    bool byAgent = false;
+    /// C50 GT6 (#295): an agent's remove kept these (RemovedKeep ids, one per torrent it
+    /// removed); the strip offers "add back" while any are (`keptIds` in words()).
+    QStringList keptIds;
 
     enum class Kind { Done, Failed, Mixed };
     Kind kind() const;
 
     /// The strip's words and what it is about: `{kind ("done", "failed", "mixed"), mark (✓ ✕
     /// !), headline, line, details, action, hashes, failedHashes, doneHashes, target,
-    /// doneRow, failedRow}`. `doneRow` and `failedRow` are the rows' marks ("moved · keep",
-    /// "didn't move").
+    /// doneRow, failedRow, agent, keptIds}`; `agent` is "by an agent" for an agent's act, else "".
+    /// `doneRow` and `failedRow` are the rows' marks ("moved · keep", "didn't move").
     QVariantMap words() const;
     /// The fields above from a map with the same names (QML's demo and tests).
     static ActionOutcome fromMap(const QVariantMap &map);
+    /// "by an agent", the words V18 adds wherever an agent's act shows.
+    static QString byAnAgent();
 };
 
 class ActionOutcomes : public QObject

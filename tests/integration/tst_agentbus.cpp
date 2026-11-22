@@ -4,14 +4,17 @@
 // answering later (a delayed reply), and nothing exported without a connection.
 
 #include "integration/AgentBus.hpp"
+#include "integration/AgentClient.hpp"
 #include "integration/AppIdentity.hpp"
 #include "integration/SingleInstance.hpp"
 #include "integration/StatusBus.hpp"
+#include <ctime>
 
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QElapsedTimer>
+#include <QJsonObject>
 #include <QProcess>
 #include <QTest>
 #include <QTimer>
@@ -62,6 +65,18 @@ public:
         calls << QStringLiteral("useSkin ") + options;
         reply(QStringLiteral(R"({"v":1,"command":"skin use"})"));
     }
+
+    uint doPid = 0;
+    void doAction(const QString &options, uint callerPid, Reply reply) override
+    {
+        calls << QStringLiteral("do ") + options;
+        doPid = callerPid;
+        // A do that asks says so first (the Asking signal), then waits on the person.
+        if (options.contains(QStringLiteral("move")))
+            sayAsking(callerPid, QStringLiteral("Asking in omaseed's window… moves always ask."));
+        // Answers later, as a do waits for the server (C45 V15).
+        QTimer::singleShot(150, [reply]() { reply(QStringLiteral(R"({"v":1,"command":"do"})")); });
+    }
 };
 
 /// The widget's handler, only so Status is there to compare.
@@ -106,6 +121,7 @@ private slots:
     void agentBesideStatusAndApplication();
     void statusUnchanged();
     void delayedReplyArrives();
+    void askingReachesTheCaller();
     void notExportedWithoutConnection();
 
 private:
@@ -202,14 +218,13 @@ void TestAgentBus::agentBesideStatusAndApplication()
         xml.contains(QStringLiteral("interface name=\"io.github.diogochaves.omaseed.Status\"")));
     const QString agent = block(xml, AgentBus::interfaceName());
     QVERIFY2(!agent.isEmpty(), qPrintable(xml));
-    // Status, Errors, Log, Moves and UseSkin, each (s) → s (C45 V3, C37 U6; Do comes with
-    // the actions).
-    QCOMPARE(agent.count(QStringLiteral("<method ")), 5);
-    for (const char *method : {"Status", "Errors", "Log", "Moves", "UseSkin"})
+    // Status, Errors, Log, Moves, UseSkin and Do, each (s) → s (C45 V3, V15, C37 U6).
+    QCOMPARE(agent.count(QStringLiteral("<method ")), 6);
+    for (const char *method : {"Status", "Errors", "Log", "Moves", "UseSkin", "Do"})
         QVERIFY(agent.contains(QStringLiteral("method name=\"%1\"").arg(QLatin1String(method))));
-    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 5);
-    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 5);
-    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 10);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"in\"")), 6);
+    QCOMPARE(agent.count(QStringLiteral("direction=\"out\"")), 6);
+    QCOMPARE(agent.count(QStringLiteral("type=\"s\"")), 12);
     QVERIFY(!agent.contains(QStringLiteral("<property")));
     QVERIFY(!agent.contains(QStringLiteral("<signal")));
 }
@@ -254,6 +269,62 @@ void TestAgentBus::delayedReplyArrives()
     QCOMPARE(call(QStringLiteral("Moves"), {QStringLiteral("{}")}).arguments().value(0).toString(),
              QStringLiteral(R"({"v":1,"command":"moves"})"));
     QCOMPARE(m_agent.calls.last(), QStringLiteral("moves {}"));
+
+    // Do answers later too, and knows the caller's pid (C45 V15, V17): here, this process.
+    timer.restart();
+    const QDBusMessage done =
+        call(QStringLiteral("Do"), {QStringLiteral(R"({"action":"recheck"})")});
+    QCOMPARE(done.type(), QDBusMessage::ReplyMessage);
+    QCOMPARE(done.arguments().value(0).toString(), QStringLiteral(R"({"v":1,"command":"do"})"));
+    QVERIFY(timer.elapsed() >= 140);
+    QCOMPARE(m_agent.calls.last(), QStringLiteral(R"(do {"action":"recheck"})"));
+    QCOMPARE(m_agent.doPid, uint(QCoreApplication::applicationPid()));
+}
+
+void TestAgentBus::askingReachesTheCaller()
+{
+    // docs/62 §5: the CLI hears Asking before the answer, only for its own pid; others hear
+    // nothing, and a do that doesn't ask says nothing.
+    QVERIFY(AgentBus::exportOn(m_primary, m_primary->connection(), &m_agent));
+    QStringList heard;
+    const auto asking = [&heard](const QString &words) { heard << words; };
+    omaseed::integration::AgentClient::Reply reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("move")}},
+        5000,
+        asking);
+    QVERIFY2(reply.code.isEmpty(), qPrintable(reply.message));
+    QCOMPARE(QString::fromUtf8(reply.answer), QStringLiteral(R"({"v":1,"command":"do"})"));
+    QCOMPARE(heard, QStringList{QStringLiteral("Asking in omaseed's window… moves always ask.")});
+
+    // While it waits it sleeps: a do that asks waits up to two minutes, and the wait spun a
+    // core (the agent walk, #293). The handler answers after 150 ms.
+    std::clock_t cpu = std::clock();
+    reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("move")}},
+        5000);
+    const double spent = double(std::clock() - cpu) * 1000.0 / CLOCKS_PER_SEC;
+    QVERIFY(reply.code.isEmpty());
+    QVERIFY2(spent < 75, qPrintable(QStringLiteral("%1 ms of CPU for a 150 ms wait").arg(spent)));
+
+    heard.clear();
+    reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("recheck")}},
+        5000,
+        asking);
+    QVERIFY(reply.code.isEmpty());
+    QVERIFY(heard.isEmpty());
+
+    // Another process's ask: not this one's to say.
+    m_agent.sayAsking(1, QStringLiteral("not mine"));
+    reply = omaseed::integration::AgentClient::call(
+        QStringLiteral("Do"),
+        QJsonObject{{QStringLiteral("action"), QStringLiteral("recheck")}},
+        5000,
+        asking);
+    QVERIFY(heard.isEmpty());
 }
 
 void TestAgentBus::notExportedWithoutConnection()

@@ -6,6 +6,16 @@ qt_add_library(omaseed-core STATIC
     ActionOutcome.hpp
     AgentAnswers.cpp
     AgentAnswers.hpp
+    AgentGate.cpp
+    AgentDeny.cpp
+    AgentDeny.hpp
+    AgentPlan.cpp
+    AgentPlan.hpp
+    AgentGate.hpp
+    ProcParent.cpp
+    ProcParent.hpp
+    LocateCheck.cpp
+    LocateCheck.hpp
     AgentText.cpp
     AgentText.hpp
     AgentWords.cpp
@@ -181,6 +191,8 @@ qt_add_library(omaseed-core STATIC
     ProblemLog.hpp
     Reply.cpp
     Reply.hpp
+    RemovedKeep.cpp
+    RemovedKeep.hpp
     RenameDisk.cpp
     RenameDisk.hpp
     RenamePlan.cpp

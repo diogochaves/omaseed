@@ -91,6 +91,7 @@ private Q_SLOTS:
     void anUnreadableOrForeignTorrentIsALink();
     void withoutTheDaemonsLinkOmaseedMakesOne();
     void aTorrentRemovedMeanwhileIsLeftOut();
+    void oneTorrentAlone();
     void twentyAtATime();
     void stopLeavesNoFile();
     void aDaemonsErrorLeavesNoFile();
@@ -103,7 +104,7 @@ private:
     QString adopt(const QString &recorded, const char *fixtureName, bool stored = true);
     QJsonObject row(const QString &hash) const;
     void set(const QString &hash, const QString &key, const QJsonValue &value);
-    Export::Outcome run(const QString &torrentsFolder = {});
+    Export::Outcome run(const QString &torrentsFolder = {}, const QStringList &only = {});
     TorrentsBackup::Contents read();
     TorrentRecord record(const TorrentsBackup::Contents &contents, const QString &id);
     QString target() const { return m_dir.filePath(QStringLiteral("out/t.omaseed-torrents")); }
@@ -245,7 +246,8 @@ void TestDelugeTorrentsExport::set(const QString &hash, const QString &key, cons
     m_daemon->torrents.insert(hash, json);
 }
 
-Export::Outcome TestDelugeTorrentsExport::run(const QString &torrentsFolder)
+Export::Outcome TestDelugeTorrentsExport::run(const QString &torrentsFolder,
+                                              const QStringList &only)
 {
     Export exporter(m_engine.get());
     exporter.setTorrentsFolder(torrentsFolder);
@@ -253,7 +255,8 @@ Export::Outcome TestDelugeTorrentsExport::run(const QString &torrentsFolder)
     exporter.start(target(),
                    QStringLiteral("box"),
                    QStringLiteral("http://box:8112"),
-                   QStringLiteral("9.9.9"));
+                   QStringLiteral("9.9.9"),
+                   only);
     if (finished.isEmpty() && !finished.wait(10000))
         return {};
     return finished.at(0).at(0).value<Export::Outcome>();
@@ -667,6 +670,39 @@ void TestDelugeTorrentsExport::aTorrentRemovedMeanwhileIsLeftOut()
     QCOMPARE(contents.records.size(), 4);
     for (const TorrentRecord &r : contents.records)
         QVERIFY(r.id != m_single);
+}
+
+// DECISIONS C50 GT6: the removed folder keeps one torrent as Backup would: `only` writes that
+// one (by its hash in any case), its record as the whole export has it, its queue place among
+// them all; a hash the daemon lacks writes none.
+void TestDelugeTorrentsExport::oneTorrentAlone()
+{
+    QVERIFY(run().ok);
+    const TorrentRecord whole = record(read(), m_single);
+    QVERIFY(whole.queuePosition > 0);
+
+    const Export::Outcome outcome = run({}, {m_single.toUpper()});
+    QVERIFY2(outcome.ok, qPrintable(outcome.error));
+    QCOMPARE(outcome.torrents, 1);
+    QCOMPARE(outcome.magnets, 0);
+    const TorrentsBackup::Contents contents = read();
+    QCOMPARE(contents.manifest.count, 1);
+    QCOMPARE(contents.records.size(), 1);
+    const TorrentRecord &one = contents.records.at(0);
+    QCOMPARE(one.id, whole.id);
+    QCOMPARE(one.name, whole.name);
+    QCOMPARE(one.savePath, whole.savePath);
+    QCOMPARE(one.state, whole.state);
+    QCOMPARE(one.tags, whole.tags);
+    QCOMPARE(one.category, whole.category);
+    QCOMPARE(one.queuePosition, whole.queuePosition);
+    QCOMPARE(one.toJson(), whole.toJson());
+    QVERIFY(contents.torrents.contains(m_single));
+
+    const Export::Outcome none = run({}, {QString(40, QLatin1Char('0'))});
+    QVERIFY(none.ok);
+    QCOMPARE(none.torrents, 0);
+    QCOMPARE(read().records.size(), 0);
 }
 
 void TestDelugeTorrentsExport::twentyAtATime()

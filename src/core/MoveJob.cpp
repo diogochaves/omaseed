@@ -533,6 +533,7 @@ void MoveJob::reset()
 {
     m_showTimer.stop();
     m_spec = QJsonObject();
+    m_recordId.clear();
     m_shown = false;
     m_liveHash.clear();
     m_liveBytes = -1;
@@ -1061,6 +1062,12 @@ QStringList MoveJob::addedDuring() const
 
 // ---- the file ---------------------------------------------------------------------------
 
+void MoveJob::setRecordId(const QString &id)
+{
+    m_recordId = id;
+    touch();
+}
+
 void MoveJob::touch()
 {
     Q_EMIT changed();
@@ -1125,6 +1132,7 @@ QJsonObject MoveJob::toJson() const
     return {{QStringLiteral("version"), kFileVersion},
             {QStringLiteral("server"), m_serverId},
             {QStringLiteral("spec"), m_spec},
+            {QStringLiteral("recordId"), m_recordId},
             {QStringLiteral("shown"), m_shown},
             {QStringLiteral("state"), keyOf(m_state)},
             {QStringLiteral("pauseReason"), keyOf(m_pauseReason)},
@@ -1157,6 +1165,7 @@ bool MoveJob::fromJson(const QJsonObject &json)
 
     m_serverId = json.value(QStringLiteral("server")).toString();
     m_spec = json.value(QStringLiteral("spec")).toObject();
+    m_recordId = json.value(QStringLiteral("recordId")).toString();
     m_root = json.value(QStringLiteral("root")).toString();
     m_newPath = json.value(QStringLiteral("newPath")).toString();
     m_sameDrive = json.value(QStringLiteral("sameDrive")).toBool();

@@ -55,6 +55,8 @@ QJsonObject MoveRecord::toJson() const
     }
     if (!replaced.isEmpty())
         out.insert(QStringLiteral("replaced"), QJsonArray::fromStringList(replaced));
+    if (!by.isEmpty())
+        out.insert(QStringLiteral("by"), by);
     return out;
 }
 
@@ -79,6 +81,7 @@ MoveRecord MoveRecord::fromJson(const QJsonObject &object)
     record.carriedFiles =
         LooseCarry::fromJson(object.value(QStringLiteral("carriedFiles")).toArray());
     record.replaced = object.value(QStringLiteral("replaced")).toVariant().toStringList();
+    record.by = object.value(QStringLiteral("by")).toString();
     return record;
 }
 

@@ -752,9 +752,12 @@ private slots:
         QCOMPARE(m_job->movedFrom().value(hashOf(2)), kRoot + "/handheld");
         QCOMPARE(m_job->movedTo().value(hashOf(1)), QStringLiteral("/mnt/fast/all"));
         QCOMPARE(m_job->hadAutoTmm(), QStringList({hashOf(2)}));
-        // Kept in the file too.
+        // Kept in the file too, with the history record made for it (MoveController's key
+        // for it: never its start and title, which two moves can share).
+        m_job->setRecordId(QStringLiteral("rec-1"));
         MoveJob again;
         QVERIFY(again.fromJson(m_job->toJson()));
+        QCOMPARE(again.recordId(), QStringLiteral("rec-1"));
         QCOMPARE(again.hadAutoTmm(), QStringList({hashOf(2)}));
         QCOMPARE(again.title(), QStringLiteral("2 torrents"));
         QVERIFY(!again.wasShown()); // it ended unseen

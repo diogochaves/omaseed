@@ -531,6 +531,9 @@ void App::recordSeenEdits(const QList<core::SeenEdit> &edits)
             // Y6: omaseed's own move, running or ended within the minute, is the move's story.
             if (m_move != nullptr && m_move->ownsMoveOf(edit.hash))
                 continue;
+            // #297: a locate's re-point has its own line (recordLocated).
+            if (locatedLately(edit.hash))
+                continue;
             const core::Torrent &t = m_engine->torrents()->torrent(edit.hash);
             // With the label's move_completed gone the torrent has no waiting folder any more:
             // the path reads landed, though nothing moved (it is still unfinished).
@@ -562,6 +565,35 @@ void App::recordSeenEdits(const QList<core::SeenEdit> &edits)
         entries.append(entry);
     }
     writeEntries(m_storyServerId, entries);
+}
+
+void App::recordLocated(const QHash<QString, QString> &was, const QString &path, bool byAgent)
+{
+    // C50 GT2: nothing moved; the save path is where the files already were.
+    QString now = path;
+    while (now.size() > 1 && now.endsWith(QLatin1Char('/')))
+        now.chop(1);
+    QList<StoryEntry> entries;
+    for (auto it = was.cbegin(); it != was.cend(); ++it) {
+        StoryEntry entry;
+        entry.at = QDateTime::currentDateTimeUtc();
+        entry.hash = it.key();
+        entry.what = StoryEntry::What::Place;
+        entry.was = it.value();
+        entry.now = now;
+        entry.by = StoryEntry::By::Omaseed;
+        entry.cause = QStringLiteral("locate");
+        entry.causeName = byAgent ? QStringLiteral("agent") : QString();
+        entries.append(entry);
+    }
+    writeEntries(storyServerId(), entries);
+}
+
+bool App::locatedLately(const QString &hash) const
+{
+    const QDateTime at = m_locatedAt.value(m_storyServerId + QLatin1Char('\n') + hash);
+    return at.isValid() &&
+           at.secsTo(QDateTime::currentDateTimeUtc()) <= MoveController::kOwnMoveSeconds;
 }
 
 bool App::placeMovedSinceLastMove(const QString &hash) const

@@ -1003,6 +1003,15 @@ Reply<Done> *DelugeEngine::setLocation(const QStringList &hashes, const QString 
     return forTorrents(QStringLiteral("core.move_storage"), hashes, {path});
 }
 
+Reply<Done> *DelugeEngine::pointAt(const QStringList &hashes, const QString &path)
+{
+    // Deluge has no "set the folder" call: move_storage is libtorrent's move, which skips a
+    // source that is gone and keeps a file already at the destination, so over files there
+    // it only re-points; it takes a torrent in Error too (research/294-locate). Its progress
+    // afterwards is anything until the recheck that follows.
+    return forTorrents(QStringLiteral("core.move_storage"), hashes, {path});
+}
+
 Reply<Done> *
 DelugeEngine::renameFile(const QString &hash, const QString &oldPath, const QString &newPath)
 {

@@ -182,6 +182,8 @@ private slots:
     void unknownTorrent();
     void ambiguousPrefix();
 
+    void readsOffAnswersNotAllowed();
+
 private:
     /// log's answer, with `options`.
     static QJsonObject log(AgentService &service, const QString &options = QString());
@@ -640,6 +642,48 @@ void TestAgentService::ambiguousPrefix()
         QStringLiteral("3f9a matches 1 torrent on 127.0.0.1: give at least 8 characters of "
                        "the hash."));
     QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 2);
+}
+
+// DECISIONS C50 GT8: Reads off in the Agents row, every read answers not-allowed (exit 5)
+// before it looks at its options; skin use reads no library and stays.
+void TestAgentService::readsOffAnswersNotAllowed()
+{
+    App app;
+    AgentService service(&app);
+    app.setAgentReads(QStringLiteral("off"));
+    using Start = std::function<void(AgentService::Reply)>;
+    const QList<std::pair<QString, Start>> reads{
+        {QStringLiteral("status"),
+         [&](AgentService::Reply reply) { service.status(QStringLiteral("{}"), reply); }},
+        {QStringLiteral("errors"),
+         [&](AgentService::Reply reply) { service.errors(QStringLiteral("{}"), reply); }},
+        {QStringLiteral("log"),
+         [&](AgentService::Reply reply) { service.log(QStringLiteral("{}"), reply); }},
+        {QStringLiteral("moves"),
+         [&](AgentService::Reply reply) { service.moves(QStringLiteral("{}"), reply); }},
+    };
+    for (const auto &[command, start] : reads) {
+        const QJsonObject object = answer(start);
+        QCOMPARE(object.value(QLatin1String("command")).toString(), command);
+        QCOMPARE(codeOf(object), QStringLiteral("not-allowed"));
+        QCOMPARE(omaseed::core::AgentWords::exitFor(codeOf(object)), 5);
+        QVERIFY(object.value(QLatin1String("error"))
+                    .toObject()
+                    .value(QLatin1String("message"))
+                    .toString()
+                    .contains(QStringLiteral("Settings › General › Agents")));
+    }
+    const QJsonObject skin = answer([&](AgentService::Reply reply) {
+        service.useSkin(QStringLiteral(R"({"name":"console"})"), reply);
+    });
+    QVERIFY2(codeOf(skin) != QLatin1String("not-allowed"),
+             qPrintable(QJsonDocument(skin).toJson()));
+
+    // On again: status answers.
+    app.setAgentReads(QStringLiteral("on"));
+    QVERIFY(codeOf(answer([&](AgentService::Reply reply) {
+                service.status(QString(), reply);
+            })).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestAgentService)

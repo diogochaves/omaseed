@@ -20,6 +20,8 @@ Rectangle {
     /// the "·" alone sets them apart (#188).
     property string suffix: ""
     property bool selected: false
+    /// The option is shown but never offered (board 67 `.chip.no`): its words struck through.
+    property bool struck: false
     /// #91: the chip is a choice (an option of a few, a switch), so a screen reader hears
     /// `selected` as checked or not. A chip that only acts or shows leaves it off.
     property bool checkable: false
@@ -134,6 +136,7 @@ Rectangle {
 
             font.family: Theme.fontFamily
             font.pixelSize: Theme.font.small
+            font.strikeout: root.struck
             objectName: "chipLabel"
             text: root.text
         }

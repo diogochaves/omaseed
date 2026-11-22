@@ -1,5 +1,7 @@
 #include "core/AgentWords.hpp"
 
+#include "core/AgentDeny.hpp"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTimeZone>
@@ -20,15 +22,16 @@ const QStringList &builtWords()
                                    QStringLiteral("moves"),
                                    QStringLiteral("check"),
                                    QStringLiteral("skin"),
-                                   QStringLiteral("skill")};
+                                   QStringLiteral("skill"),
+                                   QStringLiteral("do")};
     return words;
 }
 
-/// C45 V14's word, taken by the table before it is built, so a file named like it already
-/// opens as ./do (C45 V2).
+/// Words taken by the table before they are built, so a file named like one already opens as
+/// ./word (C45 V2). None since `do` was built (C45 V15, #292).
 const QStringList &reservedWords()
 {
-    static const QStringList words{QStringLiteral("do")};
+    static const QStringList words;
     return words;
 }
 
@@ -139,6 +142,215 @@ QString jsonString(const QJsonValue &value)
     return QString::fromUtf8(array.mid(1, array.size() - 2));
 }
 
+/// What `do` never does, as an agent may spell it (C45 V14): parsed as a call the app answers
+/// `never`, so the words are the board's (docs/62 §5; assumed, PLAN Q4).
+const QStringList &neverWords()
+{
+    static const QStringList words{QStringLiteral("delete"),
+                                   QStringLiteral("rename"),
+                                   QStringLiteral("category"),
+                                   QStringLiteral("categories"),
+                                   QStringLiteral("tag"),
+                                   QStringLiteral("tags"),
+                                   QStringLiteral("label"),
+                                   QStringLiteral("labels"),
+                                   QStringLiteral("add"),
+                                   QStringLiteral("settings"),
+                                   QStringLiteral("server"),
+                                   QStringLiteral("servers"),
+                                   QStringLiteral("credentials"),
+                                   QStringLiteral("quit")};
+    return words;
+}
+
+/// `help agents [--for AGENT] [--json]` (C50 GT7): answered by the CLI (Words.cpp), which
+/// asks the running omaseed for its server's address.
+Request parseHelpAgents(const QStringList &rest, bool json)
+{
+    const QString command = QStringLiteral("help agents");
+    const QString takes =
+        QStringLiteral("omaseed: help agents takes --for %1. omaseed help help says how.")
+            .arg(AgentDeny::agents().join(QLatin1Char('|')));
+    QJsonObject options;
+    for (qsizetype i = 0; i < rest.size(); ++i) {
+        const QString argument = rest.at(i);
+        if (argument == QLatin1String("--json"))
+            continue;
+        if (argument == QLatin1String("--help") || argument == QLatin1String("-h"))
+            return page(QStringLiteral("help"), json, QStringLiteral("help"));
+        QString value;
+        if (argument == QLatin1String("--for") && i + 1 < rest.size())
+            value = rest.at(++i);
+        else if (argument.startsWith(QLatin1String("--for=")))
+            value = argument.mid(6);
+        else
+            return usage(command, json, takes);
+        if (options.contains(QStringLiteral("for")) || !AgentDeny::agents().contains(value))
+            return usage(command, json, takes);
+        options.insert(QStringLiteral("for"), value);
+    }
+    Request request;
+    request.kind = Request::Kind::Local;
+    request.word = QStringLiteral("help");
+    request.subword = QStringLiteral("agents");
+    request.json = json;
+    request.options = options;
+    return request;
+}
+
+QString doTakes()
+{
+    return QStringLiteral("omaseed: do takes an action and its torrents: omaseed do recheck "
+                          "3f9a1c0e. omaseed do --list says what it may do.");
+}
+
+/// `do <action> <hash…> [--to FOLDER] [--dry-run] [--server NAME] [--json]`, `do --list`
+/// (C45 V15, C50 GT5). The options JSON: {action, torrents, to, move, dryRun, list, server}.
+Request parseDo(const QStringList &rest, bool json)
+{
+    const QString word = QStringLiteral("do");
+    // C50 GT1: no wording of a request turns a remove into a delete.
+    if (rest.contains(QLatin1String("--delete-files")))
+        return usage(word, json, deleteFilesWords());
+    QJsonObject options;
+    QStringList positionals;
+    for (qsizetype i = 0; i < rest.size(); ++i) {
+        const QString argument = rest.at(i);
+        if (argument == QLatin1String("--json"))
+            continue;
+        if (!argument.isEmpty() && !argument.startsWith(QLatin1Char('-'))) {
+            positionals << argument;
+            continue;
+        }
+        if (argument == QLatin1String("--list") || argument == QLatin1String("--dry-run")) {
+            const QString key = argument == QLatin1String("--list") ? QStringLiteral("list")
+                                                                    : QStringLiteral("dryRun");
+            if (options.contains(key))
+                return usage(word, json, doesNotTake(word, argument));
+            options.insert(key, true);
+            continue;
+        }
+        const qsizetype equals = argument.indexOf(QLatin1Char('='));
+        const QString name = argument.startsWith(QLatin1String("--"))
+                                 ? argument.mid(2, equals < 0 ? -1 : equals - 2)
+                                 : QString();
+        // C50 GT4: --plan FILE, or - for stdin; the CLI reads it (planFile) and sends its text.
+        const QString key = name == QLatin1String("plan") ? QStringLiteral("planFile") : name;
+        if ((name != QLatin1String("to") && name != QLatin1String("server") &&
+             name != QLatin1String("plan")) ||
+            options.contains(key))
+            return usage(word, json, doesNotTake(word, argument));
+        QString value;
+        QString given = argument;
+        if (equals >= 0) {
+            value = argument.mid(equals + 1);
+        } else {
+            if (i + 1 >= rest.size() || (rest.at(i + 1).startsWith(QLatin1Char('-')) &&
+                                         rest.at(i + 1) != QLatin1String("-")))
+                return usage(word, json, doesNotTake(word, argument));
+            value = rest.at(++i);
+            given += QLatin1Char(' ') + value;
+        }
+        if (value.trimmed().isEmpty())
+            return usage(word, json, doesNotTake(word, given));
+        options.insert(key, value);
+    }
+
+    Request request;
+    request.kind = Request::Kind::Call;
+    request.word = word;
+    request.json = json;
+    if (options.value(QStringLiteral("list")).toBool()) {
+        // `do --list` takes nothing else but --json.
+        if (!positionals.isEmpty())
+            return usage(word, json, doesNotTake(word, positionals.first()));
+        for (const QString &key : options.keys())
+            if (key != QLatin1String("list"))
+                return usage(
+                    word,
+                    json,
+                    doesNotTake(word,
+                                key == QLatin1String("dryRun")     ? QStringLiteral("--dry-run")
+                                : key == QLatin1String("planFile") ? QStringLiteral("--plan")
+                                                                   : QStringLiteral("--") + key));
+        request.options = options;
+        return request;
+    }
+    if (options.contains(QStringLiteral("planFile"))) {
+        // A plan names its actions, torrents and folders itself (C50 GT4).
+        if (!positionals.isEmpty())
+            return usage(word, json, doesNotTake(word, positionals.first()));
+        if (options.contains(QStringLiteral("to")))
+            return usage(word, json, doesNotTake(word, QStringLiteral("--to")));
+        request.options = options;
+        return request;
+    }
+    if (positionals.isEmpty())
+        return usage(word, json, doTakes());
+    const QString action = positionals.takeFirst();
+    // Torrents are hashes or prefixes of 8 or more, as given; the app matches them (V15).
+    QStringList torrents;
+    for (const QString &hash : std::as_const(positionals))
+        torrents << hash.toLower();
+    options.insert(QStringLiteral("action"), action);
+    if (neverWords().contains(action)) {
+        // C45 V14: the app answers never, whatever follows.
+        options.remove(QStringLiteral("to"));
+        options.insert(QStringLiteral("torrents"), QJsonArray::fromStringList(torrents));
+        request.options = options;
+        return request;
+    }
+    static const QStringList fixes{QStringLiteral("retry"),
+                                   QStringLiteral("start-here"),
+                                   QStringLiteral("recheck"),
+                                   QStringLiteral("reannounce"),
+                                   QStringLiteral("dismiss")};
+    static const QStringList serverWide{QStringLiteral("pause"), QStringLiteral("resume")};
+    static const QStringList withFolder{QStringLiteral("move"), QStringLiteral("locate")};
+    const bool known = fixes.contains(action) || serverWide.contains(action) ||
+                       withFolder.contains(action) || action == QLatin1String("move-back") ||
+                       action == QLatin1String("remove");
+    if (!known)
+        return usage(word, json, doesNotTake(word, action));
+    // --to is a move's and locate's, and theirs it must be (C45 V15, C50 GT2).
+    if (withFolder.contains(action) != options.contains(QStringLiteral("to")))
+        return usage(word,
+                     json,
+                     withFolder.contains(action)
+                         ? QStringLiteral("omaseed: do %1 takes --to FOLDER. omaseed help do says "
+                                          "how.")
+                               .arg(action)
+                         : doesNotTake(word, QStringLiteral("--to")));
+    if (serverWide.contains(action)) {
+        // C36 M10's hold is the whole server's: no torrents (assumed, PLAN Q2).
+        if (!torrents.isEmpty())
+            return usage(word,
+                         json,
+                         QStringLiteral("omaseed: do %1 takes no torrents: it holds the whole "
+                                        "server, as the window's %1 does.")
+                             .arg(action));
+    } else if (action == QLatin1String("move-back")) {
+        // C18: a move back names the move (omaseed moves gives its id), never torrents.
+        if (torrents.size() != 1)
+            return usage(word,
+                         json,
+                         QStringLiteral("omaseed: do move-back takes one move's id: omaseed "
+                                        "moves lists them."));
+        options.insert(QStringLiteral("move"), positionals.first());
+        torrents.clear();
+    } else if (torrents.isEmpty()) {
+        return usage(word,
+                     json,
+                     QStringLiteral("omaseed: do %1 takes the torrents' hashes, or 8 or more of "
+                                    "their first characters: omaseed errors gives them.")
+                         .arg(action));
+    }
+    if (!torrents.isEmpty())
+        options.insert(QStringLiteral("torrents"), QJsonArray::fromStringList(torrents));
+    request.options = options;
+    return request;
+}
+
 } // namespace
 
 QStringList levels()
@@ -193,6 +405,9 @@ Request parse(const QStringList &arguments, const QStringList &skillPages)
         if (rest.size() == 1 &&
             (rest.first() == QLatin1String("--help") || rest.first() == QLatin1String("-h")))
             return page(word, false, word);
+        // C50 GT7: `help agents [--for AGENT]`, the deny rules for an agent's own settings.
+        if (rest.first() == QLatin1String("agents"))
+            return parseHelpAgents(rest.mid(1), json);
         if (rest.size() == 1 && !rest.first().startsWith(QLatin1Char('-'))) {
             const QString which = rest.first();
             if (!isWord(which))
@@ -210,6 +425,8 @@ Request parse(const QStringList &arguments, const QStringList &skillPages)
     // `omaseed WORD --help` is the word's page, whatever else it was given.
     if (rest.contains(QLatin1String("--help")) || rest.contains(QLatin1String("-h")))
         return page(word, json, word);
+    if (word == QLatin1String("do"))
+        return parseDo(rest, json);
 
     // C37 U3, U5, U6: check and skin take positionals, and skill its page or link words (C48);
     // any other word, none.
@@ -314,6 +531,8 @@ QString method(const QString &word)
         return QStringLiteral("Log");
     if (word == QLatin1String("moves"))
         return QStringLiteral("Moves");
+    if (word == QLatin1String("do"))
+        return QStringLiteral("Do");
     return QString();
 }
 
@@ -331,12 +550,14 @@ QString helpPage(const QString &qtHelp)
     };
     page << head;
     // C45 V2 (docs/62 §2): the words, above Qt's options; the skins' after the library's
-    // (C37 U3, U5, U6). The do lines join here with the actions patch (V20).
+    // (C37 U3, U5, U6); do's two lines as docs/62 §2 draws them (V15).
     page << QString() << QStringLiteral("Your library, from the running omaseed:")
          << QStringLiteral("  status     the server, what it is doing, how many need you")
          << QStringLiteral("  errors     every torrent that needs you, why, and its fix")
          << QStringLiteral("  log        qBittorrent's log: warnings and worse, the last 50 lines")
          << QStringLiteral("  moves      moves running now, and the last ones that landed")
+         << QStringLiteral("  do         a fix the window offers, if you let agents act")
+         << QStringLiteral("             (Settings › General › Agents; moves always ask you)")
          << QString() << QStringLiteral("Your skins, in ~/.config/omaseed/skins/:")
          << QStringLiteral("  skin list    every skin, where it lives, whether it reads")
          << QStringLiteral("  skin clone   start one from a copy: omaseed skin clone console warm")
@@ -369,7 +590,15 @@ QString wordPage(const QString &word)
                        "                  answer (omaseed status lists them)\n");
     if (word == QLatin1String("help"))
         return QStringLiteral("Usage: omaseed help [word]\n"
-                              "This page, or one word's.\n"
+                              "       omaseed help agents [--for claude|codex|pi|gemini] "
+                              "[--json]\n"
+                              "This page, or one word's. help agents prints deny rules for a "
+                              "coding\n"
+                              "agent's own settings (Claude Code's by default), filled with the "
+                              "server\n"
+                              "omaseed is on: omaseed's Agents settings bind only its own words. "
+                              "It\n"
+                              "prints them and never writes them.\n"
                               "Exit: 0 printed · 2 usage\n");
     if (word == QLatin1String("status"))
         return QStringLiteral("Usage: omaseed status [--json]\n"
@@ -425,6 +654,41 @@ QString wordPage(const QString &word)
                QStringLiteral("Exit: 0 answered · 2 usage · 3 omaseed isn't running · 4 that "
                               "server can't\n"
                               "      answer now\n");
+    if (word == QLatin1String("do"))
+        return QStringLiteral(
+                   "Usage: omaseed do <action> <hash...> [--to FOLDER] [--dry-run] [--server "
+                   "NAME]\n"
+                   "                  [--json]\n"
+                   "       omaseed do --plan FILE|- [--dry-run] [--server NAME] [--json]\n"
+                   "       omaseed do --list [--json]\n"
+                   "A fix the window offers, run for you by the running omaseed, if Settings ›\n"
+                   "General › Agents lets agents act. It waits for the server's answer.\n"
+                   "  fixes           retry, start-here, recheck, reannounce, dismiss <hash...>;\n"
+                   "                  pause, resume (the whole server, no hashes)\n"
+                   "  locate          locate <hash...> --to FOLDER: a torrent whose files are\n"
+                   "                  missing, pointed at the folder that holds them, nothing\n"
+                   "                  moved, then rechecked (a fix)\n"
+                   "  moves           move <hash...> --to FOLDER, move-back <move>: always ask\n"
+                   "  remove          remove <hash...>: only a torrent whose files are gone,\n"
+                   "                  never its files; kept 30 days to add back: always asks\n"
+                   "  <hash>          a torrent's hash, or 8 or more of its first characters\n"
+                   "  <move>          a landed move's id (omaseed moves), or 8 or more of its\n"
+                   "                  first characters\n"
+                   "  --plan FILE|-   a JSON plan of lines, each an action and its torrents:\n"
+                   "                  every line checked first, one ask for the lot\n"
+                   "  --dry-run       every check, nothing asked, nothing done\n"
+                   "  --list          what the person lets agents do now\n"
+                   "  --server NAME   only the server omaseed is on can act\n") +
+               json +
+               QStringLiteral("Never through do: delete, rename, categories and tags, adds, "
+                              "settings,\n"
+                              "servers, quit. No flag deletes files.\n"
+                              "Exit: 0 done · 2 usage · 3 omaseed isn't running · 4 that server "
+                              "can't act\n"
+                              "      now · 5 not done: not allowed, never, refused, not "
+                              "answered, not\n"
+                              "      removable or not found · 6 the server refused it\n"
+                              "Your agent's own settings are the wall: omaseed help agents.\n");
     if (word == QLatin1String("check"))
         return QStringLiteral(
                    "Usage: omaseed check <skin> [--theme NAME] [--json]\n"
@@ -489,6 +753,18 @@ QString noSuchWord(const QString &argument)
         .arg(argument);
 }
 
+QString deleteFilesWords()
+{
+    // C50 GT1, board 67's mock.
+    return QStringLiteral("omaseed do never deletes files: remove takes the torrent off the list "
+                          "and nothing else.");
+}
+
+bool isNeverWord(const QString &action)
+{
+    return neverWords().contains(action);
+}
+
 QString notYet(const QString &word)
 {
     return QStringLiteral(
@@ -515,7 +791,10 @@ int exitFor(const QString &code)
     static const QStringList notDone{QStringLiteral("not-allowed"),
                                      QStringLiteral("never"),
                                      QStringLiteral("refused"),
-                                     QStringLiteral("no-answer")};
+                                     QStringLiteral("no-answer"),
+                                     // C50 GT1, GT2: remove and locate's refusals.
+                                     QStringLiteral("not-removable"),
+                                     QStringLiteral("not-found")};
     // C37 U3, U5, U6: the skins' words.
     static const QStringList skinUsage{QStringLiteral("unknown-skin"),
                                        QStringLiteral("bad-name"),

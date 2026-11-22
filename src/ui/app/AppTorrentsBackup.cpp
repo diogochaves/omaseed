@@ -21,6 +21,7 @@
 #include "core/Format.hpp"
 #include "core/LibraryCrossing.hpp"
 #include "core/OmaseedBackup.hpp"
+#include "core/RemovedKeep.hpp"
 #include "core/Version.hpp"
 #include "core/engines/deluge/DelugeEngine.hpp"
 #include "core/engines/deluge/DelugeTorrentsExport.hpp"
@@ -41,6 +42,8 @@
 #include <QTimer>
 #include <QUrl>
 #include <QWindow>
+
+#include <memory>
 
 namespace omaseed::app {
 
@@ -574,6 +577,29 @@ QString App::readTorrentsImport(const QString &path)
         return tr("Not imported: %1.").arg(error);
     m_torrentsFile = std::move(contents);
 
+    const int which = ++m_torrentsRead;
+    setTorrentsRunning(QStringLiteral("read"), tr("reading %1…").arg(m_server.name));
+    readServerHere([this, which](const TorrentsImport::Here &here, const QString &failure) {
+        if (which != m_torrentsRead)
+            return;
+        setTorrentsRunning(QString());
+        if (!failure.isEmpty()) {
+            m_torrentsFile.reset();
+            Q_EMIT torrentsImportRead(
+                {{QStringLiteral("ok"), false},
+                 {QStringLiteral("error"),
+                  tr("Could not read %1's torrents: %2").arg(m_server.name, failure)}});
+            return;
+        }
+        m_torrentsPlan = torrentsPlanHere(*m_torrentsFile, here);
+        Q_EMIT torrentsImportRead(torrentsImportInfo());
+    });
+    return QString();
+}
+
+void App::readServerHere(
+    const std::function<void(const TorrentsImport::Here &, const QString &)> &done)
+{
     // What the server has now: every hash a torrent there can be known by, its categories
     // and tags. Read afresh, not from the last poll, so the plan is the server's own.
     struct Read
@@ -583,31 +609,9 @@ QString App::readTorrentsImport(const QString &path)
         QString error;
     };
     auto read = std::make_shared<Read>();
-    const int which = ++m_torrentsRead;
-    setTorrentsRunning(QStringLiteral("read"), tr("reading %1…").arg(m_server.name));
-    const auto settle = [this, read, which] {
-        if (--read->waiting > 0 || which != m_torrentsRead)
-            return;
-        setTorrentsRunning(QString());
-        if (!read->error.isEmpty()) {
-            m_torrentsFile.reset();
-            Q_EMIT torrentsImportRead(
-                {{QStringLiteral("ok"), false},
-                 {QStringLiteral("error"),
-                  tr("Could not read %1's torrents: %2").arg(m_server.name, read->error)}});
-            return;
-        }
-        // The engine's own plan (C40 X1): a Transmission has nothing to create first, a
-        // Deluge the labels it lacks (`here.categories` are its labels).
-        const TorrentsImport::Journal journal =
-            TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id));
-        if (transmissionEngine() != nullptr)
-            m_torrentsPlan = TransmissionTorrentsImport::plan(*m_torrentsFile, read->here, journal);
-        else if (delugeEngine() != nullptr)
-            m_torrentsPlan = DelugeTorrentsImport::plan(*m_torrentsFile, read->here, journal);
-        else
-            m_torrentsPlan = TorrentsImport::plan(*m_torrentsFile, read->here, journal);
-        Q_EMIT torrentsImportRead(torrentsImportInfo());
+    const auto settle = [read, done] {
+        if (--read->waiting == 0)
+            done(read->here, read->error);
     };
     m_client->torrents()->then(this, [read, settle](const Result<QList<TorrentPatch>> &r) {
         if (r.isError())
@@ -633,7 +637,20 @@ QString App::readTorrentsImport(const QString &path)
         read->here.tags.append(r.value());
         settle();
     });
-    return QString();
+}
+
+TorrentsImport::Plan App::torrentsPlanHere(const TorrentsBackup::Contents &contents,
+                                           const TorrentsImport::Here &here) const
+{
+    // The engine's own plan (C40 X1): a Transmission has nothing to create first, a
+    // Deluge the labels it lacks (`here.categories` are its labels).
+    const TorrentsImport::Journal journal =
+        TorrentsImport::Journal::load(TorrentsImport::Journal::pathFor(m_server.id));
+    if (transmissionEngine() != nullptr)
+        return TransmissionTorrentsImport::plan(contents, here, journal);
+    if (delugeEngine() != nullptr)
+        return DelugeTorrentsImport::plan(contents, here, journal);
+    return TorrentsImport::plan(contents, here, journal);
 }
 
 QVariantMap App::torrentsImportInfo()
@@ -1049,6 +1066,269 @@ void App::finishImportedLinks()
         run(new TransmissionTorrentsImport(transmission, this), &m_linksFinisher);
     else
         run(new DelugeTorrentsImport(deluge, this), &m_delugeLinksFinisher);
+}
+
+// --- C50 GT6 (#295): the removed folder ---------------------------------------------------------
+
+void App::keepRemoved(const QString &hash,
+                      const std::function<void(const QString &, const QString &)> &done)
+{
+    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected()) {
+        done({}, tr("%1 is not connected.").arg(m_server.name));
+        return;
+    }
+    TransmissionEngine *transmission = transmissionEngine();
+    DelugeEngine *deluge = delugeEngine();
+    if (!m_features.torrentsExport ||
+        (qbtEngine() == nullptr && transmission == nullptr && deluge == nullptr)) {
+        done({}, tr("%1 cannot export its torrents.").arg(m_server.name));
+        return;
+    }
+    const int row = m_engine->torrents()->indexOfHash(hash.toLower());
+    if (row < 0) {
+        done({}, tr("%1 has no torrent %2.").arg(m_server.name, hash.left(8)));
+        return;
+    }
+    const Torrent torrent = m_engine->torrents()->torrentAt(row);
+    // A magnet that never got its metadata keeps its link (Q11); past that, a link is a
+    // .torrent this machine couldn't read, and no way back.
+    const bool bare = torrent.totalSize < 0;
+    QString error;
+    const QString path =
+        RemovedKeep::prepare(torrent.hash, QDateTime::currentDateTimeUtc(), &error);
+    if (path.isEmpty()) {
+        done({}, error);
+        return;
+    }
+    const QString id = QFileInfo(path).dir().dirName();
+    const auto finished = [this, id, bare, done, name = torrent.name, server = m_server.name](
+                              QObject *exporter, const TorrentsExport::Outcome &outcome) {
+        exporter->deleteLater();
+        QString why;
+        if (!outcome.ok)
+            why = outcome.error;
+        else if (outcome.torrents != 1)
+            why = tr("%1 no longer has %2.").arg(server, name);
+        else if (outcome.magnets > 0 && !bare)
+            why = tr("omaseed can't keep a way back for %1: it can't read its .torrent file "
+                     "on %2's disk.")
+                      .arg(name, server);
+        if (!why.isEmpty() || !RemovedKeep::entry(id)) {
+            RemovedKeep::forget(id);
+            done({}, why.isEmpty() ? tr("%1 couldn't be kept.").arg(name) : why);
+            return;
+        }
+        qInfo().noquote() << QStringLiteral("removed: %1 kept for %2 days in %3")
+                                 .arg(name)
+                                 .arg(RemovedKeep::kDays)
+                                 .arg(tilde(QFileInfo(outcome.path).path()));
+        refreshRemovedKept();
+        done(id, {});
+    };
+    // The engine's own exporter, as Backup's (exportTorrents), for this one torrent alone.
+    const auto run = [this, path, hash = torrent.hash, finished](auto *exporter) {
+        using Exporter = std::remove_pointer_t<decltype(exporter)>;
+        connect(exporter,
+                &Exporter::finished,
+                this,
+                [exporter, finished](const TorrentsExport::Outcome &outcome) {
+                    finished(exporter, outcome);
+                });
+        exporter->start(path,
+                        m_server.name,
+                        m_server.url.toString(),
+                        omaseed::core::version(),
+                        QStringList{hash});
+    };
+    const QString folder = m_torrentFilesReach == QLatin1String("readable")
+                               ? m_torrentFilesFrom
+                               : m_server.torrentsFolder;
+    if (transmission != nullptr) {
+        auto *exporter = new TransmissionTorrentsExport(transmission, this);
+        exporter->setTorrentsFolder(folder);
+        run(exporter);
+    } else if (deluge != nullptr) {
+        auto *exporter = new DelugeTorrentsExport(deluge, this);
+        exporter->setTorrentsFolder(folder);
+        run(exporter);
+    } else {
+        run(new TorrentsExport(qbtEngine(), this));
+    }
+}
+
+void App::addBackRemoved(const QString &id, const std::function<void(const QString &)> &done)
+{
+    if (m_demoMode || !m_hasServer || !m_engine->globalState()->connected()) {
+        done(tr("%1 is not connected.").arg(m_server.name));
+        return;
+    }
+    if (!m_torrentsRunning.isEmpty()) {
+        done(tr("Another export or import is running."));
+        return;
+    }
+    QString error;
+    std::optional<TorrentsBackup::Contents> taken = RemovedKeep::take(id, &error);
+    if (!taken) {
+        done(error);
+        return;
+    }
+    // Q12: back only to the server it came from, and never by switching to it.
+    if (taken->manifest.serverUrl != m_server.url.toString()) {
+        done(tr("On %1: switch to it first.").arg(taken->manifest.serverName));
+        return;
+    }
+    auto contents = std::make_shared<TorrentsBackup::Contents>(std::move(*taken));
+    const QString name = contents->records.constFirst().name;
+    setTorrentsRunning(QStringLiteral("import"), tr("adding %1 back…").arg(name));
+    readServerHere([this, id, contents, name, done](const TorrentsImport::Here &here,
+                                                    const QString &failure) {
+        if (!failure.isEmpty()) {
+            setTorrentsRunning(QString());
+            done(tr("Could not read %1's torrents: %2").arg(m_server.name, failure));
+            return;
+        }
+        const TorrentsImport::Plan plan = torrentsPlanHere(*contents, here);
+        if (plan.count() == 0) {
+            setTorrentsRunning(QString());
+            done(tr("%1 is on %2 already.").arg(name, m_server.name));
+            return;
+        }
+        // The journal is one run's at a time: a look at its links (C40 X7) gives way.
+        if (m_linksFinisher)
+            m_linksFinisher->cancel();
+        if (m_delugeLinksFinisher)
+            m_delugeLinksFinisher->cancel();
+        // C50 GT6: paused (take() stopped the record, and nothing is checked), at the save
+        // path it had: no rows.
+        TorrentsImport::Options options;
+        options.check = false;
+        options.journalPath = TorrentsImport::Journal::pathFor(m_server.id);
+        options.localPathFor = [this](const QString &serverPath) {
+            return m_freeSpace.localPathFor(serverPath);
+        };
+        const auto finished = [this, id, name, done, total = plan.count()](
+                                  QObject *import, const TorrentsImport::Outcome &o) {
+            import->deleteLater();
+            setTorrentsRunning(QString());
+            if (!o.complete || !o.errors.isEmpty() || !o.refused.isEmpty() ||
+                o.added + o.magnets + o.finished == 0) {
+                done(torrentsImportResult(o, m_server.name, total, QString()));
+                return;
+            }
+            RemovedKeep::forget(id);
+            refreshRemovedKept();
+            qInfo().noquote()
+                << QStringLiteral("removed: %1 added back to %2, stopped").arg(name, m_server.name);
+            done(QString());
+        };
+        const auto run = [this, contents, plan, options, finished](auto *import) {
+            using Importer = std::remove_pointer_t<decltype(import)>;
+            connect(import,
+                    &Importer::finished,
+                    this,
+                    [import, finished](const TorrentsImport::Outcome &o) { finished(import, o); });
+            import->start(*contents, plan, options);
+        };
+        if (TransmissionEngine *transmission = transmissionEngine())
+            run(new TransmissionTorrentsImport(transmission, this));
+        else if (DelugeEngine *deluge = delugeEngine())
+            run(new DelugeTorrentsImport(deluge, this));
+        else
+            run(new TorrentsImport(qbtEngine(), this));
+    });
+}
+
+void App::refreshRemovedKept()
+{
+    QList<RemovedKeep::Entry> entries = RemovedKeep::list();
+    if (entries == m_removedKept)
+        return;
+    m_removedKept = std::move(entries);
+    Q_EMIT removedKeptChanged();
+}
+
+QVariantList App::removedKept() const
+{
+    QVariantList out;
+    const QString here = m_server.url.toString();
+    for (const RemovedKeep::Entry &entry : m_removedKept)
+        out.append(QVariantMap{
+            {QStringLiteral("id"), entry.id},
+            {QStringLiteral("hash"), entry.hash},
+            {QStringLiteral("name"), entry.name},
+            {QStringLiteral("savePath"), entry.savePath},
+            {QStringLiteral("server"), entry.serverName},
+            {QStringLiteral("here"), m_hasServer && entry.serverUrl == here},
+            {QStringLiteral("removed"), Format::relativeTime(entry.removedAt.toLocalTime())},
+            {QStringLiteral("until"),
+             QLocale::c().toString(entry.keptUntil.toLocalTime().date(), QStringLiteral("d MMM"))},
+        });
+    return out;
+}
+
+/// One add back from the window on its way: what is left, and how it went (C50 GT6).
+struct App::AddingBack
+{
+    QStringList ids;
+    qsizetype next = 0;
+    QStringList names;  ///< what came back
+    QString failedName; ///< the first that didn't
+    QString cause;      ///< why
+    int failed = 0;
+};
+
+void App::addBack(const QStringList &ids)
+{
+    if (ids.isEmpty())
+        return;
+    auto run = std::make_shared<AddingBack>();
+    run->ids = ids;
+    addBackNext(run);
+}
+
+void App::addBackNext(const std::shared_ptr<AddingBack> &run)
+{
+    if (run->next >= run->ids.size()) {
+        // C18 D1–D3's strip, in its own words: no row marks (the rows are new).
+        const qsizetype back = run->names.size();
+        QVariantMap words;
+        if (run->failed == 0) {
+            words = {{QStringLiteral("kind"), QStringLiteral("done")},
+                     {QStringLiteral("mark"), QStringLiteral("✓")},
+                     {QStringLiteral("headline"),
+                      back == 1 ? tr("%1 added back · stopped").arg(run->names.constFirst())
+                                : tr("%1 added back · stopped").arg(back)}};
+        } else {
+            words = {
+                {QStringLiteral("kind"),
+                 back == 0 ? QStringLiteral("failed") : QStringLiteral("mixed")},
+                {QStringLiteral("mark"), back == 0 ? QStringLiteral("✕") : QStringLiteral("!")},
+                {QStringLiteral("headline"),
+                 back == 0 ? (run->failed == 1 ? tr("%1 didn't come back").arg(run->failedName)
+                                               : tr("%1 didn't come back").arg(run->failed))
+                           : tr("%1 added back, %2 didn't").arg(back).arg(run->failed)},
+                {QStringLiteral("line"),
+                 back == 0 && run->failed == 1 ? run->cause
+                                               : tr("%1: %2").arg(run->failedName, run->cause)}};
+        }
+        m_outcomes->reportWords(words);
+        return;
+    }
+    const QString id = run->ids.at(run->next++);
+    const std::optional<RemovedKeep::Entry> entry = RemovedKeep::entry(id);
+    const QString name = entry ? entry->name : id;
+    addBackRemoved(id, [this, run, name](const QString &error) {
+        if (error.isEmpty()) {
+            run->names << name;
+        } else {
+            if (run->failed++ == 0) {
+                run->failedName = name;
+                run->cause = error;
+            }
+        }
+        // Out of the import's own answer before the next one starts.
+        QTimer::singleShot(0, this, [this, run]() { addBackNext(run); });
+    });
 }
 
 void App::cancelTorrentsBackup()

@@ -5,6 +5,45 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.17.0 — 2026-11-21
+
+### Added
+
+- **Agents may act, as far as you let them.** Settings › General › Agents has four lines:
+  **Reads** (on or off), **Fixes** (retry, start-here, recheck, reannounce, pause, resume,
+  dismiss, locate: off, ask or allow), **Moves** and **Remove** (off or ask, never allowed
+  without asking). Everything that acts is off until you turn it on, and the row's last line
+  says what an agent last did or was refused. (#291)
+- **`omaseed do <action> <hash…>`** runs a fix the window offers, through the running omaseed,
+  when the row allows it: `do --list` says what it allows now, and `--dry-run` makes every check
+  and does nothing. What an agent did says so: the outcome strip and the story end in "· by an
+  agent", and the user journal names the agent. Deleting files, renaming, categories and tags,
+  adds, settings and servers stay yours; no flag deletes a file. (#292)
+- **One window asks you.** When a line says ask, omaseed opens a window of its own with what the
+  agent wants to do, to what and where: tab to a button, esc refuses, and nothing happens if
+  nobody answers in 2 minutes. `do move --to FOLDER` and `do move-back <id>` always ask, and run
+  through the move sheet's own checks. (#293)
+- **`do locate <hash…> --to FOLDER`** points a torrent whose files are missing at the folder you
+  moved them to, moving nothing, then rechecks it. omaseed first checks that every file is there
+  at its size, and says what it found when they aren't. (#294)
+- **`do remove <hash…>`** takes off the list a torrent whose files are gone, and never its
+  files: omaseed refuses while the server doesn't say they're gone or it can see any of them on
+  disk, and always asks. It keeps each removed torrent for 30 days, so **add back** (on the
+  strip, and in the Agents row) puts it back stopped at its old place. (#295)
+- **`do --plan FILE`**: a list of actions checked as a whole first (one refused line runs
+  nothing), then one window for all of it, each torrent ticked so you can untick some. (#296)
+- **`omaseed help agents`** prints deny rules to paste into your coding agent's own settings
+  (Claude Code by default; `--for codex|pi|gemini`), filled in with the server omaseed is on:
+  omaseed's settings bind only omaseed, and your agent's settings are the wall. (#297)
+
+### Changed
+
+- **The agent skill teaches acting**: when you ask an agent to sort things out, it checks what
+  you allow, finds missing files on disk itself, writes a plan, dry-runs it, and asks you once.
+  `omaseed do` stays out of the skill's pre-allowed commands, so your agent asks you too.
+  `omaseed help do` lists every action. (#297)
+- `omaseed moves` prints each landed move's id, which `do move-back` takes. (#293)
+
 ## v0.16.0 — 2026-11-21
 
 ### Added
