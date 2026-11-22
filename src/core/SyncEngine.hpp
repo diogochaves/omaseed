@@ -178,6 +178,18 @@ public:
                       std::chrono::milliseconds hidden,
                       std::chrono::milliseconds error,
                       std::chrono::milliseconds retry);
+    /// The first retry after the server is lost (1 s by default, #306); the tests shorten it.
+    void setFirstRetry(std::chrono::milliseconds first) { m_firstRetry = first; }
+    /// The wait before retry number `attempt` (0 = the first) of a lost server (#306): `first`,
+    /// doubled each time up to `steady` (the countdown's 10 s), so a server that restarts is seen
+    /// back within a second or two and one that stays down is asked every `steady`. `cheap` (a
+    /// refused connection on this computer: nothing crosses a network, nobody is woken) holds the
+    /// wait at twice `first`, so a local qBittorrent that takes a minute to restart is still seen
+    /// within 2 s of answering.
+    static std::chrono::milliseconds lostRetryDelay(int attempt,
+                                                    std::chrono::milliseconds first,
+                                                    std::chrono::milliseconds steady,
+                                                    bool cheap);
     /// The clock torrentsEdited's first minute is timed by (ms); the tests set their own.
     void setNowForTest(std::function<qint64()> nowMs) { m_nowMs = std::move(nowMs); }
 
@@ -321,6 +333,9 @@ private:
     std::chrono::milliseconds m_hiddenInterval{5000};
     std::chrono::milliseconds m_errorInterval{15000};
     std::chrono::milliseconds m_retryInterval{10000};
+    std::chrono::milliseconds m_firstRetry{1000};
+    /// Retries sent since the server was lost; the next waits lostRetryDelay(this).
+    int m_lostRetries = 0;
 };
 
 } // namespace omaseed::core

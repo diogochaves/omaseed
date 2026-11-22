@@ -12,6 +12,7 @@
 #include "core/TrackerModel.hpp"
 #include "core/engines/EngineClient.hpp"
 
+#include <QHostAddress>
 #include <QSet>
 #include <QTimer>
 
@@ -153,6 +154,19 @@ void SyncEngine::setIntervals(std::chrono::milliseconds visible,
     m_hiddenInterval = hidden;
     m_errorInterval = error;
     m_retryInterval = retry;
+}
+
+std::chrono::milliseconds SyncEngine::lostRetryDelay(int attempt,
+                                                     std::chrono::milliseconds first,
+                                                     std::chrono::milliseconds steady,
+                                                     bool cheap)
+{
+    std::chrono::milliseconds delay = first;
+    for (int i = 0; i < attempt && delay < steady; ++i)
+        delay *= 2;
+    if (cheap)
+        delay = std::min(delay, first * 2);
+    return std::min(delay, steady);
 }
 
 std::chrono::milliseconds SyncEngine::normalInterval() const
@@ -392,10 +406,20 @@ void SyncEngine::enterLostState(const ApiError &error)
 
     const bool firstLoss = !m_lost;
     m_lost = true;
+    if (firstLoss)
+        m_lostRetries = 0;
 
-    m_globalState->setRetryInSeconds(int(m_retryInterval.count() / 1000));
+    // #306: a short first retry, then the steady one, so a restart is seen as soon as it answers.
+    const QString host = m_client != nullptr ? m_client->baseUrl().host() : QString();
+    const QHostAddress address(host);
+    const bool local = host.compare(QStringLiteral("localhost"), Qt::CaseInsensitive) == 0 ||
+                       (!address.isNull() && address.isLoopback());
+    const auto delay = lostRetryDelay(m_lostRetries++, m_firstRetry, m_retryInterval,
+                                      local && error.kind() == ApiError::Kind::Network);
+
+    m_globalState->setRetryInSeconds(int(delay.count() / 1000));
     m_countdownTimer->start();
-    schedule(m_retryInterval);
+    schedule(delay);
 
     if (firstLoss)
         Q_EMIT serverLost(error);

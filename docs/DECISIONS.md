@@ -24,7 +24,11 @@ Changed by C24 H13 (v0.5.0): the ground is opaque by default; this alpha is Appe
 - Tracker health is a badge and a filter, never a desktop notice. That is what qBittorrent,
   qui, Transmission, Deluge and Flood all do.
 - While the sync engine polls, the HTTP client does not retry reads on its own: the engine's
-  visible "retry in 10 s" is the only retry, so a lost server shows after one failure.
+  visible countdown is the only retry, so a lost server shows after one failure. *v0.17.1
+  (#306):* the countdown starts at 1 s and doubles to the steady 10 s (1, 2, 4, 8, 10…), and a
+  refused connection on this computer holds at 2 s, so a restarted qBittorrent (it answers within
+  ~50 ms of starting) is seen back within a second or two, not after up to 10 s. The loss is
+  still reported once; the retries that fail again say nothing.
 
 *Engines (board 36 §7, C14; 2026-11-06, E5):* The rail groups are read from the neutral phase and
 flags (`TorrentStatus`, `Torrent.cpp`); each engine maps its own states to them (qBittorrent's word
@@ -3280,3 +3284,7 @@ left to the build:
   Its never list says exit 5 is the person's no, with no way round it, and `do` only when asked to
   act; `ref/library.md` holds the kinds, the guards, the answer, the plan and the missing-files
   path, and its "this omaseed runs no fix for you" (C45's guide) gives way to `fix.do`. `omaseed help do` names every action and points at `help agents`.
+- **A restarted server** (v0.17.1, #306): an agent that restarts qBittorrent and asks at once
+  got `unreachable` for up to 10 s, the engine's steady retry. The retry after a loss now starts
+  at 1 s and doubles to 10 s, and holds at 2 s for a refused connection on this computer (Q16's
+  note on the sync engine); `retryIn` follows it.
