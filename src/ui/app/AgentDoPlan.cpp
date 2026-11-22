@@ -6,7 +6,8 @@
 //    off or refused line runs none, and the answer says which (or, with --dry-run, says what
 //    each line would do and stops there);
 // 2. each line that asks is checked once more up to its ask, whose map is kept instead of
-//    opened (`probe`), for the plan's one window;
+//    opened (`probe`), for the plan's one window; a line Settings allows by then runs nothing
+//    there (`runs`) and joins the dim lines, run after the person's allow;
 // 3. one ask (AgentAsk) lists the plan grouped by action and folder: the lines Settings
 //    allows dim, each torrent of a line that asks a box, ticked; the answer's ticks are
 //    "LINE:HASH" (or "LINE" for a line with no torrents);
@@ -14,6 +15,7 @@
 //    as allowed in the window; one Settings allowed that asks now is refused, `inPlan`), and
 //    the answer lists, per line, what was done, what failed and what was left unticked.
 
+#include "core/AgentAnswers.hpp"
 #include "core/AgentGate.hpp"
 #include "core/AgentPlan.hpp"
 #include "core/AgentWords.hpp"
@@ -36,6 +38,7 @@
 namespace omaseed::app {
 
 namespace AgentPlan = core::AgentPlan;
+namespace Answers = core::AgentAnswers;
 namespace AgentWords = core::AgentWords;
 
 namespace {
@@ -100,14 +103,21 @@ QString countOf(qsizetype n, const QString &one, const QString &many)
     return QStringLiteral("%1 %2").arg(n).arg(n == 1 ? one : many);
 }
 
+/// An action counted: "remove", "removes"; "move back", "moves back".
+std::pair<QString, QString> unitsOf(const QString &action)
+{
+    if (action == QLatin1String("move-back"))
+        return {QStringLiteral("move back"), QStringLiteral("moves back")};
+    if (action == QLatin1String("start-here"))
+        return {QStringLiteral("start-here"), QStringLiteral("start-heres")};
+    return {action, action + QLatin1Char('s')};
+}
+
 /// "6 removes", "1 move back": what an asking line asks for, as the plan's last line counts it.
 QString asksFor(const QString &action, int n)
 {
-    if (action == QLatin1String("move-back"))
-        return countOf(n, QStringLiteral("move back"), QStringLiteral("moves back"));
-    if (action == QLatin1String("start-here"))
-        return countOf(n, QStringLiteral("start-here"), QStringLiteral("start-heres"));
-    return countOf(n, action, action + QLatin1Char('s'));
+    const auto [one, many] = unitsOf(action);
+    return countOf(n, one, many);
 }
 
 core::AgentOrigin originOf(const core::ProcParent::Caller &caller, bool asked)
@@ -128,15 +138,18 @@ struct AgentDo::PlanRun
     bool dryRun = false;
     core::ProcParent::Caller caller;
     Reply reply;
-    QList<QJsonObject> checks;     ///< each line's dry run, or its failure
-    QList<bool> asks;              ///< each line asks (its dry run said `would: ask`)
-    QList<QVariantMap> requests;   ///< each asking line's ask, kept (`probe`)
-    QHash<int, QJsonObject> early; ///< a line Settings let run while it was probed
-    QStringList ticks;             ///< what the person left ticked
+    QList<QJsonObject> checks;   ///< each line's dry run, or its failure
+    QList<bool> asks;            ///< each line asks (its dry run said `would: ask`)
+    QList<QVariantMap> requests; ///< each asking line's ask, kept (`probe`)
+    QStringList ticks;           ///< what the person left ticked
     bool asked = false;
     QList<QJsonObject> answers; ///< each line's answer as it ran
     QList<QJsonArray> unticked; ///< each line's torrents left unticked
     int next = 0;
+    QHash<int, QJsonArray> refused;       ///< a refused line's torrents, each with why (#303)
+    QList<std::pair<int, QString>> alone; ///< a refused line's torrents still to check alone
+    int nextAlone = 0;
+    int planId = 0; ///< its lines' acts wait for the plan's one strip (#304, App::AgentAct::plan)
 };
 
 void AgentDo::runPlan(const QString &text,
@@ -204,7 +217,11 @@ void AgentDo::planChecked(const std::shared_ptr<PlanRun> &run)
         failing = failing || isFailure(check);
         asking = asking || asks;
     }
-    if (run->dryRun || failing) {
+    if (failing) {
+        planRefusals(run);
+        return;
+    }
+    if (run->dryRun) {
         run->reply(planChecks(run));
         return;
     }
@@ -216,6 +233,96 @@ void AgentDo::planChecked(const std::shared_ptr<PlanRun> &run)
     }
     run->next = 0;
     planRunNext(run);
+}
+
+namespace {
+
+/// One torrent a refused line names, as its `torrents` lists it (#303): {hash, name, code,
+/// message}, the hash and name as the library has them (the query when none matches).
+QJsonObject refusalOf(const QList<Answers::LogTorrent> &library,
+                      const QString &query,
+                      const QString &serverName,
+                      const QJsonObject &check)
+{
+    const Answers::TorrentMatch match = Answers::matchTorrent(library, query, serverName);
+    return QJsonObject{
+        {QStringLiteral("hash"), match.code.isEmpty() ? match.torrent.hash : query},
+        {QStringLiteral("name"), match.code.isEmpty() ? match.torrent.name : QString()},
+        {QStringLiteral("code"), codeOf(check)},
+        {QStringLiteral("message"), messageOf(check)}};
+}
+
+} // namespace
+
+void AgentDo::planRefusals(const std::shared_ptr<PlanRun> &run)
+{
+    // #303: a refused line names every torrent it refuses, each with why, so one dry run finds
+    // them all. A line's check stops at its first refusal (or, for a short find, lists them in
+    // `failed`); a line of more torrents is checked again one torrent at a time. A line that is
+    // off is off for every torrent: its error says so once.
+    const QList<Answers::LogTorrent> library = m_service->logLibrary();
+    const QString serverName = m_service->currentServer().name;
+    run->refused.clear();
+    run->alone.clear();
+    for (qsizetype i = 0; i < run->plan.lines.size(); ++i) {
+        const QJsonObject check = run->checks.value(i);
+        const AgentPlan::Line &line = run->plan.lines.at(i);
+        if (!isFailure(check) || codeOf(check) == QLatin1String("not-allowed") ||
+            line.torrents.isEmpty())
+            continue;
+        const QJsonArray failed = check.value(QStringLiteral("failed")).toArray();
+        if (!failed.isEmpty()) {
+            run->refused.insert(int(i), failed);
+        } else if (line.torrents.size() == 1) {
+            run->refused.insert(
+                int(i),
+                QJsonArray{refusalOf(library, line.torrents.constFirst(), serverName, check)});
+        } else {
+            for (const QString &query : line.torrents)
+                run->alone.append({int(i), query});
+        }
+    }
+    run->nextAlone = 0;
+    planRefusalNext(run);
+}
+
+void AgentDo::planRefusalNext(const std::shared_ptr<PlanRun> &run)
+{
+    const QList<Answers::LogTorrent> library = m_service->logLibrary();
+    const QString serverName = m_service->currentServer().name;
+    if (run->nextAlone == run->alone.size()) {
+        // Every torrent passing alone: the line refuses them together; each says the line's why.
+        for (const auto &[i, query] : std::as_const(run->alone))
+            if (run->refused.value(i).isEmpty())
+                for (const QString &each : run->plan.lines.at(i).torrents)
+                    run->refused[i].append(refusalOf(library, each, serverName, run->checks.at(i)));
+        run->reply(planChecks(run));
+        return;
+    }
+    const auto [i, query] = run->alone.at(run->nextAlone++);
+    AgentPlan::Line line = run->plan.lines.at(i);
+    line.torrents = QStringList{query};
+    QPointer<AgentDo> self(this);
+    proceed(
+        compact(AgentPlan::options(line, run->server, true)),
+        run->caller,
+        [self, run, i, query, library, serverName](const QString &json) {
+            const QJsonObject check = QJsonDocument::fromJson(json.toUtf8()).object();
+            if (isFailure(check)) {
+                const QJsonArray failed = check.value(QStringLiteral("failed")).toArray();
+                if (!failed.isEmpty()) {
+                    for (const QJsonValue &each : failed)
+                        run->refused[i].append(each);
+                } else {
+                    run->refused[i].append(refusalOf(library, query, serverName, check));
+                }
+            }
+            QTimer::singleShot(0, self, [self, run]() {
+                if (!self.isNull())
+                    self->planRefusalNext(run);
+            });
+        },
+        false);
 }
 
 QString AgentDo::planChecks(const std::shared_ptr<PlanRun> &run) const
@@ -242,7 +349,10 @@ QString AgentDo::planChecks(const std::shared_ptr<PlanRun> &run) const
             out.insert(QStringLiteral("would"),
                        code == QLatin1String("not-allowed") ? QStringLiteral("off")
                                                             : QStringLiteral("refused"));
-            out.insert(QStringLiteral("torrents"), QJsonArray());
+            // #303: every torrent it refuses, each with why; `of` counts the line's torrents.
+            out.insert(QStringLiteral("torrents"), run->refused.value(int(i)));
+            if (!line.torrents.isEmpty())
+                out.insert(QStringLiteral("of"), int(line.torrents.size()));
             out.insert(QStringLiteral("error"),
                        QJsonObject{{QStringLiteral("code"), code},
                                    {QStringLiteral("message"), messageOf(check)}});
@@ -330,9 +440,9 @@ void AgentDo::planProbeNext(const std::shared_ptr<PlanRun> &run)
                 run->reply(self.isNull() ? json : self->planChecks(run));
                 return;
             } else {
-                // Settings let it run meanwhile (its line turned to allow): it ran.
+                // Settings allow it now (its line turned to allow since the check): nothing
+                // ran; it shows dim in the window and runs with the plan once allowed (GT4).
                 run->asks[i] = false;
-                run->early.insert(i, answer);
             }
             QTimer::singleShot(0, self, [self, run]() {
                 if (!self.isNull())
@@ -421,9 +531,14 @@ QVariantMap AgentDo::planRequest(const std::shared_ptr<PlanRun> &run) const
         else
             head = QStringLiteral("%1 %2").arg(title).arg(count);
 
+        // #305: the window's foot counts the boxes ticked by action, the allowed lines apart.
+        const auto [unit, units] = unitsOf(group.action);
         QVariantMap out{{QStringLiteral("action"), group.action},
                         {QStringLiteral("head"), head},
-                        {QStringLiteral("asks"), group.asks}};
+                        {QStringLiteral("asks"), group.asks},
+                        {QStringLiteral("count"), count},
+                        {QStringLiteral("unit"), unit},
+                        {QStringLiteral("units"), units}};
         if (group.asks) {
             out.insert(QStringLiteral("rows"), rows);
             out.insert(QStringLiteral("more"), wheres.join(QStringLiteral(" · ")));
@@ -456,7 +571,7 @@ QVariantMap AgentDo::planRequest(const std::shared_ptr<PlanRun> &run) const
 void AgentDo::planAsk(const std::shared_ptr<PlanRun> &run)
 {
     if (!run->asks.contains(true)) {
-        // Every line that asked was let run by Settings while it was probed.
+        // Settings allow every line that asked now: the plan runs as an allowed one.
         planRunNext(run);
         return;
     }
@@ -543,6 +658,7 @@ void AgentDo::planRunNext(const std::shared_ptr<PlanRun> &run)
     if (run->answers.size() < run->plan.lines.size()) {
         run->answers = QList<QJsonObject>(run->plan.lines.size());
         run->unticked = QList<QJsonArray>(run->plan.lines.size());
+        run->planId = ++m_lastPlan;
     }
     if (run->next >= run->plan.lines.size()) {
         planDone(run);
@@ -556,11 +672,6 @@ void AgentDo::planRunNext(const std::shared_ptr<PlanRun> &run)
                 self->planRunNext(run);
         });
     };
-    if (run->early.contains(i)) {
-        run->answers[i] = run->early.value(i);
-        onward();
-        return;
-    }
     const AgentPlan::Line &given = run->plan.lines.at(i);
     const QJsonArray torrents = resolved(run->checks.at(i));
     AgentPlan::Line line = given;
@@ -603,6 +714,7 @@ void AgentDo::planRunNext(const std::shared_ptr<PlanRun> &run)
     }
     QJsonObject options = AgentPlan::options(line, run->server, false);
     options.insert(QStringLiteral("inPlan"), true);
+    options.insert(QStringLiteral("planId"), run->planId);
     proceed(
         compact(options),
         run->caller,
@@ -619,6 +731,13 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
     QJsonArray lines;
     int of = 0;
     int done = 0;
+    // #304: what the plan's one strip, journal and last line say.
+    int rechecking = 0;
+    int acted = 0;
+    int didnt = 0;
+    QStringList actedOrder;
+    QHash<QString, int> actedBy;
+    QStringList torrentLines;
     for (qsizetype i = 0; i < run->plan.lines.size(); ++i) {
         const AgentPlan::Line &line = run->plan.lines.at(i);
         const QJsonObject &check = run->checks.at(i);
@@ -668,6 +787,38 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
         }
         out.insert(QStringLiteral("done"), lineDone);
         out.insert(QStringLiteral("failed"), failed);
+        if (line.action == QLatin1String("locate") || line.action == QLatin1String("recheck"))
+            rechecking += int(lineDone.size());
+        if (ran) {
+            const bool wide = serverWide(line.action);
+            const int count = wide ? 1 : int(lineDone.size() + failed.size());
+            if (count > 0 && !actedBy.contains(line.action))
+                actedOrder << line.action;
+            actedBy[line.action] += count;
+            acted += count;
+            didnt += int(failed.size());
+            const QString where = line.to.isEmpty() ? QString()
+                                  : line.action == QLatin1String("locate")
+                                      ? QStringLiteral(" in %1").arg(line.to)
+                                      : QStringLiteral(" to %1").arg(line.to);
+            if (wide && failed.isEmpty())
+                torrentLines << QStringLiteral("agent: %1 on %2, in the plan")
+                                    .arg(line.action, m_service->currentServer().name);
+            for (const QJsonValue &value : std::as_const(lineDone))
+                torrentLines << QStringLiteral("agent: %1 on %2%3, in the plan")
+                                    .arg(line.action,
+                                         value.toObject().value(QStringLiteral("name")).toString(),
+                                         where);
+            for (const QJsonValue &value : std::as_const(failed)) {
+                const QJsonObject each = value.toObject();
+                const QString name = each.value(QStringLiteral("name")).toString();
+                torrentLines << QStringLiteral("agent: %1%2%3, in the plan, didn't: %4")
+                                    .arg(line.action,
+                                         name.isEmpty() ? QString() : QStringLiteral(" on ") + name,
+                                         where,
+                                         each.value(QStringLiteral("message")).toString());
+            }
+        }
         if (run->asks.at(i))
             out.insert(QStringLiteral("unticked"), run->unticked.at(i));
         lines.append(out);
@@ -679,8 +830,23 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
     fields.append({QStringLiteral("answer"),
                    run->asked ? QStringLiteral("allowed") : QStringLiteral("not-asked")});
     fields.append({QStringLiteral("torrents"), of});
+    fields.append({QStringLiteral("rechecking"), rechecking});
     fields.append({QStringLiteral("lines"), lines});
-    fields.append({QStringLiteral("outcome"), AgentPlan::outcome(done, of)});
+    fields.append({QStringLiteral("outcome"), AgentPlan::outcome(done, of, rechecking)});
+    if (acted > 0) {
+        QStringList by;
+        for (const QString &action : std::as_const(actedOrder))
+            by << QStringLiteral("%1 %2").arg(actedBy.value(action)).arg(action);
+        const QString subject =
+            countOf(acted, QStringLiteral("torrent"), QStringLiteral("torrents"));
+        m_app->noteAgentPlan(run->planId,
+                             originOf(run->caller, run->asked),
+                             subject,
+                             QStringLiteral("%1 (%2)").arg(subject, by.join(QStringLiteral(", "))),
+                             didnt > 0 ? QStringLiteral("%1 didn't").arg(didnt) : QString(),
+                             torrentLines,
+                             AgentPlan::doneLine(done, of, rechecking));
+    }
     run->reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
 }
 

@@ -183,6 +183,9 @@ private slots:
     void trackerErrorFlagReachesTheRowWithoutANotice();
     void diskAlmostFullFiresOncePerCrossing();
     void serverLostOnceThenBackWithAFullUpdate();
+    void aRestartedServerIsSeenWithinASecond();
+    void aLongLocalOutageIsStillSeenSoon();
+    void lostRetriesBackOffToTheSteadyOne();
     void aTimeoutCountsTheSilence();
     void forbiddenStopsThePollLoop();
     void applyDemoDataFillsTheModelsWithNoClient();
@@ -722,6 +725,101 @@ void TestSyncEngineFixtures::serverLostOnceThenBackWithAFullUpdate()
     QCOMPARE(engine.globalState()->apiVersion(), QStringLiteral("2.15.1"));
     QCOMPARE(server.seenRids.first(), 0);
     engine.stop();
+}
+
+// #306: qBittorrent answers ~50 ms after it starts, so a restart must not wait out the steady
+// 10 s retry. With the real intervals, a server back a moment after the loss is seen within the
+// first retry (1 s), not the countdown's 10 s.
+void TestSyncEngineFixtures::aRestartedServerIsSeenWithinASecond()
+{
+    quint16 port = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        port = probe.serverPort();
+    }
+
+    QbtEngine client;
+    client.setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port)));
+    SyncEngine engine;
+    engine.setClient(&client); // the default cadence: steady retry 10 s
+
+    QSignalSpy lost(&engine, &SyncEngine::serverLost);
+    QSignalSpy back(&engine, &SyncEngine::serverBack);
+    engine.start();
+    QVERIFY(waitFor([&] { return lost.count() == 1; }));
+    QCOMPARE(engine.globalState()->retryInSeconds(), 1);
+
+    spin(200);
+    FixtureServer server;
+    QVERIFY(server.start(port));
+    server.setMainData({m_full});
+    QElapsedTimer since;
+    since.start();
+    QVERIFY(waitFor([&] { return back.count() == 1; }, 2500));
+    QVERIFY2(since.elapsed() < 1500, qPrintable(QString::number(since.elapsed())));
+    QCOMPARE(engine.globalState()->connected(), true);
+    QCOMPARE(engine.globalState()->retryInSeconds(), 0);
+    engine.stop();
+}
+
+// #306: a local server refused for longer than the ladder (a restart that takes a while) keeps
+// being asked at twice the first retry, so it is still seen soon after it answers; the loss is
+// reported once however many retries fail (the retries stay quiet).
+void TestSyncEngineFixtures::aLongLocalOutageIsStillSeenSoon()
+{
+    quint16 port = 0;
+    {
+        QTcpServer probe;
+        QVERIFY(probe.listen(QHostAddress::LocalHost));
+        port = probe.serverPort();
+    }
+
+    QbtEngine client;
+    client.setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port)));
+    SyncEngine engine;
+    engine.setClient(&client);
+    engine.setIntervals(std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(10),
+                        std::chrono::milliseconds(5000));
+    engine.setFirstRetry(std::chrono::milliseconds(50));
+
+    QSignalSpy lost(&engine, &SyncEngine::serverLost);
+    QSignalSpy back(&engine, &SyncEngine::serverBack);
+    engine.start();
+    QVERIFY(waitFor([&] { return lost.count() == 1; }));
+    spin(800); // well past the ladder: 50, 100, then 100 ms each
+    QCOMPARE(lost.count(), 1);
+
+    FixtureServer server;
+    QVERIFY(server.start(port));
+    server.setMainData({m_full});
+    QElapsedTimer since;
+    since.start();
+    QVERIFY(waitFor([&] { return back.count() == 1; }, 2000));
+    QVERIFY2(since.elapsed() < 600, qPrintable(QString::number(since.elapsed())));
+    QCOMPARE(lost.count(), 1);
+    engine.stop();
+}
+
+// #306: the ladder after a loss. Doubling from the first retry to the steady one; a refused
+// connection on this computer holds at twice the first; never above the steady one.
+void TestSyncEngineFixtures::lostRetriesBackOffToTheSteadyOne()
+{
+    using ms = std::chrono::milliseconds;
+    const ms first(1000);
+    const ms steady(10000);
+    QList<qint64> far;
+    QList<qint64> local;
+    for (int attempt = 0; attempt < 6; ++attempt) {
+        far << SyncEngine::lostRetryDelay(attempt, first, steady, false).count();
+        local << SyncEngine::lostRetryDelay(attempt, first, steady, true).count();
+    }
+    QCOMPARE(far, (QList<qint64>{1000, 2000, 4000, 8000, 10000, 10000}));
+    QCOMPARE(local, (QList<qint64>{1000, 2000, 2000, 2000, 2000, 2000}));
+    QCOMPARE(SyncEngine::lostRetryDelay(0, first, ms(30), false).count(), 30);
+    QCOMPARE(SyncEngine::lostRetryDelay(40, first, steady, false).count(), 10000);
 }
 
 // docs/44 W1 (D11): a server that times out is there but silent; GlobalState counts how long

@@ -77,6 +77,12 @@ struct ActionOutcome
     static ActionOutcome fromMap(const QVariantMap &map);
     /// "by an agent", the words V18 adds wherever an agent's act shows.
     static QString byAnAgent();
+    /// #304 (C50 GT4): one strip for an agent's whole plan, its lines' outcomes in `parts`:
+    /// the headline counts what landed by action, in the order the plan ran them ("Plan: 18
+    /// located in 5 folders · 9 removed", ", 2 didn't" when some failed); `line` is the plan's
+    /// own ("Done: 27 of 27 · 18 rechecking"), then the first failure's "NAME: why". The same
+    /// keys as words(), `action` "plan"; `doneRow` "done" so "show" is there for what landed.
+    static QVariantMap planWords(const QList<ActionOutcome> &parts, const QString &line);
 };
 
 class ActionOutcomes : public QObject
@@ -97,6 +103,9 @@ public:
     /// A new outcome: it takes the strip, and the marks of the last one go (D3: a failure
     /// stays until the next action).
     void report(const ActionOutcome &outcome);
+    /// #304: a plan's one strip (ActionOutcome::planWords); each torrent's row keeps its own
+    /// line's mark.
+    void reportPlan(const QList<ActionOutcome> &parts, const QString &line);
     /// The same from QML (the demo, the tests): ActionOutcome's fields by name.
     Q_INVOKABLE void reportMap(const QVariantMap &map);
     /// A strip whose words are already made (#146: a quick creation, or a cancelled one):
@@ -130,6 +139,8 @@ private:
     };
 
     void dropDoneMarks(int serial);
+    /// The strip `words` on show, the rows' marks from `parts`.
+    void show(QVariantMap words, const QList<ActionOutcome> &parts);
     void bumpRevision();
 
     QVariantMap m_current;

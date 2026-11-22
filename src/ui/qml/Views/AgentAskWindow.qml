@@ -24,7 +24,9 @@ import Omaseed.Kit
 // A plan (C50 GT4, board 67 §4) draws `request.groups` instead: the lines Settings allows dim,
 // marked allowed in Settings; each torrent of a line that asks a box, ticked. space ticks the
 // row with the cursor (tab walks rows, then buttons); "allow these" answers with the keys left
-// ticked.
+// ticked. Past a screenful the list scrolls with the kit's bar beside it, the group at the top
+// keeps its heading pinned while its rows scroll under it, and the foot counts what is ticked
+// by action, the lines Settings allows apart (#305).
 //
 // `ask` is App.agentAsk: {open, request, allow(ticks), refuse()} (ui/app/AgentAsk.hpp). A test
 // hands it a stand-in.
@@ -51,6 +53,48 @@ Window {
     readonly property bool planMode: root.request.plan === true
     /// The boxes the person unticked, by key ("LINE:HASH"); every box starts ticked.
     property var _unticked: ({})
+
+    /// #305: the foot's count, live as boxes are unticked: "27 ticked: 18 locates, 9 removes",
+    /// one action alone "9 removes ticked"; the lines Settings allows counted apart.
+    readonly property string planTotals: {
+        const groups = root.request.groups ?? [];
+        const order = [];
+        const by = ({});
+        let ticked = 0;
+        let allowed = 0;
+        for (let g = 0; g < groups.length; ++g) {
+            const group = groups[g];
+            if (group.asks !== true) {
+                allowed += group.count ?? 0;
+                continue;
+            }
+            const rows = group.rows ?? [];
+            let n = 0;
+            for (let r = 0; r < rows.length; ++r)
+                n += root._unticked[rows[r].key] ? 0 : 1;
+            if (!(group.action in by)) {
+                order.push(group.action);
+                by[group.action] = {
+                    "n": 0,
+                    "one": group.unit ?? group.action,
+                    "many": group.units ?? group.action
+                };
+            }
+            by[group.action].n += n;
+            ticked += n;
+        }
+        const said = order.filter(a => by[a].n > 0).map(a => "%1 %2".arg(by[a].n).arg(by[a].n === 1
+                                                                                      ? by[a].one :
+                                                                                        by[a].many));
+        let line = ticked === 0 ? qsTr("none ticked") : said.length === 1 ? qsTr("%1 ticked").arg(
+                                                                                said[0]) : qsTr(
+                                                                                "%1 ticked: %2").arg(
+                                                                                ticked).arg(
+                                                                                said.join(", "));
+        if (allowed > 0)
+            line += " · " + qsTr("%1 allowed in Settings").arg(allowed);
+        return line;
+    }
 
     /// Every box's key, in the plan's order.
     function _allKeys(): var {
@@ -232,7 +276,9 @@ Window {
                 event.accepted = true;
         }
         // The board's foot: the only keys there are (docs/62 §5).
-        note: root.planMode ? qsTr("space ticks · tab · ↵ on a button · esc refuses") : qsTr(
+        // A plan's says what is ticked first (#305), the keys under it.
+        note: root.planMode ? root.planTotals + "\n" + qsTr(
+                                  "space ticks · tab · ↵ on a button · esc refuses") : qsTr(
                                   "tab · ↵ on a button · esc refuses")
         // Board 67 §4: wider for a plan's list.
         sheetWidth: Theme.space(root.planMode ? 540 : 460)
@@ -345,237 +391,348 @@ Window {
             }
         }
 
-        // A plan's groups (board 67 §4), in a list that scrolls past a screenful.
-        Flickable {
-            id: planList
-
-            /// Bring a row the keyboard reached into view.
-            function reveal(item: Item): void {
-                const at = item.mapToItem(planColumn, 0, 0).y;
-                if (at < planList.contentY)
-                    planList.contentY = at;
-                else if (at + item.height > planList.contentY + planList.height)
-                    planList.contentY = at + item.height - planList.height;
-            }
-
+        // A plan's groups (board 67 §4), in a list that scrolls past a screenful, its bar
+        // beside it and the top group's heading pinned (#305).
+        Item {
             Layout.fillWidth: true
-            boundsBehavior: Flickable.StopAtBounds
-            clip: true
-            contentHeight: planColumn.implicitHeight
-            implicitHeight: Math.min(planColumn.implicitHeight, Theme.space(360))
-            objectName: "askPlan"
+            implicitHeight: planList.implicitHeight
             visible: root.planMode
 
-            ColumnLayout {
-                id: planColumn
+            Flickable {
+                id: planList
 
-                spacing: Theme.space(6)
-                width: planList.width
+                /// The group whose heading stays at the top: the one the view's top edge is in,
+                /// once its own heading has scrolled under that edge (-1: none).
+                readonly property int stuck: {
+                    const top = planList.contentY;
+                    void planList.contentHeight; // again once the groups are laid out
+                    for (let i = groupRepeater.count - 1; i >= 0; --i) {
+                        const item = groupRepeater.itemAt(i);
+                        if (item !== null && item.y <= top)
+                            return top > item.y ? i : -1;
+                    }
+                    return -1;
+                }
+                readonly property var stuckGroup: planList.stuck < 0 ? null : groupRepeater.itemAt(
+                                                                           planList.stuck)
 
-                Repeater {
-                    model: root.planMode ? (root.request.groups ?? []) : []
+                /// Bring a row the keyboard reached into view, below the pinned heading.
+                function reveal(item: Item): void {
+                    const at = item.mapToItem(planColumn, 0, 0).y;
+                    const cover = stuckHead.height;
+                    if (at - cover < planList.contentY)
+                        planList.contentY = Math.max(0, at - cover);
+                    else if (at + item.height > planList.contentY + planList.height)
+                        planList.contentY = at + item.height - planList.height;
+                }
 
-                    Item {
-                        id: group
+                anchors.fill: parent
+                anchors.rightMargin: planBar.visible ? Theme.space(10) : 0
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                contentHeight: planColumn.implicitHeight
+                implicitHeight: Math.min(planColumn.implicitHeight, Theme.space(360))
+                objectName: "askPlan"
 
-                        required property var modelData
-                        readonly property bool asks: group.modelData.asks === true
-                        readonly property int tickedCount: {
-                            const rows = group.modelData.rows ?? [];
-                            let n = 0;
-                            for (let r = 0; r < rows.length; ++r)
-                                n += root._unticked[rows[r].key] ? 0 : 1;
-                            return n;
-                        }
+                ColumnLayout {
+                    id: planColumn
 
-                        Layout.fillWidth: true
-                        implicitHeight: groupColumn.implicitHeight + 2 * Theme.space(8)
-                        objectName: group.asks ? "askGroup" : "askGroupAllowed"
+                    spacing: Theme.space(6)
+                    width: planList.width
 
-                        Plate {
-                            anchors.fill: parent
-                            edgeWidth: 0
-                            fill: Theme.on.idle.fill
-                        }
+                    Repeater {
+                        id: groupRepeater
 
-                        ColumnLayout {
-                            id: groupColumn
+                        model: root.planMode ? (root.request.groups ?? []) : []
 
-                            anchors.left: parent.left
-                            anchors.leftMargin: Theme.space(10)
-                            anchors.right: parent.right
-                            anchors.rightMargin: Theme.space(10)
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.space(2)
+                        Item {
+                            id: group
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: Theme.space(10)
+                            required property var modelData
+                            readonly property bool asks: group.modelData.asks === true
+                            readonly property string sideText: group.asks ? qsTr("%1 ticked").arg(
+                                                                                group.tickedCount) :
+                                                                            qsTr("allowed in Settings")
+                            readonly property int tickedCount: {
+                                const rows = group.modelData.rows ?? [];
+                                let n = 0;
+                                for (let r = 0; r < rows.length; ++r)
+                                    n += root._unticked[rows[r].key] ? 0 : 1;
+                                return n;
+                            }
 
-                                Label {
+                            Layout.fillWidth: true
+                            implicitHeight: groupColumn.implicitHeight + 2 * Theme.space(8)
+                            objectName: group.asks ? "askGroup" : "askGroupAllowed"
+
+                            Plate {
+                                anchors.fill: parent
+                                edgeWidth: 0
+                                fill: Theme.on.idle.fill
+                            }
+
+                            ColumnLayout {
+                                id: groupColumn
+
+                                anchors.left: parent.left
+                                anchors.leftMargin: Theme.space(10)
+                                anchors.right: parent.right
+                                anchors.rightMargin: Theme.space(10)
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: Theme.space(2)
+
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    bright: group.asks
-                                    dim: !group.asks
-                                    elide: Text.ElideMiddle
-                                    ink: Ink {
-                                        animated: false
-                                        ground: Theme.on.idle
+                                    spacing: Theme.space(10)
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        bright: group.asks
+                                        dim: !group.asks
+                                        elide: Text.ElideMiddle
+                                        ink: Ink {
+                                            animated: false
+                                            ground: Theme.on.idle
+                                        }
+                                        objectName: "askGroupHead"
+                                        size: "small"
+                                        text: group.modelData.head
+                                        voice: "title"
                                     }
-                                    objectName: "askGroupHead"
-                                    size: "small"
-                                    text: group.modelData.head
-                                    voice: "title"
+
+                                    Label {
+                                        dim: true
+                                        ink: Ink {
+                                            animated: false
+                                            ground: Theme.on.idle
+                                        }
+                                        objectName: "askGroupSide"
+                                        size: "caption"
+                                        text: group.sideText
+                                    }
+                                }
+
+                                Repeater {
+                                    model: group.asks ? (group.modelData.rows ?? []) : []
+
+                                    Item {
+                                        id: tickRow
+
+                                        required property var modelData
+                                        readonly property bool ticked: root.isTicked(
+                                                                           tickRow.modelData.key)
+
+                                        Accessible.checkable: true
+                                        Accessible.checked: tickRow.ticked
+                                        Accessible.description: tickRow.modelData.line ?? ""
+                                        Accessible.name: tickRow.modelData.name
+                                        Accessible.role: Accessible.CheckBox
+                                        Accessible.onPressAction: root.toggle(tickRow.modelData.key)
+                                        Accessible.onToggleAction: root.toggle(
+                                                                       tickRow.modelData.key)
+                                        Layout.fillWidth: true
+                                        activeFocusOnTab: true
+                                        implicitHeight: tickColumn.implicitHeight + Theme.space(6)
+                                        objectName: "askTick-" + tickRow.modelData.key
+
+                                        Keys.onSpacePressed: root.toggle(tickRow.modelData.key)
+                                        onActiveFocusChanged: if (tickRow.activeFocus)
+                                                                  planList.reveal(tickRow)
+
+                                        FocusRing {
+                                            ground: Theme.on.idle
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+
+                                            onClicked: root.toggle(tickRow.modelData.key)
+                                        }
+
+                                        RowLayout {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.top: parent.top
+                                            anchors.topMargin: Theme.space(3)
+                                            spacing: Theme.space(10)
+
+                                            // A tick box drawn from the theme (RestoreSheet's).
+                                            Rectangle {
+                                                Layout.alignment: Qt.AlignTop
+                                                Layout.topMargin: Theme.space(2)
+                                                border.color: tickRow.ticked ? Theme.accent :
+                                                                               Theme.fill(
+                                                                                   Theme.borderIdle)
+                                                border.width: Theme.hairWidth
+                                                color: tickRow.ticked ? Theme.on.ticked.fill :
+                                                                        "transparent"
+                                                implicitHeight: Theme.space(14)
+                                                implicitWidth: Theme.space(14)
+
+                                                Label {
+                                                    anchors.centerIn: parent
+                                                    color: Theme.on.ticked.brightForeground
+                                                    size: "caption"
+                                                    text: Glyphs.check
+                                                    visible: tickRow.ticked
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                id: tickColumn
+
+                                                Layout.fillWidth: true
+                                                spacing: 0
+
+                                                Label {
+                                                    Layout.fillWidth: true
+                                                    bright: tickRow.ticked
+                                                    dim: !tickRow.ticked
+                                                    elide: Text.ElideRight
+                                                    ink: Ink {
+                                                        animated: false
+                                                        ground: Theme.on.idle
+                                                    }
+                                                    objectName: "askTickName"
+                                                    size: "small"
+                                                    text: tickRow.modelData.name
+                                                    voice: "name"
+                                                }
+
+                                                Label {
+                                                    Layout.fillWidth: true
+                                                    dim: true
+                                                    elide: Text.ElideMiddle
+                                                    ink: Ink {
+                                                        animated: false
+                                                        ground: Theme.on.idle
+                                                    }
+                                                    size: "caption"
+                                                    text: tickRow.modelData.line ?? ""
+                                                    visible: text.length > 0
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 Label {
+                                    Layout.fillWidth: true
                                     dim: true
                                     ink: Ink {
                                         animated: false
                                         ground: Theme.on.idle
                                     }
-                                    objectName: "askGroupSide"
+                                    objectName: "askGroupMore"
                                     size: "caption"
-                                    text: group.asks ? qsTr("%1 ticked").arg(group.tickedCount) :
-                                                       qsTr("allowed in Settings")
-                                }
-                            }
-
-                            Repeater {
-                                model: group.asks ? (group.modelData.rows ?? []) : []
-
-                                Item {
-                                    id: tickRow
-
-                                    required property var modelData
-                                    readonly property bool ticked: root.isTicked(
-                                                                       tickRow.modelData.key)
-
-                                    Accessible.checkable: true
-                                    Accessible.checked: tickRow.ticked
-                                    Accessible.description: tickRow.modelData.line ?? ""
-                                    Accessible.name: tickRow.modelData.name
-                                    Accessible.role: Accessible.CheckBox
-                                    Accessible.onPressAction: root.toggle(tickRow.modelData.key)
-                                    Accessible.onToggleAction: root.toggle(tickRow.modelData.key)
-                                    Layout.fillWidth: true
-                                    activeFocusOnTab: true
-                                    implicitHeight: tickColumn.implicitHeight + Theme.space(6)
-                                    objectName: "askTick-" + tickRow.modelData.key
-
-                                    Keys.onSpacePressed: root.toggle(tickRow.modelData.key)
-                                    onActiveFocusChanged: if (tickRow.activeFocus)
-                                                              planList.reveal(tickRow)
-
-                                    FocusRing {
-                                        ground: Theme.on.idle
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-
-                                        onClicked: root.toggle(tickRow.modelData.key)
-                                    }
-
-                                    RowLayout {
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.top: parent.top
-                                        anchors.topMargin: Theme.space(3)
-                                        spacing: Theme.space(10)
-
-                                        // A tick box drawn from the theme (RestoreSheet's).
-                                        Rectangle {
-                                            Layout.alignment: Qt.AlignTop
-                                            Layout.topMargin: Theme.space(2)
-                                            border.color: tickRow.ticked ? Theme.accent : Theme.fill(
-                                                                               Theme.borderIdle)
-                                            border.width: Theme.hairWidth
-                                            color: tickRow.ticked ? Theme.on.ticked.fill :
-                                                                    "transparent"
-                                            implicitHeight: Theme.space(14)
-                                            implicitWidth: Theme.space(14)
-
-                                            Label {
-                                                anchors.centerIn: parent
-                                                color: Theme.on.ticked.brightForeground
-                                                size: "caption"
-                                                text: Glyphs.check
-                                                visible: tickRow.ticked
-                                            }
-                                        }
-
-                                        ColumnLayout {
-                                            id: tickColumn
-
-                                            Layout.fillWidth: true
-                                            spacing: 0
-
-                                            Label {
-                                                Layout.fillWidth: true
-                                                bright: tickRow.ticked
-                                                dim: !tickRow.ticked
-                                                elide: Text.ElideRight
-                                                ink: Ink {
-                                                    animated: false
-                                                    ground: Theme.on.idle
-                                                }
-                                                objectName: "askTickName"
-                                                size: "small"
-                                                text: tickRow.modelData.name
-                                                voice: "name"
-                                            }
-
-                                            Label {
-                                                Layout.fillWidth: true
-                                                dim: true
-                                                elide: Text.ElideMiddle
-                                                ink: Ink {
-                                                    animated: false
-                                                    ground: Theme.on.idle
-                                                }
-                                                size: "caption"
-                                                text: tickRow.modelData.line ?? ""
-                                                visible: text.length > 0
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Label {
-                                Layout.fillWidth: true
-                                dim: true
-                                ink: Ink {
-                                    animated: false
-                                    ground: Theme.on.idle
-                                }
-                                objectName: "askGroupMore"
-                                size: "caption"
-                                text: group.modelData.more ?? ""
-                                visible: text.length > 0
-                                wrapMode: Text.Wrap
-                            }
-
-                            Repeater {
-                                model: group.modelData.checks ?? []
-
-                                Label {
-                                    required property string modelData
-
-                                    Layout.fillWidth: true
-                                    ink: Ink {
-                                        animated: false
-                                        ground: Theme.on.idle
-                                    }
-                                    size: "caption"
-                                    text: modelData
+                                    text: group.modelData.more ?? ""
+                                    visible: text.length > 0
                                     wrapMode: Text.Wrap
+                                }
+
+                                Repeater {
+                                    model: group.modelData.checks ?? []
+
+                                    Label {
+                                        required property string modelData
+
+                                        Layout.fillWidth: true
+                                        ink: Ink {
+                                            animated: false
+                                            ground: Theme.on.idle
+                                        }
+                                        size: "caption"
+                                        text: modelData
+                                        wrapMode: Text.Wrap
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+
+            // The pinned heading: the stuck group's, on the group's own ground over the sheet's,
+            // a hairline under it; the next group's top pushes it up as it arrives.
+            Item {
+                id: stuckHead
+
+                readonly property Item next: planList.stuck < 0 ? null : groupRepeater.itemAt(
+                                                                      planList.stuck + 1)
+
+                anchors.left: planList.left
+                anchors.right: planList.right
+                clip: true
+                height: stuckRow.implicitHeight + 2 * Theme.space(8)
+                objectName: "askStuckHead"
+                visible: planList.stuckGroup !== null
+                y: stuckHead.next === null ? 0 : Math.min(0, stuckHead.next.y - planList.contentY
+                                                          - planColumn.spacing - stuckHead.height)
+                z: 1
+
+                Plate {
+                    anchors.fill: parent
+                    base: Theme.background
+                    edgeWidth: 0
+                    fill: Theme.on.idle.fill
+                    radius: 0
+                }
+
+                RowLayout {
+                    id: stuckRow
+
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.space(10)
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.space(10)
+
+                    Label {
+                        Layout.fillWidth: true
+                        bright: planList.stuckGroup?.asks ?? false
+                        dim: !(planList.stuckGroup?.asks ?? false)
+                        elide: Text.ElideMiddle
+                        ink: Ink {
+                            animated: false
+                            ground: Theme.on.idle
+                        }
+                        objectName: "askStuckHeadText"
+                        size: "small"
+                        text: planList.stuckGroup?.modelData.head ?? ""
+                        voice: "title"
+                    }
+
+                    Label {
+                        dim: true
+                        ink: Ink {
+                            animated: false
+                            ground: Theme.on.idle
+                        }
+                        objectName: "askStuckHeadSide"
+                        size: "caption"
+                        text: planList.stuckGroup?.sideText ?? ""
+                    }
+                }
+
+                Hairline {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                }
+            }
+
+            ScrollBar {
+                id: planBar
+
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.top: parent.top
+                flickable: planList
+                objectName: "askPlanBar"
+                vertical: true
+                width: Theme.space(4)
             }
         }
 

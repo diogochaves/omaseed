@@ -721,7 +721,7 @@ void TestWords::doOnARunningOmaseed()
     object = json();
     QVERIFY(object.value(QLatin1String("plan")).toBool());
     QCOMPARE(object.value(QLatin1String("outcome")).toString(),
-             QStringLiteral("Done: 1 of 1 · by an agent"));
+             QStringLiteral("Done: 1 of 1 · 1 rechecking · by an agent"));
     QVERIFY(run({QStringLiteral("do"),
                  QStringLiteral("--plan"),
                  plans.filePath(QStringLiteral("none.json"))},

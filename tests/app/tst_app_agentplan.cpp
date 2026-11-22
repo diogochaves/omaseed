@@ -268,6 +268,8 @@ private slots:
     void mixedAsksOnceAndSaysUnticked();
     void lineRefusedAfterTheAskFailsAlone();
     void refusedAskRunsNone();
+    void lineAllowedWhileProbedWaitsForTheAnswer();
+    void refusedLineNamesEveryTorrent();
     void dryRunAsksAndSendsNothing();
     void usageFromTheBus();
 
@@ -396,6 +398,48 @@ void TestAppAgentPlan::oneRefusedLineRunsNone()
     QCOMPARE(sent("/api/v2/torrents/delete"), 0);
 }
 
+// #303: a refused line names every torrent it refuses, each with why, and its count; the
+// torrents it would let through aren't listed.
+void TestAppAgentPlan::refusedLineNamesEveryTorrent()
+{
+    QVERIFY(writeFile(m_qbt.savePath + QStringLiteral("/Unicode Pack/a.txt"), 10));
+    QVERIFY(writeFile(m_qbt.savePath + QStringLiteral("/Single.bin"), 10));
+    start();
+    m_app->setAgentFixes(QStringLiteral("allow"));
+    m_app->setAgentRemove(QStringLiteral("ask"));
+    QJsonObject object = run(*m_service, planJson(mixedPlan(true), true));
+    QCOMPARE(codeOf(object), QStringLiteral("not-removable"));
+    QJsonObject line = lineOf(object, 1);
+    QCOMPARE(line.value(QLatin1String("would")).toString(), QStringLiteral("refused"));
+    QCOMPARE(line.value(QLatin1String("of")).toInt(), 2);
+    QJsonArray refused = line.value(QLatin1String("torrents")).toArray();
+    QCOMPARE(refused.size(), 2);
+    QStringList hashes;
+    for (const QJsonValue &value : std::as_const(refused)) {
+        const QJsonObject torrent = value.toObject();
+        hashes << torrent.value(QLatin1String("hash")).toString();
+        QCOMPARE(torrent.value(QLatin1String("code")).toString(), QStringLiteral("not-removable"));
+        QVERIFY2(torrent.value(QLatin1String("message"))
+                     .toString()
+                     .contains(torrent.value(QLatin1String("name")).toString() +
+                               QStringLiteral(" has its files")),
+                 qPrintable(torrent.value(QLatin1String("message")).toString()));
+    }
+    hashes.sort();
+    QCOMPARE(hashes, (QStringList{kPack, kSingle}));
+
+    // One of the two gone after all: only the other is refused.
+    QVERIFY(QFile::remove(m_qbt.savePath + QStringLiteral("/Single.bin")));
+    object = run(*m_service, planJson(mixedPlan(true), true));
+    line = lineOf(object, 1);
+    refused = line.value(QLatin1String("torrents")).toArray();
+    QCOMPARE(refused.size(), 1);
+    QCOMPARE(refused.at(0).toObject().value(QLatin1String("hash")).toString(), kPack);
+    QCOMPARE(refused.at(0).toObject().value(QLatin1String("name")).toString(),
+             QStringLiteral("Unicode Pack"));
+    QCOMPARE(sent("/api/v2/torrents/delete"), 0);
+}
+
 // Every line allowed in Settings: no window, each line run and answered.
 void TestAppAgentPlan::allowedPlanRunsWithoutAnAsk()
 {
@@ -411,7 +455,8 @@ void TestAppAgentPlan::allowedPlanRunsWithoutAnAsk()
     QCOMPARE(lineOf(object, 0).value(QLatin1String("done")).toArray().size(), 1);
     QCOMPARE(lineOf(object, 1).value(QLatin1String("done")).toArray().size(), 2);
     QCOMPARE(object.value(QLatin1String("outcome")).toString(),
-             QStringLiteral("Done: 3 of 3 · by an agent"));
+             QStringLiteral("Done: 3 of 3 · 1 rechecking · by an agent"));
+    QCOMPARE(object.value(QLatin1String("rechecking")).toInt(), 1);
     QCOMPARE(sent("/api/v2/torrents/recheck"), 1);
     QCOMPARE(sent("/api/v2/torrents/reannounce"), 1);
 }
@@ -444,6 +489,9 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     const QVariantMap allowed = groups.at(0).toMap();
     QVERIFY(!allowed.value(QStringLiteral("asks")).toBool());
     QCOMPARE(allowed.value(QStringLiteral("head")).toString(), QStringLiteral("Recheck 1"));
+    // #305: what the window's foot counts.
+    QCOMPARE(allowed.value(QStringLiteral("count")).toInt(), 1);
+    QCOMPARE(allowed.value(QStringLiteral("units")).toString(), QStringLiteral("rechecks"));
     QVERIFY(allowed.value(QStringLiteral("rows")).toList().isEmpty());
     const QVariantMap removes = groups.at(1).toMap();
     QVERIFY(removes.value(QStringLiteral("asks")).toBool());
@@ -454,6 +502,9 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     QCOMPARE(removes.value(QStringLiteral("more")).toString(),
              QStringLiteral("none of their files is on disk (checked) · each kept 30 days to add "
                             "back"));
+    QCOMPARE(removes.value(QStringLiteral("count")).toInt(), 2);
+    QCOMPARE(removes.value(QStringLiteral("unit")).toString(), QStringLiteral("remove"));
+    QCOMPARE(removes.value(QStringLiteral("units")).toString(), QStringLiteral("removes"));
     const QVariantList rows = removes.value(QStringLiteral("rows")).toList();
     QCOMPARE(rows.size(), 2);
     QCOMPARE(rows.at(0).toMap().value(QStringLiteral("key")).toString(),
@@ -462,6 +513,13 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0); // nothing before the answer
 
     QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^removed: .* kept for 30")));
+    // #304: the journal's plan line, then a line per torrent by name.
+    QTest::ignoreMessage(QtInfoMsg,
+                         QRegularExpression(QStringLiteral(
+                             "^agent: plan on 2 torrents \\(1 recheck, 1 remove\\), allowed in "
+                             "the window")));
+    QTest::ignoreMessage(QtInfoMsg, "agent: recheck on Single.bin, in the plan");
+    QTest::ignoreMessage(QtInfoMsg, "agent: remove on Unicode Pack, in the plan");
     ask->allow({QStringLiteral("1:") + kPack});
     const QJsonObject object = finish(pending);
     QVERIFY2(codeOf(object).isEmpty(), qPrintable(messageOf(object)));
@@ -478,7 +536,18 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     QCOMPARE(unticked.size(), 1);
     QCOMPARE(unticked.first().toObject().value(QLatin1String("hash")).toString(), kSingle);
     QCOMPARE(object.value(QLatin1String("outcome")).toString(),
-             QStringLiteral("Done: 2 of 3 · by an agent"));
+             QStringLiteral("Done: 2 of 3 · 1 rechecking · by an agent"));
+    // #304: one strip, one last line for the plan, its remove's add back on the strip.
+    const QVariantMap strip = m_app->outcomes()->current();
+    QCOMPARE(strip.value(QStringLiteral("action")).toString(), QStringLiteral("plan"));
+    QCOMPARE(strip.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("Plan: 1 sent to recheck · 1 removed"));
+    QCOMPARE(strip.value(QStringLiteral("line")).toString(),
+             QStringLiteral("Done: 2 of 3 · 1 rechecking"));
+    QCOMPARE(strip.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
+    QCOMPARE(strip.value(QStringLiteral("keptIds")).toStringList().size(), 1);
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("plan · 2 torrents"));
     QCOMPARE(sent("/api/v2/torrents/recheck"), 1);
     QCOMPARE(sent("/api/v2/torrents/delete"), 1);
     QVERIFY(m_qbt.items.contains(kSingle));
@@ -528,6 +597,46 @@ void TestAppAgentPlan::refusedAskRunsNone()
     QCOMPARE(codeOf(object), QStringLiteral("refused"));
     QVERIFY(object.value(QLatin1String("plan")).toBool());
     QCOMPARE(object.value(QLatin1String("answer")).toString(), QStringLiteral("refused"));
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+    QCOMPARE(sent("/api/v2/torrents/delete"), 0);
+}
+
+// GT4 (#305): a line whose Settings line turns to allow between the plan's check and its window
+// runs nothing before the person's answer: it shows dim, and a refuse runs none of the plan.
+void TestAppAgentPlan::lineAllowedWhileProbedWaitsForTheAnswer()
+{
+    start();
+    m_app->setAgentFixes(QStringLiteral("ask"));
+    m_app->setAgentRemove(QStringLiteral("ask"));
+    // The remove's file list is read once for its check, once for its probe: Fixes turns to
+    // allow at the probe, after the recheck's check and before its probe.
+    int lists = 0;
+    m_server->setHandler([this, &lists](const Recorded &request, int) {
+        if (request.target.startsWith("/api/v2/torrents/files") &&
+            request.target.contains(kPack.toUtf8()) && ++lists == 2)
+            m_app->setAgentFixes(QStringLiteral("allow"));
+        return m_qbt.answer(request);
+    });
+    omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    const QString plan = QStringLiteral(R"({"lines":[{"action":"remove","torrents":["%1"]},)"
+                                        R"({"action":"recheck","torrents":["%2"]}]})")
+                             .arg(kPack.left(8), kSingle.left(8));
+    const auto pending = begin(*m_service, planJson(plan));
+    QTRY_VERIFY_WITH_TIMEOUT(ask->isOpen(), 5000);
+    QCOMPARE(lists, 2);
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+    const QVariantList groups = ask->request().value(QStringLiteral("groups")).toList();
+    QCOMPARE(groups.size(), 2);
+    bool dimRecheck = false;
+    for (const QVariant &group : groups)
+        dimRecheck = dimRecheck ||
+                     (group.toMap().value(QStringLiteral("action")) == QStringLiteral("recheck") &&
+                      !group.toMap().value(QStringLiteral("asks")).toBool());
+    QVERIFY(dimRecheck);
+    QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^agent: plan on")));
+    ask->refuse();
+    const QJsonObject object = finish(pending);
+    QCOMPARE(codeOf(object), QStringLiteral("refused"));
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
     QCOMPARE(sent("/api/v2/torrents/delete"), 0);
 }

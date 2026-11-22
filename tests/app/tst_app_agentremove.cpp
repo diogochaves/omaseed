@@ -257,6 +257,7 @@ private slots:
     void alwaysAsksThenKeepsAndRemoves();
     void unseenDiskGoesByTheServersWord();
     void aFolderOnAnUnpluggedDriveIsNotRemovable();
+    void errorsSaysTheDriveIsNotMounted();
     void keepFailureRefusesTheRemove();
     void dryRunSendsNothing();
     void addBackAddsItStoppedWhereItWas();
@@ -515,6 +516,37 @@ void TestAppAgentRemove::aFolderOnAnUnpluggedDriveIsNotRemovable()
     QVERIFY(!m_app->agentAsk()->isOpen());
     QCOMPARE(sent("/api/v2/torrents/export"), 0);
     QCOMPARE(sent("/api/v2/torrents/delete"), 0);
+}
+
+// #300: errors says the same torrent's drive isn't mounted, and its fix is a recheck.
+void TestAppAgentRemove::errorsSaysTheDriveIsNotMounted()
+{
+    const QString drive = QStringLiteral("/run/media/omaseed-test-nobody/SHELF");
+    QVERIFY(!QFileInfo::exists(drive));
+    m_qbt.items[kSingle].savePath = drive + QStringLiteral("/Films");
+    start();
+    QString json;
+    m_service->errors(QStringLiteral("{}"), [&json](const QString &answer) { json = answer; });
+    QTRY_VERIFY(!json.isEmpty());
+    const QJsonArray torrents =
+        QJsonDocument::fromJson(json.toUtf8()).object().value(QLatin1String("torrents")).toArray();
+    QJsonObject single;
+    for (const QJsonValue &value : torrents)
+        if (value.toObject().value(QLatin1String("hash")).toString() == kSingle)
+            single = value.toObject();
+    QCOMPARE(single.value(QLatin1String("kind")).toString(), QStringLiteral("missing-files"));
+    QCOMPARE(single.value(QLatin1String("sentence")).toString(),
+             QStringLiteral("Its folder is on a drive that isn't mounted (%1): plug it in, then "
+                            "recheck.")
+                 .arg(drive));
+    QCOMPARE(single.value(QLatin1String("fix")).toObject().value(QLatin1String("do")).toString(),
+             QStringLiteral("recheck"));
+    // The other, in a folder this machine has: files missing, a locate.
+    for (const QJsonValue &value : torrents)
+        if (value.toObject().value(QLatin1String("hash")).toString() == kPack)
+            QCOMPARE(
+                value.toObject().value(QLatin1String("fix")).toObject().value(QLatin1String("do")),
+                QJsonValue(QStringLiteral("locate")));
 }
 
 // GT6, Q11: no way back (its export failed), no remove; what was kept for the others goes.

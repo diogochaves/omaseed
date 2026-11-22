@@ -186,7 +186,7 @@ TestCase {
     // Seven, not the rail's eight: the demo's stopped download is not "downloading" here.
     function test_the_status_line_states_the_library() {
         compare(App.counts.downloading, 8);
-        compare(view.factsText, "16 torrents · 7 downloading · " + App.globalState.freeSpaceText
+        compare(view.factsText, "16 torrents · 7 downloading · 1 checking · " + App.globalState.freeSpaceText
                 + " free · synced now");
         // One is "1 torrent", not "1 torrents".
         App.loadDemo(1);
@@ -211,7 +211,7 @@ TestCase {
     function test_a_screen_reader_hears_the_status_line() {
         const facts = findChild(view, "statusFacts");
         compare(facts.Accessible.role, Accessible.StaticText);
-        compare(facts.Accessible.name, "16 torrents, 7 downloading, " + App.globalState.freeSpaceText
+        compare(facts.Accessible.name, "16 torrents, 7 downloading, 1 checking, " + App.globalState.freeSpaceText
                 + " free, synced now");
         compare(view.factsSpoken, facts.Accessible.name);
         view.flashFooterNote("copied");

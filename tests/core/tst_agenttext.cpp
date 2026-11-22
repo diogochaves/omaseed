@@ -371,6 +371,13 @@ void TestAgentText::errorsAsTheBoard()
     QVERIFY(painted.contains(QStringLiteral("\x1b[31mno access\x1b[0m")));
     QVERIFY(painted.contains(QStringLiteral("\x1b[33mdidn't move\x1b[0m")));
     QVERIFY(painted.contains(QStringLiteral("\x1b[31m2 need you\x1b[0m")));
+
+    // #299: missing files' fix is the agent's locate, not the window's words ("move…").
+    Answers::ErrorsInput missing = board();
+    missing.torrents[0].problemCause = QStringLiteral("missingFiles");
+    const QString text = lines(missing, false, 60);
+    QVERIFY2(text.contains(QStringLiteral("since 14:03 · fix: locate --to FOLDER\n")),
+             qPrintable(text));
 }
 
 void TestAgentText::nothingNeedsYou()
@@ -659,13 +666,34 @@ void TestAgentText::doPlanSaysEachLine()
                       "error":{"code":"not-removable","message":"C has its files."}}],
             "outcome":"1 line refused: nothing would run. Fix the plan and try again.",
             "error":{"code":"not-removable","message":"…"}})");
+    // The last line is the failure the CLI says on stderr (#303: said once).
     QCOMPARE(doLines(dry),
              QStringLiteral("Plan for attic · 3 torrents · dry run, nothing done\n"
                             "  recheck     1  would run\n"
-                            "  locate      1 → /data/b  found 12 of 12 · would run\n"
+                            "  locate      1 → /data/b  12 files found · would run\n"
                             "  remove        refused\n"
-                            "              refused: C has its files.\n"
-                            "1 line refused: nothing would run. Fix the plan and try again.\n"));
+                            "              refused: C has its files.\n"));
+    // #303: a refused line lists every torrent it refuses, with its count and each why.
+    const QJsonObject many = doJson(
+        R"({"v":1,"command":"do","plan":true,"server":"attic","dryRun":true,"torrents":5,
+            "lines":[{"action":"locate","to":"/data/b","would":"run",
+                      "torrents":[{"hash":"b1","name":"B","found":3,"files":4},
+                                  {"hash":"b2","name":"B2","found":8,"files":8}]},
+                     {"action":"remove","would":"refused","of":3,
+                      "torrents":[{"hash":"c1c1c1c1c1","name":"C","code":"not-removable",
+                                   "message":"Not removed: C has its files.\nTry recheck."},
+                                  {"hash":"d1d1d1d1d1","name":"D","code":"not-removable",
+                                   "message":"its drive is gone.\nTry recheck."}],
+                      "error":{"code":"not-removable","message":"Not removed: C has its files."}}],
+            "outcome":"1 line refused: nothing would run. Fix the plan and try again.",
+            "error":{"code":"not-removable","message":"…"}})");
+    QCOMPARE(doLines(many),
+             QStringLiteral("Plan for attic · 5 torrents · dry run, nothing done\n"
+                            "  locate      2 → /data/b  11 of 12 files found · would run\n"
+                            "  remove      2 of 3  refused\n"
+                            "              c1c1c1c1 Not removed: C has its files.\n"
+                            "              d1d1d1d1 D: its drive is gone.\n"
+                            "              Try recheck.\n"));
     const QJsonObject ran = doJson(
         R"({"v":1,"command":"do","plan":true,"server":"attic","asked":true,"answer":"allowed",
             "torrents":3,

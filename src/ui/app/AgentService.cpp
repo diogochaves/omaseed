@@ -6,6 +6,7 @@
 #include "core/AnnounceMask.hpp"
 #include "core/FilterCounts.hpp"
 #include "core/GlobalState.hpp"
+#include "core/LocateCheck.hpp"
 #include "core/MoveJob.hpp"
 #include "core/PauseHold.hpp"
 #include "core/ProblemLog.hpp"
@@ -33,6 +34,7 @@
 #include <QTimer>
 
 #include <memory>
+#include <optional>
 
 namespace omaseed::app {
 
@@ -492,6 +494,7 @@ Answers::ErrorsInput AgentService::errorsInput() const
     const core::TorrentFilterModel *filtered = m_app->filtered();
     const core::ProblemLog *log = engine->problems();
     const bool hasLog = m_app->features().engineLog;
+    std::optional<core::LocateCheck::Mounts> mounts;
     for (int row = 0; row < torrents->count(); ++row) {
         const core::Torrent &torrent = torrents->torrentAt(row);
         // C45 V9: the rail's needs-you, with the row's own words (C24 H6).
@@ -525,6 +528,17 @@ Answers::ErrorsInput AgentService::errorsInput() const
                                 QDateTime::fromSecsSinceEpoch(line.timestamp, QTimeZone::UTC),
                                 line.type,
                                 line.message});
+        }
+        // #300: a torrent in missing files whose drive isn't mounted says so; the mount
+        // table read once, only when one is missing.
+        if (Answers::kindOf(out) == QLatin1String("missing-files")) {
+            const QString local = m_app->freeSpaceProbe().localPathFor(torrent.savePath);
+            if (!local.isEmpty()) {
+                if (!mounts)
+                    mounts = core::LocateCheck::readMounts();
+                out.unmountedDrive = core::LocateCheck::unmountedDrive(
+                    local, *mounts, core::LocateCheck::existsLocal, qEnvironmentVariable("USER"));
+            }
         }
         input.torrents.append(out);
     }

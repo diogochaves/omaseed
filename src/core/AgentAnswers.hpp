@@ -165,6 +165,9 @@ struct ErrorTorrent
     TorrentPhase phase = TorrentPhase::Unknown;
     QString savePath;
     QList<LogLine> log; ///< newest last; dropped on an engine without a log
+    /// A torrent in missing files whose save path is on a drive that isn't mounted: the
+    /// drive's folder (LocateCheck::unmountedDrive, #300); "" otherwise.
+    QString unmountedDrive;
 };
 
 /// Everything errors says (C45 V9).
@@ -177,7 +180,9 @@ struct ErrorsInput
     int dismissed = 0; ///< torrents whose failure was dismissed in the window
 };
 
-/// "stuck-move", "missing-files", "error" or "failure" (design 12).
+/// "stuck-move", "missing-files", "error" or "failure" (design 12). Missing files on every
+/// engine: the missing phase, or a problem whose files are missing (qBittorrent's flag, or an
+/// engine error matched to the missingFiles or missing cause, #299).
 QString kindOf(const ErrorTorrent &torrent);
 /// The problem's causeKey, or for a failure the cause its line gives
 /// (ProblemMatch::describe), "" when there is none.

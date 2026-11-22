@@ -202,9 +202,17 @@ QString actionTitle(const QString &action)
     return action.left(1).toUpper() + action.mid(1);
 }
 
-QString outcome(int done, int of)
+QString doneLine(int done, int of, int rechecking)
 {
-    return QStringLiteral("Done: %1 of %2 · by an agent").arg(done).arg(of);
+    QString line = QStringLiteral("Done: %1 of %2").arg(done).arg(of);
+    if (rechecking > 0)
+        line += QStringLiteral(" · %1 rechecking").arg(rechecking);
+    return line;
+}
+
+QString outcome(int done, int of, int rechecking)
+{
+    return doneLine(done, of, rechecking) + QStringLiteral(" · by an agent");
 }
 
 } // namespace omaseed::core::AgentPlan

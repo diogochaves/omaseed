@@ -273,6 +273,7 @@ private slots:
     void failureMoveHasACause();
     void stuckMove();
     void missingFiles();
+    void missingFilesOnEveryEngine();
     void transmissionEngineText();
     void delugePaused();
     void fixDoMapping();
@@ -586,6 +587,52 @@ void TestAgentAnswers::missingFiles()
              QStringLiteral("missing-files"));
     QCOMPARE(torrents.at(1).toObject().value(QStringLiteral("state")).toString(),
              QStringLiteral("missing"));
+}
+
+// #299: missing files on any engine are kind missing-files, and the window's set location is
+// `do locate` for them. #300: on a drive that isn't mounted, the sentence says so and the fix
+// is a recheck once it is plugged in.
+void TestAgentAnswers::missingFilesOnEveryEngine()
+{
+    Answers::ErrorTorrent torrent = lantern();
+    torrent.problemCause = QStringLiteral("missingFiles"); // Transmission's "No data found"
+    torrent.missingFiles = false;
+    torrent.fixAction = QStringLiteral("problem:location");
+    torrent.fixWords = QStringLiteral("move…");
+    torrent.phase = omaseed::core::TorrentPhase::Errored;
+    Answers::ErrorTorrent missing = torrent; // "No such file or directory"
+    missing.hash = QStringLiteral("bb00000000000000000000000000000000000000");
+    missing.problemCause = QStringLiteral("missing");
+    Answers::ErrorsInput input = errorsOn(QStringLiteral("transmission"));
+    input.torrents = {torrent, missing};
+    const QJsonArray torrents =
+        parse(Answers::errors(input)).value(QStringLiteral("torrents")).toArray();
+    for (const QJsonValue &value : torrents) {
+        const QJsonObject t = value.toObject();
+        QCOMPARE(t.value(QStringLiteral("kind")).toString(), QStringLiteral("missing-files"));
+        const QJsonObject fix = t.value(QStringLiteral("fix")).toObject();
+        QCOMPARE(fix.value(QStringLiteral("words")).toString(), QStringLiteral("move…"));
+        QCOMPARE(fix.value(QStringLiteral("do")).toString(), QStringLiteral("locate"));
+        QCOMPARE(fix.value(QStringLiteral("needs")).toArray(), QJsonArray{QStringLiteral("--to")});
+    }
+
+    input.torrents = {torrent};
+    input.torrents[0].unmountedDrive = QStringLiteral("/run/media/sam/SHELF");
+    const QJsonObject t = firstTorrent(input);
+    QCOMPARE(t.value(QStringLiteral("kind")).toString(), QStringLiteral("missing-files"));
+    QCOMPARE(t.value(QStringLiteral("sentence")).toString(),
+             QStringLiteral("Its folder is on a drive that isn't mounted (/run/media/sam/SHELF): "
+                            "plug it in, then recheck."));
+    const QJsonObject fix = t.value(QStringLiteral("fix")).toObject();
+    QCOMPARE(fix.value(QStringLiteral("words")).toString(), QStringLiteral("recheck"));
+    QCOMPARE(fix.value(QStringLiteral("do")).toString(), QStringLiteral("recheck"));
+    QCOMPARE(fix.value(QStringLiteral("needs")).toArray(), QJsonArray());
+
+    // Not missing files: the drive's word and the locate don't apply.
+    input.torrents = {lantern()};
+    QCOMPARE(
+        firstTorrent(input).value(QStringLiteral("fix")).toObject().value(QStringLiteral("do")),
+        QJsonValue(QStringLiteral("move")));
 }
 
 // C25 K24: on Transmission the sentence is the engine's own text, and there is no log.

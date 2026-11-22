@@ -57,6 +57,7 @@ struct DoOptions
     QString plan;        ///< a plan's text (#296)
     bool probe = false;  ///< the app's own: answer the ask's map, open nothing (a plan's)
     bool inPlan = false; ///< the app's own: a plan's line, never asked on its own
+    int planId = 0;      ///< the app's own: the plan it is a line of (#304, App::AgentAct::plan)
     QString usage;       ///< "" when the options are good
 };
 
@@ -83,6 +84,9 @@ DoOptions parseOptions(const QString &json)
              : key == QLatin1String("dryRun") ? options.dryRun
              : key == QLatin1String("probe")  ? options.probe
                                               : options.inPlan) = value.toBool();
+        } else if (key == QLatin1String("planId")) {
+            good = value.isDouble() && value.toInt() > 0;
+            options.planId = value.toInt();
         } else if (key == QLatin1String("torrents")) {
             good = value.isArray();
             for (const QJsonValue &hash : value.toArray()) {
@@ -191,6 +195,17 @@ core::AgentOrigin originOf(const core::ProcParent::Caller &caller, bool asked)
 /// How long an agent's move waits for its plan's file lists, listings and room (#293).
 constexpr int kPlanWaitMs = 20000;
 
+/// A plan's probe of a line Settings allows now (its line turned to allow since the plan's
+/// check): nothing runs, the answer says it would (`{"runs": true}`), and the line shows dim in
+/// the plan's window and runs with the plan once the person allows it (C50 GT4), never before.
+bool probeRuns(bool probe, const std::function<void(const QString &)> &reply)
+{
+    if (!probe)
+        return false;
+    reply(QStringLiteral(R"({"runs":true})"));
+    return true;
+}
+
 } // namespace
 
 AgentDo::AgentDo(App *app, AgentService *service)
@@ -201,9 +216,10 @@ AgentDo::AgentDo(App *app, AgentService *service)
 
 void AgentDo::run(const QString &json, uint callerPid, const Reply &reply)
 {
-    // probe and inPlan are the plan's own (AgentDoPlan.cpp): never from the bus.
+    // probe, inPlan and planId are the plan's own (AgentDoPlan.cpp): never from the bus.
     const QJsonObject given = QJsonDocument::fromJson(json.toUtf8()).object();
-    for (const QString &key : {QStringLiteral("probe"), QStringLiteral("inPlan")})
+    for (const QString &key :
+         {QStringLiteral("probe"), QStringLiteral("inPlan"), QStringLiteral("planId")})
         if (given.contains(key)) {
             reply(AgentService::failure(
                 kCommand, QStringLiteral("usage"), AgentWords::doesNotTake(kCommand, key)));
@@ -496,10 +512,14 @@ void AgentDo::proceed(const QString &json,
         return;
     }
 
+    if (probeRuns(options.probe, reply))
+        return;
+
     // Allowed: run it as the window does, and answer once the server has.
     App::AgentAct act;
     act.word = action;
     act.origin = origin;
+    act.plan = options.planId;
     const QString serverName = current.name;
     QPointer<AgentDo> self(this);
     const QString answered = asked ? QStringLiteral("allowed") : QStringLiteral("not-asked");
@@ -951,9 +971,12 @@ void AgentDo::proceedMove(const QString &json,
             App::AgentAct act;
             act.word = action;
             act.origin = originOf(caller, true);
+            act.plan = parseOptions(json).planId;
             core::ActionOutcome outcome;
             outcome.action = back ? QStringLiteral("moveBack") : QStringLiteral("move");
             outcome.hashes = moving;
+            if (!back)
+                outcome.target = to;
             self->m_app->noteAgentAct(act, subject, outcome);
 
             auto fields = envelope(action);
@@ -1398,10 +1421,14 @@ void AgentDo::locateFound(const QString &json,
         return;
     }
 
+    if (probeRuns(parseOptions(json).probe, reply))
+        return;
+
     // Allowed: re-point, recheck, and answer once the server has.
     App::AgentAct act;
     act.word = QStringLiteral("locate");
     act.origin = originOf(caller, asked);
+    act.plan = parseOptions(json).planId;
     QPointer<AgentDo> self(this);
     const QString answered = asked ? QStringLiteral("allowed") : QStringLiteral("not-asked");
     const QString serverName = current.name;
@@ -1709,7 +1736,7 @@ void AgentDo::removeChecked(const QString &json,
     QStringList sending;
     for (const Look &l : std::as_const(looks))
         sending << l.hash;
-    keepThenRemove(caller, reply, asked, sending);
+    keepThenRemove(caller, reply, asked, sending, parseOptions(json).planId);
 }
 
 /// One `do remove` on its way: what is left to keep, and what was kept (GT6).
@@ -1722,14 +1749,17 @@ struct AgentDo::KeepRun
     QString serverName;
     qsizetype next = 0;
     QHash<QString, QString> kept; ///< hash → RemovedKeep id
+    int plan = 0;                 ///< the plan it is a line of (#304)
 };
 
 void AgentDo::keepThenRemove(const core::ProcParent::Caller &caller,
                              const Reply &reply,
                              bool asked,
-                             const QStringList &hashes)
+                             const QStringList &hashes,
+                             int plan)
 {
     auto run = std::make_shared<KeepRun>();
+    run->plan = plan;
     run->caller = caller;
     run->reply = reply;
     run->asked = asked;
@@ -1780,6 +1810,7 @@ void AgentDo::keepNext(const std::shared_ptr<KeepRun> &run)
     act.word = QStringLiteral("remove");
     act.origin = originOf(run->caller, run->asked);
     act.kept = run->kept;
+    act.plan = run->plan;
     const QString day = keptDay();
     QHash<QString, QString> names;
     const core::TorrentModel *model = m_app->engine()->torrents();

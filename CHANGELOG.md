@@ -5,6 +5,32 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.17.1 — 2026-11-22
+
+From a check with 35 torrents in missing files at once.
+
+### Changed
+
+- **A plan reports itself once.** One outcome strip for the whole plan ("Plan: 18 located in 5
+  folders · 9 removed · by an agent"), one journal line for it and one per torrent with its name
+  and folder, and the Agents row's last line names the plan. "Done" says how many are
+  rechecking, and the status line counts checking torrents apart from downloading ones. (#304)
+- **The plan's window at length:** the group's heading stays at the top as its rows scroll, a
+  scrollbar shows, and the totals sit by the buttons, live as you untick ("26 ticked: 18
+  locates, 8 removes"). The add-back list has **add back all**. (#305)
+- **`errors` for missing files** says `missing-files` on every engine and offers `locate`
+  (`fix.do`), not a move. A torrent whose folder is on a drive that isn't mounted says so: plug
+  it in, then recheck. (#299, #300)
+
+### Fixed
+
+- A refused plan line names every torrent it refuses, with why, not only its first; the dry
+  run's summary prints once, and a locate's count says files. (#303)
+- A line that Settings allowed while the plan's window was being prepared ran before the person
+  answered; now nothing runs until they do. (#305)
+- After a server restarts, omaseed sees it again within a second or two, not up to 10 s later;
+  a server that stays down is still tried no more than every 10 s. (#306)
+
 ## v0.17.0 — 2026-11-22
 
 ### Added

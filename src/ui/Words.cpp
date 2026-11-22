@@ -137,12 +137,18 @@ int answer(const QString &command, bool json, const QByteArray &bytes)
         if (json) {
             write(stdout, bytes);
         } else {
-            // C50 GT4, GT5: a plan refused says its lines first, which one and why.
+            // C50 GT4, GT5: a plan refused says its lines first, which one and why; then its
+            // last line alone (#303: the lines already said each why).
+            QString message = failure.value(QStringLiteral("message")).toString();
             if (object.value(QStringLiteral("plan")).toBool())
                 if (const QString lines = AgentText::lines(object, styleFor(STDOUT_FILENO));
-                    !lines.isEmpty())
+                    !lines.isEmpty()) {
                     write(stdout, lines.toUtf8());
-            write(stderr, failureWords(failure.value(QStringLiteral("message")).toString()));
+                    if (const QString outcome = object.value(QStringLiteral("outcome")).toString();
+                        !outcome.isEmpty())
+                        message = outcome;
+                }
+            write(stderr, failureWords(message));
         }
         return AgentWords::exitFor(code.isEmpty() ? QStringLiteral("failed") : code);
     }

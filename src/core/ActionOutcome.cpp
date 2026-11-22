@@ -2,6 +2,9 @@
 
 #include <QCoreApplication>
 
+#include <algorithm>
+#include <iterator>
+
 namespace omaseed::core {
 
 namespace {
@@ -232,6 +235,121 @@ ActionOutcome ActionOutcome::fromMap(const QVariantMap &map)
     return outcome;
 }
 
+QVariantMap ActionOutcome::planWords(const QList<ActionOutcome> &parts, const QString &line)
+{
+    // By action, in the order the plan ran them: how many landed, and where.
+    struct Group
+    {
+        QString action;
+        int done = 0;
+        QStringList targets; ///< the distinct targets of the parts that landed
+    };
+    QList<Group> groups;
+    QStringList hashes;
+    QStringList done;
+    QStringList failed;
+    QStringList keptIds;
+    QString failedName;
+    QString cause;
+    QString details;
+    int serverWideFailed = 0;
+    for (const ActionOutcome &part : parts) {
+        auto group = std::find_if(groups.begin(), groups.end(), [&part](const Group &g) {
+            return g.action == part.action;
+        });
+        if (group == groups.end()) {
+            groups.append(Group{part.action, 0, {}});
+            group = std::prev(groups.end());
+        }
+        int landed = 0;
+        if (part.hashes.isEmpty()) {
+            // Pause and resume: the server's count, or its cause.
+            if (part.cause.isEmpty())
+                landed = part.target.toInt();
+            else
+                ++serverWideFailed;
+        }
+        for (const QString &hash : part.hashes) {
+            hashes << hash;
+            if (part.failedHashes.contains(hash)) {
+                failed << hash;
+            } else {
+                done << hash;
+                ++landed;
+            }
+        }
+        if ((!part.failedHashes.isEmpty() || (part.hashes.isEmpty() && !part.cause.isEmpty())) &&
+            cause.isEmpty()) {
+            failedName = part.failedName;
+            if (failedName.isEmpty() && part.failedHashes.size() == 1)
+                failedName = part.name;
+            cause = part.cause;
+            details = part.details;
+        }
+        keptIds << part.keptIds;
+        group->done += landed;
+        if (landed > 0 && !part.target.isEmpty() && !group->targets.contains(part.target))
+            group->targets << part.target;
+    }
+
+    QStringList said;
+    for (const Group &group : std::as_const(groups)) {
+        if (group.done == 0)
+            continue;
+        const QString n = QString::number(group.done);
+        const QString where = group.targets.size() == 1
+                                  ? group.targets.constFirst()
+                                  : tr("%1 folders").arg(group.targets.size());
+        if (group.action == QLatin1String("locate"))
+            said << tr("%1 located in %2").arg(n, where);
+        else if (group.action == QLatin1String("move"))
+            said << tr("%1 moving to %2").arg(n, where);
+        else if (group.action == QLatin1String("moveBack"))
+            said << tr("%1 moving back").arg(n);
+        else if (group.action == QLatin1String("remove"))
+            said << tr("%1 removed").arg(n);
+        else if (group.action == QLatin1String("pause"))
+            said << tr("%1 paused").arg(n);
+        else if (group.action == QLatin1String("resume"))
+            said << tr("%1 resumed").arg(n);
+        else
+            said << n + QLatin1Char(' ') + phrases(group.action, group.targets.value(0)).done;
+    }
+    const int failures = int(failed.size()) + serverWideFailed;
+    const Kind k = failures == 0 ? Kind::Done : said.isEmpty() ? Kind::Failed : Kind::Mixed;
+    QString headline = tr("Plan: %1").arg(said.join(QStringLiteral(" · ")));
+    if (said.isEmpty())
+        headline = tr("Plan: none of it ran");
+    else if (failures > 0)
+        headline = tr("%1, %2 didn't").arg(headline).arg(failures);
+    QStringList lines;
+    if (!line.isEmpty())
+        lines << line;
+    if (!cause.isEmpty())
+        lines << (failedName.isEmpty() ? cause : tr("%1: %2").arg(failedName, cause));
+    return {
+        {QStringLiteral("kind"), kindName(k)},
+        {QStringLiteral("mark"),
+         k == Kind::Done     ? QStringLiteral("✓")
+         : k == Kind::Failed ? QStringLiteral("✕")
+                             : QStringLiteral("!")},
+        {QStringLiteral("headline"), headline},
+        {QStringLiteral("line"), lines.join(QStringLiteral(" · "))},
+        {QStringLiteral("details"), details},
+        {QStringLiteral("action"), QStringLiteral("plan")},
+        {QStringLiteral("target"), QString()},
+        {QStringLiteral("hashes"), hashes},
+        {QStringLiteral("doneHashes"), done},
+        {QStringLiteral("failedHashes"), failed},
+        {QStringLiteral("doneRow"), done.isEmpty() ? QString() : tr("done")},
+        {QStringLiteral("failedRow"), tr("didn't happen")},
+        {QStringLiteral("startHere"), false},
+        {QStringLiteral("recheckFirst"), false},
+        {QStringLiteral("agent"), byAnAgent()},
+        {QStringLiteral("keptIds"), keptIds},
+    };
+}
+
 ActionOutcomes::ActionOutcomes(QObject *parent)
     : QObject(parent)
 {}
@@ -243,18 +361,30 @@ void ActionOutcomes::setDoneDuration(std::chrono::milliseconds duration)
 
 void ActionOutcomes::report(const ActionOutcome &outcome)
 {
+    show(outcome.words(), {outcome});
+}
+
+void ActionOutcomes::reportPlan(const QList<ActionOutcome> &parts, const QString &line)
+{
+    show(ActionOutcome::planWords(parts, line), parts);
+}
+
+void ActionOutcomes::show(QVariantMap words, const QList<ActionOutcome> &parts)
+{
     const int serial = ++m_serial;
     // D3: the next action ends what the last one left on the rows.
     m_marks.clear();
-    QVariantMap words = outcome.words();
     words.insert(QStringLiteral("serial"), serial);
-    const QString doneRow = words.value(QStringLiteral("doneRow")).toString();
-    const QString failedRow = words.value(QStringLiteral("failedRow")).toString();
-    for (const QString &hash : outcome.hashes) {
-        const bool failed = outcome.failedHashes.contains(hash);
-        if (!failed && doneRow.isEmpty())
-            continue; // a deleted row has nothing to show
-        m_marks.insert(hash, Mark{failed ? failedRow : doneRow, failed, serial});
+    for (const ActionOutcome &outcome : parts) {
+        const QVariantMap own = outcome.words();
+        const QString doneRow = own.value(QStringLiteral("doneRow")).toString();
+        const QString failedRow = own.value(QStringLiteral("failedRow")).toString();
+        for (const QString &hash : outcome.hashes) {
+            const bool failed = outcome.failedHashes.contains(hash);
+            if (!failed && doneRow.isEmpty())
+                continue; // a deleted row has nothing to show
+            m_marks.insert(hash, Mark{failed ? failedRow : doneRow, failed, serial});
+        }
     }
     m_current = words;
     Q_EMIT currentChanged();

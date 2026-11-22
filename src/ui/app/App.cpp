@@ -865,7 +865,8 @@ bool App::dismissFailures(const QStringList &hashes, const AgentAct &act)
     // C45 V18: the window's own dismiss says nothing; an agent's puts the strip up.
     if (!act.word.isEmpty()) {
         outcome.byAgent = true;
-        m_outcomes->report(outcome);
+        if (act.plan == 0) // #304: a plan's says it once
+            m_outcomes->report(outcome);
         noteAgentAct(act,
                      outcome.name.isEmpty() ? tr("%n torrents", "", int(hashes.size()))
                                             : outcome.name,
@@ -1075,13 +1076,15 @@ std::function<void(const ActionOutcome &)> App::holdAnswered(const AgentAct &act
             headline = tr("Nothing was running: nothing paused");
         else
             headline = paused ? tr("%1 paused").arg(count) : tr("%1 resumed").arg(count);
-        m_outcomes->reportWords({
-            {QStringLiteral("kind"), failed ? QStringLiteral("failed") : QStringLiteral("done")},
-            {QStringLiteral("mark"), failed ? QStringLiteral("✕") : QStringLiteral("✓")},
-            {QStringLiteral("headline"), headline},
-            {QStringLiteral("line"), outcome.cause},
-            {QStringLiteral("agent"), ActionOutcome::byAnAgent()},
-        });
+        if (act.plan == 0) // #304: a plan's says it once
+            m_outcomes->reportWords({
+                {QStringLiteral("kind"),
+                 failed ? QStringLiteral("failed") : QStringLiteral("done")},
+                {QStringLiteral("mark"), failed ? QStringLiteral("✕") : QStringLiteral("✓")},
+                {QStringLiteral("headline"), headline},
+                {QStringLiteral("line"), outcome.cause},
+                {QStringLiteral("agent"), ActionOutcome::byAnAgent()},
+            });
         noteAgentAct(act, m_server.name, outcome);
         if (act.answered)
             act.answered(outcome);
@@ -3862,7 +3865,8 @@ std::function<void(const Result<Done> &)> App::tableAnswer(const QString &action
                 if (!agent->kept.isEmpty())
                     refreshRemovedKept();
             }
-            m_outcomes->report(outcome);
+            if (!agent || agent->plan == 0) // #304: a plan's says it once
+                m_outcomes->report(outcome);
             if (agent) {
                 noteAgentAct(*agent,
                              name.isEmpty() ? tr("%n torrents", "", int(hashes.size())) : name,

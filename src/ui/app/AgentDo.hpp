@@ -38,7 +38,8 @@
 //
 // A plan (#296, C50 GT4, GT5): `{plan: TEXT}`, the file's text as the CLI read it; see
 // AgentDoPlan.cpp. Its lines run through proceed with two keys only the app itself sets
-// (`probe`: answer the ask's map instead of opening it; `inPlan`: a line Settings allowed that
+// (`probe`: answer the ask's map instead of opening it, or `runs` where Settings allows the line
+// now, acting on nothing either way; `inPlan`: a line Settings allowed that
 // would ask now is refused, not asked); the bus refuses both.
 
 #include "core/ProcParent.hpp"
@@ -143,7 +144,8 @@ private:
     void keepThenRemove(const core::ProcParent::Caller &caller,
                         const Reply &reply,
                         bool asked,
-                        const QStringList &hashes);
+                        const QStringList &hashes,
+                        int plan);
     struct KeepRun;
     void keepNext(const std::shared_ptr<KeepRun> &run);
     /// MoveController's plan (`make`), once it has every check in (`pending` false), or after
@@ -173,8 +175,12 @@ private:
                  const core::ProcParent::Caller &caller,
                  const Reply &reply);
     struct PlanRun;
+    int m_lastPlan = 0; ///< the last plan's id (#304, App::AgentAct::plan)
     void planCheckNext(const std::shared_ptr<PlanRun> &run);
     void planChecked(const std::shared_ptr<PlanRun> &run);
+    /// A refused line's every torrent and why (#303), before the plan's answer.
+    void planRefusals(const std::shared_ptr<PlanRun> &run);
+    void planRefusalNext(const std::shared_ptr<PlanRun> &run);
     /// The dry run's answer, or the failure of a plan with a line off or refused.
     QString planChecks(const std::shared_ptr<PlanRun> &run) const;
     void planProbeNext(const std::shared_ptr<PlanRun> &run);

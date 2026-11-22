@@ -24,7 +24,11 @@ Changed by C24 H13 (v0.5.0): the ground is opaque by default; this alpha is Appe
 - Tracker health is a badge and a filter, never a desktop notice. That is what qBittorrent,
   qui, Transmission, Deluge and Flood all do.
 - While the sync engine polls, the HTTP client does not retry reads on its own: the engine's
-  visible "retry in 10 s" is the only retry, so a lost server shows after one failure.
+  visible countdown is the only retry, so a lost server shows after one failure. *v0.17.1
+  (#306):* the countdown starts at 1 s and doubles to the steady 10 s (1, 2, 4, 8, 10…), and a
+  refused connection on this computer holds at 2 s, so a restarted qBittorrent (it answers within
+  ~50 ms of starting) is seen back within a second or two, not after up to 10 s. The loss is
+  still reported once; the retries that fail again say nothing.
 
 *Engines (board 36 §7, C14; 2026-11-06, E5):* The rail groups are read from the neutral phase and
 flags (`TorrentStatus`, `Torrent.cpp`); each engine maps its own states to them (qBittorrent's word
@@ -3196,6 +3200,12 @@ left to the build:
   the answer runs. The CLI prints "Asking in omaseed's window…" on stderr when the app broadcasts
   `Asking(u pid, s words)` for its pid ("… moves always ask.", "… removes always ask."); it waits
   asleep in an event loop. `OMASEED_ASK_TIMEOUT_MS` shortens the 2 minutes for tests and walks.
+  A plan's window (#305): past a screenful the list scrolls with the kit's bar beside it, the
+  group at the top keeps its heading pinned while its rows pass under it (the next group's
+  pushes it away), and the foot's note says what is ticked by action before the keys, live:
+  "27 ticked: 18 locates, 9 removes" (one action: "9 removes ticked"; "none ticked"), the lines
+  Settings allows counted apart ("· 4 allowed in Settings"). Each group carries its `count` and
+  its action's `unit`/`units` for it.
 - **Moves through `do`** wait for the move sheet's whole plan (up to 20 s); a plan that can't move
   is refused "Not moved: …" before any ask; one that leaves some out asks with the sheet's lines
   that bear on the answer. Behind a running move it is queued (`queued: N`, `job: null`, C44 L12).
@@ -3225,7 +3235,8 @@ left to the build:
   in and recheck" (`LocateCheck::unmountedDrive`). The keep runs after the ask, one torrent at a time; one that can't keep (its
   `.torrent` unreadable from here, the daemon's folder out of reach) refuses the whole remove
   `not-removable`, "omaseed keeps a way back before every remove"; a bare magnet keeps its link.
-  Add back (`App.addBack`) is the person's: another server's kept torrent is listed, its button off
+  Add back (`App.addBack`) is the person's; with two or more kept for the server on show the
+  sheet has `add back all`, those one after another as the strip's add back, the sheet left open: another server's kept torrent is listed, its button off
   until that server is on show ("switch to it first"); adding back never switches servers. A
   damaged keep folder is skipped and pruned by the day in its name; a folder not so named is never
   touched. An agent's remove strip is a done strip, so its `add back` goes after 6 s (C18 D3); the
@@ -3233,10 +3244,34 @@ left to the build:
 - **Plans** (`core::AgentPlan`, `AgentDoPlan`). The CLI reads the file or stdin (1 MB at most) and
   sends the text; the app never opens a path an agent names. `{v?, server?, lines: [{action,
   torrents?, to?, move?}]}`; torrents are 8–64 hex characters, never names; a bad line is usage
-  naming it. Each line is checked as its own dry run and run as its own `do` (its journal line,
-  last line and strip); one off or refused line refuses the plan with that line's code and every
-  line's `would`. Ticks are per torrent (`LINE:HASH`), a line with no torrents one box. "Done: X of
-  Y · by an agent" counts done only; unticked lines exit 0. A plan waits 5 minutes in all.
+  naming it. Each line is checked as its own dry run and run as its own `do`; one off or refused
+  line refuses the plan with that line's code and every line's `would`. Ticks are per torrent
+  (`LINE:HASH`), a line with no torrents one box. "Done: X of Y · by an agent" counts done only;
+  unticked lines exit 0. #304: the plan says itself once. One strip, "Plan: 18 located in 5
+  folders · 9 removed" (by action in the order run, one folder named, more counted; ", N didn't"
+  when some failed), its line "Done: 27 of 27 · 18 rechecking" (then the first failure's "NAME:
+  why"), the removes' `add back`, every row its own line's mark. One journal line "agent: plan on
+  27 torrents (18 locate, 9 remove), allowed in the window (…)" and then one per torrent, "agent:
+  locate on NAME in FOLDER, in the plan" (", didn't: why" for a failure); the last line "plan · 27
+  torrents". A line whose Settings line turned to allow between the plan's check and its window
+  runs nothing then (#305: it ran at once before, ahead of the person's answer): it shows dim and
+  runs with the plan after the allow. The rechecks a plan's locates and rechecks started are said in its outcome
+  ("Done: 27 of 27 · 18 rechecking · by an agent", `rechecking: N`), and the footer counts a
+  torrent checking its files as "N checking", never as downloading (the rail's row keeps
+  qBittorrent's filter). A plan waits 5 minutes in all. A
+  refused line lists every torrent it refuses in its `torrents` (`{hash, name, code, message}`,
+  `of` the line's count; v0.17.1, #303): a line of more than one is checked again a torrent at a
+  time once the plan is refused; an off line lists none (the gate refuses them all). The text
+  says each under its line ("2 of 3 refused", hash and why) and the plan's last line once, on
+  stderr; a locate line counts files apart from torrents ("11 files found").
+- **errors for missing files** (v0.17.1, #299, #300). `kind` is `missing-files` on every engine:
+  the missing phase, qBittorrent's flag, or an engine error matched to the `missingFiles` or
+  `missing` cause (Transmission's "No data found"). Its `fix.do` is `locate` (needs `--to`) where
+  the window offers set location (`fix.words` stays the window's "move…"; the text answer says
+  "fix: locate --to FOLDER"). Where omaseed sees the disk and the save path's drive isn't mounted
+  (`LocateCheck::unmountedDrive`, read only for torrents in missing files, the mount table once
+  per answer), the sentence is "Its folder is on a drive that isn't mounted (…): plug it in, then
+  recheck." and the fix `{words: "recheck", do: "recheck"}`. The window's row is unchanged.
 - **`help agents`** is the CLI's own: it asks the running omaseed's `Status` for the address (5 s)
   and prints `<host>:<port>` with a line saying so when none answers; exit 0 always. A loopback
   server is named both as 127.0.0.1 and localhost. Claude Code: `Bash(*ADDR*)`, the bus tools on
@@ -3249,3 +3284,7 @@ left to the build:
   Its never list says exit 5 is the person's no, with no way round it, and `do` only when asked to
   act; `ref/library.md` holds the kinds, the guards, the answer, the plan and the missing-files
   path, and its "this omaseed runs no fix for you" (C45's guide) gives way to `fix.do`. `omaseed help do` names every action and points at `help agents`.
+- **A restarted server** (v0.17.1, #306): an agent that restarts qBittorrent and asks at once
+  got `unreachable` for up to 10 s, the engine's steady retry. The retry after a loss now starts
+  at 1 s and doubles to 10 s, and holds at 2 s for a refused connection on this computer (Q16's
+  note on the sync engine); `retryIn` follows it.
