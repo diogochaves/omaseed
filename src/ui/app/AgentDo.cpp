@@ -195,6 +195,17 @@ core::AgentOrigin originOf(const core::ProcParent::Caller &caller, bool asked)
 /// How long an agent's move waits for its plan's file lists, listings and room (#293).
 constexpr int kPlanWaitMs = 20000;
 
+/// A plan's probe of a line Settings allows now (its line turned to allow since the plan's
+/// check): nothing runs, the answer says it would (`{"runs": true}`), and the line shows dim in
+/// the plan's window and runs with the plan once the person allows it (C50 GT4), never before.
+bool probeRuns(bool probe, const std::function<void(const QString &)> &reply)
+{
+    if (!probe)
+        return false;
+    reply(QStringLiteral(R"({"runs":true})"));
+    return true;
+}
+
 } // namespace
 
 AgentDo::AgentDo(App *app, AgentService *service)
@@ -500,6 +511,9 @@ void AgentDo::proceed(const QString &json,
                  askRequest(action, hashes, current.name, caller));
         return;
     }
+
+    if (probeRuns(options.probe, reply))
+        return;
 
     // Allowed: run it as the window does, and answer once the server has.
     App::AgentAct act;
@@ -1406,6 +1420,9 @@ void AgentDo::locateFound(const QString &json,
         askFirst(json, caller, reply, QStringLiteral("locate"), subject, request);
         return;
     }
+
+    if (probeRuns(parseOptions(json).probe, reply))
+        return;
 
     // Allowed: re-point, recheck, and answer once the server has.
     App::AgentAct act;

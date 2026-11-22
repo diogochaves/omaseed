@@ -38,7 +38,8 @@
 //
 // A plan (#296, C50 GT4, GT5): `{plan: TEXT}`, the file's text as the CLI read it; see
 // AgentDoPlan.cpp. Its lines run through proceed with two keys only the app itself sets
-// (`probe`: answer the ask's map instead of opening it; `inPlan`: a line Settings allowed that
+// (`probe`: answer the ask's map instead of opening it, or `runs` where Settings allows the line
+// now, acting on nothing either way; `inPlan`: a line Settings allowed that
 // would ask now is refused, not asked); the bus refuses both.
 
 #include "core/ProcParent.hpp"

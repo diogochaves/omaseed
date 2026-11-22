@@ -3242,8 +3242,9 @@ left to the build:
   why"), the removes' `add back`, every row its own line's mark. One journal line "agent: plan on
   27 torrents (18 locate, 9 remove), allowed in the window (…)" and then one per torrent, "agent:
   locate on NAME in FOLDER, in the plan" (", didn't: why" for a failure); the last line "plan · 27
-  torrents". A line Settings let run while the plan was probed for its window said itself then,
-  and isn't in these. The rechecks a plan's locates and rechecks started are said in its outcome
+  torrents". A line whose Settings line turned to allow between the plan's check and its window
+  runs nothing then (#305: it ran at once before, ahead of the person's answer): it shows dim and
+  runs with the plan after the allow. The rechecks a plan's locates and rechecks started are said in its outcome
   ("Done: 27 of 27 · 18 rechecking · by an agent", `rechecking: N`), and the footer counts a
   torrent checking its files as "N checking", never as downloading (the rail's row keeps
   qBittorrent's filter). A plan waits 5 minutes in all. A

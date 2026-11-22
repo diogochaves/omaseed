@@ -6,7 +6,8 @@
 //    off or refused line runs none, and the answer says which (or, with --dry-run, says what
 //    each line would do and stops there);
 // 2. each line that asks is checked once more up to its ask, whose map is kept instead of
-//    opened (`probe`), for the plan's one window;
+//    opened (`probe`), for the plan's one window; a line Settings allows by then runs nothing
+//    there (`runs`) and joins the dim lines, run after the person's allow;
 // 3. one ask (AgentAsk) lists the plan grouped by action and folder: the lines Settings
 //    allows dim, each torrent of a line that asks a box, ticked; the answer's ticks are
 //    "LINE:HASH" (or "LINE" for a line with no torrents);
@@ -130,11 +131,10 @@ struct AgentDo::PlanRun
     bool dryRun = false;
     core::ProcParent::Caller caller;
     Reply reply;
-    QList<QJsonObject> checks;     ///< each line's dry run, or its failure
-    QList<bool> asks;              ///< each line asks (its dry run said `would: ask`)
-    QList<QVariantMap> requests;   ///< each asking line's ask, kept (`probe`)
-    QHash<int, QJsonObject> early; ///< a line Settings let run while it was probed
-    QStringList ticks;             ///< what the person left ticked
+    QList<QJsonObject> checks;   ///< each line's dry run, or its failure
+    QList<bool> asks;            ///< each line asks (its dry run said `would: ask`)
+    QList<QVariantMap> requests; ///< each asking line's ask, kept (`probe`)
+    QStringList ticks;           ///< what the person left ticked
     bool asked = false;
     QList<QJsonObject> answers; ///< each line's answer as it ran
     QList<QJsonArray> unticked; ///< each line's torrents left unticked
@@ -433,9 +433,9 @@ void AgentDo::planProbeNext(const std::shared_ptr<PlanRun> &run)
                 run->reply(self.isNull() ? json : self->planChecks(run));
                 return;
             } else {
-                // Settings let it run meanwhile (its line turned to allow): it ran.
+                // Settings allow it now (its line turned to allow since the check): nothing
+                // ran; it shows dim in the window and runs with the plan once allowed (GT4).
                 run->asks[i] = false;
-                run->early.insert(i, answer);
             }
             QTimer::singleShot(0, self, [self, run]() {
                 if (!self.isNull())
@@ -559,7 +559,7 @@ QVariantMap AgentDo::planRequest(const std::shared_ptr<PlanRun> &run) const
 void AgentDo::planAsk(const std::shared_ptr<PlanRun> &run)
 {
     if (!run->asks.contains(true)) {
-        // Every line that asked was let run by Settings while it was probed.
+        // Settings allow every line that asked now: the plan runs as an allowed one.
         planRunNext(run);
         return;
     }
@@ -660,11 +660,6 @@ void AgentDo::planRunNext(const std::shared_ptr<PlanRun> &run)
                 self->planRunNext(run);
         });
     };
-    if (run->early.contains(i)) {
-        run->answers[i] = run->early.value(i);
-        onward();
-        return;
-    }
     const AgentPlan::Line &given = run->plan.lines.at(i);
     const QJsonArray torrents = resolved(run->checks.at(i));
     AgentPlan::Line line = given;
@@ -724,8 +719,7 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
     QJsonArray lines;
     int of = 0;
     int done = 0;
-    // #304: what the plan's one strip, journal and last line say. A line Settings let run
-    // while the plan was probed (`early`) said itself then.
+    // #304: what the plan's one strip, journal and last line say.
     int rechecking = 0;
     int acted = 0;
     int didnt = 0;
@@ -783,7 +777,7 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
         out.insert(QStringLiteral("failed"), failed);
         if (line.action == QLatin1String("locate") || line.action == QLatin1String("recheck"))
             rechecking += int(lineDone.size());
-        if (ran && !run->early.contains(i)) {
+        if (ran) {
             const bool wide = serverWide(line.action);
             const int count = wide ? 1 : int(lineDone.size() + failed.size());
             if (count > 0 && !actedBy.contains(line.action))

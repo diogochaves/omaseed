@@ -268,6 +268,7 @@ private slots:
     void mixedAsksOnceAndSaysUnticked();
     void lineRefusedAfterTheAskFailsAlone();
     void refusedAskRunsNone();
+    void lineAllowedWhileProbedWaitsForTheAnswer();
     void refusedLineNamesEveryTorrent();
     void dryRunAsksAndSendsNothing();
     void usageFromTheBus();
@@ -590,6 +591,46 @@ void TestAppAgentPlan::refusedAskRunsNone()
     QCOMPARE(codeOf(object), QStringLiteral("refused"));
     QVERIFY(object.value(QLatin1String("plan")).toBool());
     QCOMPARE(object.value(QLatin1String("answer")).toString(), QStringLiteral("refused"));
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+    QCOMPARE(sent("/api/v2/torrents/delete"), 0);
+}
+
+// GT4 (#305): a line whose Settings line turns to allow between the plan's check and its window
+// runs nothing before the person's answer: it shows dim, and a refuse runs none of the plan.
+void TestAppAgentPlan::lineAllowedWhileProbedWaitsForTheAnswer()
+{
+    start();
+    m_app->setAgentFixes(QStringLiteral("ask"));
+    m_app->setAgentRemove(QStringLiteral("ask"));
+    // The remove's file list is read once for its check, once for its probe: Fixes turns to
+    // allow at the probe, after the recheck's check and before its probe.
+    int lists = 0;
+    m_server->setHandler([this, &lists](const Recorded &request, int) {
+        if (request.target.startsWith("/api/v2/torrents/files") &&
+            request.target.contains(kPack.toUtf8()) && ++lists == 2)
+            m_app->setAgentFixes(QStringLiteral("allow"));
+        return m_qbt.answer(request);
+    });
+    omaseed::app::AgentAsk *ask = m_app->agentAsk();
+    const QString plan = QStringLiteral(R"({"lines":[{"action":"remove","torrents":["%1"]},)"
+                                        R"({"action":"recheck","torrents":["%2"]}]})")
+                             .arg(kPack.left(8), kSingle.left(8));
+    const auto pending = begin(*m_service, planJson(plan));
+    QTRY_VERIFY_WITH_TIMEOUT(ask->isOpen(), 5000);
+    QCOMPARE(lists, 2);
+    QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
+    const QVariantList groups = ask->request().value(QStringLiteral("groups")).toList();
+    QCOMPARE(groups.size(), 2);
+    bool dimRecheck = false;
+    for (const QVariant &group : groups)
+        dimRecheck = dimRecheck ||
+                     (group.toMap().value(QStringLiteral("action")) == QStringLiteral("recheck") &&
+                      !group.toMap().value(QStringLiteral("asks")).toBool());
+    QVERIFY(dimRecheck);
+    QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^agent: plan on")));
+    ask->refuse();
+    const QJsonObject object = finish(pending);
+    QCOMPARE(codeOf(object), QStringLiteral("refused"));
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0);
     QCOMPARE(sent("/api/v2/torrents/delete"), 0);
 }
