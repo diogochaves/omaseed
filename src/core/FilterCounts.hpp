@@ -65,7 +65,8 @@ public:
     int downloading() const { return count(StatusGroup::Downloading); }
     /// Downloading and not stopped: what the footer's "downloading" fact counts. The rail's
     /// row keeps qBittorrent's filter, which also takes stoppedDL (Q16); the footer is a
-    /// status line, where a stopped torrent does not read as downloading.
+    /// status line, where a stopped torrent does not read as downloading, nor one checking its
+    /// files (#304: the footer says those as "N checking", from checking()).
     int inProgress() const { return m_inProgress; }
     int seeding() const { return count(StatusGroup::Seeding); }
     int completed() const { return count(StatusGroup::Completed); }

@@ -154,7 +154,9 @@ void FilterCounts::recompute()
             if (groups.testFlag(group))
                 ++m_groupCounts[slotFor(group)];
         }
-        if (groups.testFlag(StatusGroup::Downloading) && !groups.testFlag(StatusGroup::Stopped))
+        // #304: a torrent checking its files isn't downloading; the footer counts it apart.
+        if (groups.testFlag(StatusGroup::Downloading) && !groups.testFlag(StatusGroup::Stopped) &&
+            !groups.testFlag(StatusGroup::Checking))
             ++m_inProgress;
         ++m_questionCounts[TorrentFilterModel::questionOf(
             t, m_model->hasLoggedTrouble(t.hash), dayStart)];

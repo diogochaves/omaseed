@@ -702,6 +702,13 @@ Item {
                 "label": step >= 2 ? Glyphs.arrowDown : qsTr("downloading"),
                 "spoken": qsTr("downloading")
             });
+        // #304: checking its files is not downloading (a locate's recheck, a plan's 18).
+        if (App.counts.checking > 0 && step < 3)
+            parts.push({
+                "value": String(App.counts.checking),
+                "label": qsTr("checking"),
+                "spoken": qsTr("checking")
+            });
         if (step < 4)
             parts.push({
                 "value": App.globalState.freeSpaceText,

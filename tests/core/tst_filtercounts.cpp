@@ -71,6 +71,7 @@ class TestFilterCounts : public QObject
 private slots:
     void countsTheRecordedFixture();
     void countsEveryStatusGroup();
+    void aCheckingTorrentIsNotDownloading();
     void countsTheFiveQuestions();
     void countsCategoriesTagsAndTrackers();
     void recomputesWhenTheModelChanges();
@@ -107,6 +108,29 @@ void TestFilterCounts::countsTheRecordedFixture()
     QCOMPARE(counts.trackerless(), 3);
     QCOMPARE(counts.trackerlessHashes().size(), 3);
     QCOMPARE(counts.trackerCount(QStringLiteral("tracker.opentrackr.org")), 1);
+}
+
+// #304: a locate's recheck (checkingDL, unfinished) is checking in the footer, not downloading.
+void TestFilterCounts::aCheckingTorrentIsNotDownloading()
+{
+    TorrentModel model;
+    FilterCounts counts;
+    counts.setModel(&model);
+    qbtfeed::full(model,
+                  QJsonObject{
+                      {QStringLiteral("a"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("downloading")},
+                                   {QStringLiteral("progress"), 0.5}}},
+                      {QStringLiteral("b"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("checkingDL")},
+                                   {QStringLiteral("progress"), 0.0}}},
+                      {QStringLiteral("c"),
+                       QJsonObject{{QStringLiteral("state"), QStringLiteral("checkingDL")},
+                                   {QStringLiteral("progress"), 0.2}}},
+                  });
+    QCOMPARE(counts.downloading(), 3); // the rail's row keeps them (qBittorrent's filter)
+    QCOMPARE(counts.inProgress(), 1);  // a
+    QCOMPARE(counts.checking(), 2);    // b, c
 }
 
 void TestFilterCounts::countsEveryStatusGroup()
