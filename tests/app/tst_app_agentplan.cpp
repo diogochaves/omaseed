@@ -454,7 +454,8 @@ void TestAppAgentPlan::allowedPlanRunsWithoutAnAsk()
     QCOMPARE(lineOf(object, 0).value(QLatin1String("done")).toArray().size(), 1);
     QCOMPARE(lineOf(object, 1).value(QLatin1String("done")).toArray().size(), 2);
     QCOMPARE(object.value(QLatin1String("outcome")).toString(),
-             QStringLiteral("Done: 3 of 3 · by an agent"));
+             QStringLiteral("Done: 3 of 3 · 1 rechecking · by an agent"));
+    QCOMPARE(object.value(QLatin1String("rechecking")).toInt(), 1);
     QCOMPARE(sent("/api/v2/torrents/recheck"), 1);
     QCOMPARE(sent("/api/v2/torrents/reannounce"), 1);
 }
@@ -505,6 +506,13 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     QCOMPARE(sent("/api/v2/torrents/recheck"), 0); // nothing before the answer
 
     QTest::ignoreMessage(QtInfoMsg, QRegularExpression(QStringLiteral("^removed: .* kept for 30")));
+    // #304: the journal's plan line, then a line per torrent by name.
+    QTest::ignoreMessage(QtInfoMsg,
+                         QRegularExpression(QStringLiteral(
+                             "^agent: plan on 2 torrents \\(1 recheck, 1 remove\\), allowed in "
+                             "the window")));
+    QTest::ignoreMessage(QtInfoMsg, "agent: recheck on Single.bin, in the plan");
+    QTest::ignoreMessage(QtInfoMsg, "agent: remove on Unicode Pack, in the plan");
     ask->allow({QStringLiteral("1:") + kPack});
     const QJsonObject object = finish(pending);
     QVERIFY2(codeOf(object).isEmpty(), qPrintable(messageOf(object)));
@@ -521,7 +529,18 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     QCOMPARE(unticked.size(), 1);
     QCOMPARE(unticked.first().toObject().value(QLatin1String("hash")).toString(), kSingle);
     QCOMPARE(object.value(QLatin1String("outcome")).toString(),
-             QStringLiteral("Done: 2 of 3 · by an agent"));
+             QStringLiteral("Done: 2 of 3 · 1 rechecking · by an agent"));
+    // #304: one strip, one last line for the plan, its remove's add back on the strip.
+    const QVariantMap strip = m_app->outcomes()->current();
+    QCOMPARE(strip.value(QStringLiteral("action")).toString(), QStringLiteral("plan"));
+    QCOMPARE(strip.value(QStringLiteral("headline")).toString(),
+             QStringLiteral("Plan: 1 sent to recheck · 1 removed"));
+    QCOMPARE(strip.value(QStringLiteral("line")).toString(),
+             QStringLiteral("Done: 2 of 3 · 1 rechecking"));
+    QCOMPARE(strip.value(QStringLiteral("agent")).toString(), QStringLiteral("by an agent"));
+    QCOMPARE(strip.value(QStringLiteral("keptIds")).toStringList().size(), 1);
+    QCOMPARE(m_app->agentLast().value(QStringLiteral("what")).toString(),
+             QStringLiteral("plan · 2 torrents"));
     QCOMPARE(sent("/api/v2/torrents/recheck"), 1);
     QCOMPARE(sent("/api/v2/torrents/delete"), 1);
     QVERIFY(m_qbt.items.contains(kSingle));

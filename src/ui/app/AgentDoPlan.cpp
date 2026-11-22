@@ -142,6 +142,7 @@ struct AgentDo::PlanRun
     QHash<int, QJsonArray> refused;       ///< a refused line's torrents, each with why (#303)
     QList<std::pair<int, QString>> alone; ///< a refused line's torrents still to check alone
     int nextAlone = 0;
+    int planId = 0; ///< its lines' acts wait for the plan's one strip (#304, App::AgentAct::plan)
 };
 
 void AgentDo::runPlan(const QString &text,
@@ -645,6 +646,7 @@ void AgentDo::planRunNext(const std::shared_ptr<PlanRun> &run)
     if (run->answers.size() < run->plan.lines.size()) {
         run->answers = QList<QJsonObject>(run->plan.lines.size());
         run->unticked = QList<QJsonArray>(run->plan.lines.size());
+        run->planId = ++m_lastPlan;
     }
     if (run->next >= run->plan.lines.size()) {
         planDone(run);
@@ -705,6 +707,7 @@ void AgentDo::planRunNext(const std::shared_ptr<PlanRun> &run)
     }
     QJsonObject options = AgentPlan::options(line, run->server, false);
     options.insert(QStringLiteral("inPlan"), true);
+    options.insert(QStringLiteral("planId"), run->planId);
     proceed(
         compact(options),
         run->caller,
@@ -721,6 +724,14 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
     QJsonArray lines;
     int of = 0;
     int done = 0;
+    // #304: what the plan's one strip, journal and last line say. A line Settings let run
+    // while the plan was probed (`early`) said itself then.
+    int rechecking = 0;
+    int acted = 0;
+    int didnt = 0;
+    QStringList actedOrder;
+    QHash<QString, int> actedBy;
+    QStringList torrentLines;
     for (qsizetype i = 0; i < run->plan.lines.size(); ++i) {
         const AgentPlan::Line &line = run->plan.lines.at(i);
         const QJsonObject &check = run->checks.at(i);
@@ -770,6 +781,38 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
         }
         out.insert(QStringLiteral("done"), lineDone);
         out.insert(QStringLiteral("failed"), failed);
+        if (line.action == QLatin1String("locate") || line.action == QLatin1String("recheck"))
+            rechecking += int(lineDone.size());
+        if (ran && !run->early.contains(i)) {
+            const bool wide = serverWide(line.action);
+            const int count = wide ? 1 : int(lineDone.size() + failed.size());
+            if (count > 0 && !actedBy.contains(line.action))
+                actedOrder << line.action;
+            actedBy[line.action] += count;
+            acted += count;
+            didnt += int(failed.size());
+            const QString where = line.to.isEmpty() ? QString()
+                                  : line.action == QLatin1String("locate")
+                                      ? QStringLiteral(" in %1").arg(line.to)
+                                      : QStringLiteral(" to %1").arg(line.to);
+            if (wide && failed.isEmpty())
+                torrentLines << QStringLiteral("agent: %1 on %2, in the plan")
+                                    .arg(line.action, m_service->currentServer().name);
+            for (const QJsonValue &value : std::as_const(lineDone))
+                torrentLines << QStringLiteral("agent: %1 on %2%3, in the plan")
+                                    .arg(line.action,
+                                         value.toObject().value(QStringLiteral("name")).toString(),
+                                         where);
+            for (const QJsonValue &value : std::as_const(failed)) {
+                const QJsonObject each = value.toObject();
+                const QString name = each.value(QStringLiteral("name")).toString();
+                torrentLines << QStringLiteral("agent: %1%2%3, in the plan, didn't: %4")
+                                    .arg(line.action,
+                                         name.isEmpty() ? QString() : QStringLiteral(" on ") + name,
+                                         where,
+                                         each.value(QStringLiteral("message")).toString());
+            }
+        }
         if (run->asks.at(i))
             out.insert(QStringLiteral("unticked"), run->unticked.at(i));
         lines.append(out);
@@ -781,8 +824,23 @@ void AgentDo::planDone(const std::shared_ptr<PlanRun> &run)
     fields.append({QStringLiteral("answer"),
                    run->asked ? QStringLiteral("allowed") : QStringLiteral("not-asked")});
     fields.append({QStringLiteral("torrents"), of});
+    fields.append({QStringLiteral("rechecking"), rechecking});
     fields.append({QStringLiteral("lines"), lines});
-    fields.append({QStringLiteral("outcome"), AgentPlan::outcome(done, of)});
+    fields.append({QStringLiteral("outcome"), AgentPlan::outcome(done, of, rechecking)});
+    if (acted > 0) {
+        QStringList by;
+        for (const QString &action : std::as_const(actedOrder))
+            by << QStringLiteral("%1 %2").arg(actedBy.value(action)).arg(action);
+        const QString subject =
+            countOf(acted, QStringLiteral("torrent"), QStringLiteral("torrents"));
+        m_app->noteAgentPlan(run->planId,
+                             originOf(run->caller, run->asked),
+                             subject,
+                             QStringLiteral("%1 (%2)").arg(subject, by.join(QStringLiteral(", "))),
+                             didnt > 0 ? QStringLiteral("%1 didn't").arg(didnt) : QString(),
+                             torrentLines,
+                             AgentPlan::doneLine(done, of, rechecking));
+    }
     run->reply(QString::fromUtf8(AgentWords::orderedJson(fields)));
 }
 

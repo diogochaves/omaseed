@@ -17,7 +17,8 @@
 # healthy torrent not-removable, on one whose data is gone asked, removed from the daemon, kept
 # in the box's ~/.local/share/omaseed/removed/, added back from the strip, another removed and
 # added back from the Agents row's sheet; --plan dry runs (a refused line: 5, its text indented;
-# both lines would ask) and a real plan, one ask with a torrent unticked (Done: 2 of 3); help
+# both lines would ask) and a real plan, one ask with a torrent unticked (Done: 2 of 3 · 1
+# rechecking; the journal's plan line and a line per torrent, #304); help
 # agents (the address on show, --for gemini). The skill (C48, #286): `skill` prints the map
 # (plain and --json), `skill library` the exit-code table with do's and the missing-files
 # path; in the box's home `skill link` links ~/.agents and ~/.claude to omaseed's skill folder and leaves a folder of the box's own at
@@ -660,10 +661,12 @@ ask_keys Tab Tab Tab Tab
 if ask_focused "allow these"; then omabox keys -b "$BOX" --window "$ASK" Return >/dev/null 2>&1 || true; fi
 collect plan
 check "allowed: exit 0, Done: 2 of 3, $TA_NAME's recheck unticked" answered 0 plan.json \
-    ".plan == true and .answer == \"allowed\" and .outcome == \"Done: 2 of 3 · by an agent\"
+    ".plan == true and .answer == \"allowed\" and .outcome == \"Done: 2 of 3 · 1 rechecking · by an agent\"
      and ([.lines[0].unticked[].hash] == [\"$TA\"]) and ([.lines[0].done[].hash] == [\"$TB\"])
      and (.lines[1].done | length) == 1"
 check "the CLI counted what asks" said plan "Asking in omaseed's window… 2 rechecks, 1 reannounce ask."
+check "the journal: one line for the plan (#304)" logged "agent: plan on 2 torrents (1 recheck, 1 reannounce), allowed in the window"
+check "…and a line per torrent, by name" logged "agent: recheck on $TB_NAME, in the plan"
 check "Fixes off again" gate fixes off
 check "Remove off again" gate remove off
 

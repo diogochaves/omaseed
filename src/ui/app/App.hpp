@@ -1937,6 +1937,9 @@ public:
         /// #295 (C50 GT6): a remove's kept entries, hash → RemovedKeep id; the ones the server
         /// didn't remove are forgotten once it has answered.
         QHash<QString, QString> kept;
+        /// #304: a plan's line (AgentDoPlan.cpp, its id): no strip, journal line or last line
+        /// of its own; the outcome waits for the plan's one (noteAgentPlan).
+        int plan = 0;
     };
     /// C45 V18: an agent's act that went to the server, said in the journal (`qInfo`) and
     /// saved as the row's last line. `subject` is the torrent's name, "3 torrents" or the
@@ -1951,6 +1954,18 @@ public:
                           const QString &how,
                           const omaseed::core::AgentOrigin &origin,
                           const QString &subject = QString());
+    /// #304 (C50 GT4): a plan ran. One strip for every line's outcome kept under `plan`,
+    /// the journal's plan line ("agent: plan on 27 torrents (18 locate, 9 remove), allowed in
+    /// the window (…)") and then `torrentLines` (one per torrent, by name), and the row's
+    /// last line "plan · `subject`[ · `result`]". `line` is the strip's own line ("Done: 27
+    /// of 27 · 18 rechecking").
+    void noteAgentPlan(int plan,
+                       const omaseed::core::AgentOrigin &origin,
+                       const QString &subject,
+                       const QString &journalSubject,
+                       const QString &result,
+                       const QStringList &torrentLines,
+                       const QString &line);
     /// pauseTorrents/resumeTorrents' answer: `act.answered`, and for an agent the strip and
     /// the note first.
     std::function<void(const omaseed::core::ActionOutcome &)> holdAnswered(const AgentAct &act);
@@ -2521,6 +2536,8 @@ private:
                 std::optional<AgentAct> agent = std::nullopt);
 
     QList<omaseed::core::RemovedKeep::Entry> m_removedKept;
+    /// #304: each running plan's outcomes so far, by its id (AgentAct::plan).
+    QHash<int, QList<omaseed::core::ActionOutcome>> m_agentPlans;
     /// addBack's run, one kept torrent after another.
     struct AddingBack;
     void addBackNext(const std::shared_ptr<AddingBack> &run);

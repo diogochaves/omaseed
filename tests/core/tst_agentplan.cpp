@@ -150,6 +150,10 @@ void TestAgentPlan::groupsByActionAndFolder()
 void TestAgentPlan::outcomeWords()
 {
     QCOMPARE(AgentPlan::outcome(34, 35), QStringLiteral("Done: 34 of 35 · by an agent"));
+    // #304: the rechecks a plan's locates started are said as such.
+    QCOMPARE(AgentPlan::outcome(27, 27, 18),
+             QStringLiteral("Done: 27 of 27 · 18 rechecking · by an agent"));
+    QCOMPARE(AgentPlan::doneLine(27, 27, 18), QStringLiteral("Done: 27 of 27 · 18 rechecking"));
     QCOMPARE(AgentPlan::actionTitle(QStringLiteral("move-back")), QStringLiteral("Move back"));
     QCOMPARE(AgentPlan::actionTitle(QStringLiteral("recheck")), QStringLiteral("Recheck"));
 }

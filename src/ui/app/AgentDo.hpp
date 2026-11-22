@@ -143,7 +143,8 @@ private:
     void keepThenRemove(const core::ProcParent::Caller &caller,
                         const Reply &reply,
                         bool asked,
-                        const QStringList &hashes);
+                        const QStringList &hashes,
+                        int plan);
     struct KeepRun;
     void keepNext(const std::shared_ptr<KeepRun> &run);
     /// MoveController's plan (`make`), once it has every check in (`pending` false), or after
@@ -173,6 +174,7 @@ private:
                  const core::ProcParent::Caller &caller,
                  const Reply &reply);
     struct PlanRun;
+    int m_lastPlan = 0; ///< the last plan's id (#304, App::AgentAct::plan)
     void planCheckNext(const std::shared_ptr<PlanRun> &run);
     void planChecked(const std::shared_ptr<PlanRun> &run);
     /// A refused line's every torrent and why (#303), before the plan's answer.

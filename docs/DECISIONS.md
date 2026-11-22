@@ -3233,10 +3233,20 @@ left to the build:
 - **Plans** (`core::AgentPlan`, `AgentDoPlan`). The CLI reads the file or stdin (1 MB at most) and
   sends the text; the app never opens a path an agent names. `{v?, server?, lines: [{action,
   torrents?, to?, move?}]}`; torrents are 8–64 hex characters, never names; a bad line is usage
-  naming it. Each line is checked as its own dry run and run as its own `do` (its journal line,
-  last line and strip); one off or refused line refuses the plan with that line's code and every
-  line's `would`. Ticks are per torrent (`LINE:HASH`), a line with no torrents one box. "Done: X of
-  Y · by an agent" counts done only; unticked lines exit 0. A plan waits 5 minutes in all. A
+  naming it. Each line is checked as its own dry run and run as its own `do`; one off or refused
+  line refuses the plan with that line's code and every line's `would`. Ticks are per torrent
+  (`LINE:HASH`), a line with no torrents one box. "Done: X of Y · by an agent" counts done only;
+  unticked lines exit 0. #304: the plan says itself once. One strip, "Plan: 18 located in 5
+  folders · 9 removed" (by action in the order run, one folder named, more counted; ", N didn't"
+  when some failed), its line "Done: 27 of 27 · 18 rechecking" (then the first failure's "NAME:
+  why"), the removes' `add back`, every row its own line's mark. One journal line "agent: plan on
+  27 torrents (18 locate, 9 remove), allowed in the window (…)" and then one per torrent, "agent:
+  locate on NAME in FOLDER, in the plan" (", didn't: why" for a failure); the last line "plan · 27
+  torrents". A line Settings let run while the plan was probed for its window said itself then,
+  and isn't in these. The rechecks a plan's locates and rechecks started are said in its outcome
+  ("Done: 27 of 27 · 18 rechecking · by an agent", `rechecking: N`), and the footer counts a
+  torrent checking its files as "N checking", never as downloading (the rail's row keeps
+  qBittorrent's filter). A plan waits 5 minutes in all. A
   refused line lists every torrent it refuses in its `torrents` (`{hash, name, code, message}`,
   `of` the line's count; v0.17.1, #303): a line of more than one is checked again a torrent at a
   time once the plan is refused; an off line lists none (the gate refuses them all). The text

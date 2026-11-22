@@ -60,7 +60,10 @@ QList<Group> groups(const QList<Line> &lines, const QList<bool> &asks);
 /// "Recheck", "Move back": the action as a group's head starts it.
 QString actionTitle(const QString &action);
 
-/// The plan's last line (board 67 §6): "Done: 34 of 35 · by an agent".
-QString outcome(int done, int of);
+/// The plan's last line (board 67 §6): "Done: 34 of 35 · by an agent"; #304: with the
+/// rechecks its locates and rechecks started, "Done: 27 of 27 · 18 rechecking · by an agent".
+QString outcome(int done, int of, int rechecking = 0);
+/// The same without "by an agent", for the plan's strip, which says that itself.
+QString doneLine(int done, int of, int rechecking);
 
 } // namespace omaseed::core::AgentPlan

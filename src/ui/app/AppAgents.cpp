@@ -91,6 +91,11 @@ void App::noteAgentAct(const AgentAct &act,
 {
     if (act.word.isEmpty())
         return;
+    if (act.plan != 0) {
+        // #304: said once, with the rest of the plan (noteAgentPlan).
+        m_agentPlans[act.plan].append(outcome);
+        return;
+    }
     // C45 V18: the journal and the row's last line say what came of it.
     QString how = act.origin.asked ? QStringLiteral("allowed in the window")
                                    : QStringLiteral("allowed in Settings");
@@ -106,6 +111,29 @@ void App::noteAgentAct(const AgentAct &act,
     }
     qInfo().noquote() << AgentGate::journalLine(act.word, subject, how, act.origin);
     setAgentLast(AgentGate::lastLine(act.word, subject, result), QDateTime::currentDateTimeUtc());
+}
+
+void App::noteAgentPlan(int plan,
+                        const core::AgentOrigin &origin,
+                        const QString &subject,
+                        const QString &journalSubject,
+                        const QString &result,
+                        const QStringList &torrentLines,
+                        const QString &line)
+{
+    const QList<core::ActionOutcome> parts = m_agentPlans.take(plan);
+    QString how = origin.asked ? QStringLiteral("allowed in the window")
+                               : QStringLiteral("allowed in Settings");
+    if (!result.isEmpty())
+        how += QStringLiteral(", %1").arg(result);
+    qInfo().noquote() << AgentGate::journalLine(
+        QStringLiteral("plan"), journalSubject, how, origin);
+    for (const QString &each : torrentLines)
+        qInfo().noquote() << each;
+    setAgentLast(AgentGate::lastLine(QStringLiteral("plan"), subject, result),
+                 QDateTime::currentDateTimeUtc());
+    if (!parts.isEmpty())
+        m_outcomes->reportPlan(parts, line);
 }
 
 void App::noteAgentRefusal(const QString &word,
