@@ -103,14 +103,21 @@ QString countOf(qsizetype n, const QString &one, const QString &many)
     return QStringLiteral("%1 %2").arg(n).arg(n == 1 ? one : many);
 }
 
+/// An action counted: "remove", "removes"; "move back", "moves back".
+std::pair<QString, QString> unitsOf(const QString &action)
+{
+    if (action == QLatin1String("move-back"))
+        return {QStringLiteral("move back"), QStringLiteral("moves back")};
+    if (action == QLatin1String("start-here"))
+        return {QStringLiteral("start-here"), QStringLiteral("start-heres")};
+    return {action, action + QLatin1Char('s')};
+}
+
 /// "6 removes", "1 move back": what an asking line asks for, as the plan's last line counts it.
 QString asksFor(const QString &action, int n)
 {
-    if (action == QLatin1String("move-back"))
-        return countOf(n, QStringLiteral("move back"), QStringLiteral("moves back"));
-    if (action == QLatin1String("start-here"))
-        return countOf(n, QStringLiteral("start-here"), QStringLiteral("start-heres"));
-    return countOf(n, action, action + QLatin1Char('s'));
+    const auto [one, many] = unitsOf(action);
+    return countOf(n, one, many);
 }
 
 core::AgentOrigin originOf(const core::ProcParent::Caller &caller, bool asked)
@@ -524,9 +531,14 @@ QVariantMap AgentDo::planRequest(const std::shared_ptr<PlanRun> &run) const
         else
             head = QStringLiteral("%1 %2").arg(title).arg(count);
 
+        // #305: the window's foot counts the boxes ticked by action, the allowed lines apart.
+        const auto [unit, units] = unitsOf(group.action);
         QVariantMap out{{QStringLiteral("action"), group.action},
                         {QStringLiteral("head"), head},
-                        {QStringLiteral("asks"), group.asks}};
+                        {QStringLiteral("asks"), group.asks},
+                        {QStringLiteral("count"), count},
+                        {QStringLiteral("unit"), unit},
+                        {QStringLiteral("units"), units}};
         if (group.asks) {
             out.insert(QStringLiteral("rows"), rows);
             out.insert(QStringLiteral("more"), wheres.join(QStringLiteral(" · ")));

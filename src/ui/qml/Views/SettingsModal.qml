@@ -4265,6 +4265,7 @@ Item {
         z: 1
 
         onAddBackRequested: id => App.addBack([id])
+        onAddBackAllRequested: ids => App.addBack(ids)
     }
 
     // #32, docs/24 §5: the import sheet, over the modal like the restore sheet.

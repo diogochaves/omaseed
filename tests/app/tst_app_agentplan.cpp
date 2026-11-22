@@ -489,6 +489,9 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     const QVariantMap allowed = groups.at(0).toMap();
     QVERIFY(!allowed.value(QStringLiteral("asks")).toBool());
     QCOMPARE(allowed.value(QStringLiteral("head")).toString(), QStringLiteral("Recheck 1"));
+    // #305: what the window's foot counts.
+    QCOMPARE(allowed.value(QStringLiteral("count")).toInt(), 1);
+    QCOMPARE(allowed.value(QStringLiteral("units")).toString(), QStringLiteral("rechecks"));
     QVERIFY(allowed.value(QStringLiteral("rows")).toList().isEmpty());
     const QVariantMap removes = groups.at(1).toMap();
     QVERIFY(removes.value(QStringLiteral("asks")).toBool());
@@ -499,6 +502,9 @@ void TestAppAgentPlan::mixedAsksOnceAndSaysUnticked()
     QCOMPARE(removes.value(QStringLiteral("more")).toString(),
              QStringLiteral("none of their files is on disk (checked) · each kept 30 days to add "
                             "back"));
+    QCOMPARE(removes.value(QStringLiteral("count")).toInt(), 2);
+    QCOMPARE(removes.value(QStringLiteral("unit")).toString(), QStringLiteral("remove"));
+    QCOMPARE(removes.value(QStringLiteral("units")).toString(), QStringLiteral("removes"));
     const QVariantList rows = removes.value(QStringLiteral("rows")).toList();
     QCOMPARE(rows.size(), 2);
     QCOMPARE(rows.at(0).toMap().value(QStringLiteral("key")).toString(),

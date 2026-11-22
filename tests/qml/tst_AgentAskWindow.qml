@@ -250,12 +250,18 @@ TestCase {
                     "action": "recheck",
                     "asks": false,
                     "head": "Recheck 20",
+                    "count": 20,
+                    "unit": "recheck",
+                    "units": "rechecks",
                     "more": "Harbour Bells, Lantern Festival…"
                 },
                 {
                     "action": "remove",
                     "asks": true,
                     "head": "Remove 2 from attic",
+                    "count": 2,
+                    "unit": "remove",
+                    "units": "removes",
                     "more": "none of their files is on disk (checked) · each kept 30 days to add back",
                     "checks": [],
                     "rows": [
@@ -288,7 +294,9 @@ TestCase {
         compare(sheet.title, "An agent asks to run a plan");
         compare(findChild(sheet, "askNames").visible, false);
         compare(findChild(sheet, "askPlan").visible, true);
-        compare(sheet.note, "space ticks · tab · ↵ on a button · esc refuses");
+        // #305: what is ticked by action, the allowed lines apart, then the keys.
+        compare(sheet.note,
+                "2 removes ticked · 20 allowed in Settings\nspace ticks · tab · ↵ on a button · esc refuses");
         const allowed = findChild(sheet, "askGroupAllowed");
         compare(findChild(allowed, "askGroupSide").text, "allowed in Settings");
         compare(findChild(allowed, "askTick-1:aaaa"), null, "an allowed line has no box");
@@ -303,6 +311,7 @@ TestCase {
         keyClick(Qt.Key_Space);
         compare(window.isTicked("1:aaaa"), false);
         compare(findChild(asking, "askGroupSide").text, "1 ticked");
+        verify(sheet.note.startsWith("1 remove ticked · 20 allowed in Settings\n"), sheet.note);
         keyClick(Qt.Key_Return);
         compare(opened.ask.allowed, 0, "↵ on a box allowed it");
         // A click ticks it back, and again off.
@@ -324,6 +333,72 @@ TestCase {
         const again = testCase.makeOpen(testCase.planRequest());
         compare(again.window.ticks(), ["1:aaaa", "1:bbbb"]);
         again.window.refuse();
+    }
+
+    // #305: a plan past a screenful: the bar shows, the top group's heading stays while its
+    // rows scroll under it, the next group's pushes it away, and the foot counts per action.
+    function test_a_long_plan_keeps_its_headings_and_counts() {
+        const request = testCase.planRequest();
+        const group = (line, action, head, n) => {
+            const rows = [];
+            for (let i = 0; i < n; ++i)
+                rows.push({
+                              "key": line + ":" + action + i,
+                              "name": action + " " + i,
+                              "line": "/data/" + action
+                          });
+            return {
+                "action": action,
+                "asks": true,
+                "head": head,
+                "count": n,
+                "unit": action,
+                "units": action + "s",
+                "more": "",
+                "checks": [],
+                "rows": rows
+            };
+        };
+        request.groups = [group(0, "locate", "Locate 10 → /data/films", 10), group(1, "locate",
+                                                                                   "Locate 8 → /data/albums",
+                                                                                   8), group(2,
+                                                                                             "remove", "Remove 9 from attic",
+                                                                                             9)];
+        const opened = testCase.makeOpen(request);
+        const window = opened.window;
+        const sheet = window.sheet;
+        const list = findChild(sheet, "askPlan");
+        const bar = findChild(sheet, "askPlanBar");
+        const head = findChild(sheet, "askStuckHead");
+        verify(list.contentHeight > list.height, "the plan fits: no scrolling to check");
+        verify(bar.visible, "no scrollbar on a list that scrolls");
+        verify(!head.visible, "a heading pinned before any scroll");
+        verify(sheet.note.startsWith("27 ticked: 18 locates, 9 removes\n"), sheet.note);
+
+        // Into the first group's rows: its heading pinned at the top.
+        list.contentY = findChild(sheet, "askTick-0:locate3").mapToItem(list.contentItem, 0, 0).y;
+        tryVerify(() => head.visible);
+        compare(findChild(head, "askStuckHeadText").text, "Locate 10 → /data/films");
+        compare(findChild(head, "askStuckHeadSide").text, "10 ticked");
+        compare(head.y, 0);
+        // Into the second: its heading instead; unticking there counts at once.
+        list.contentY = findChild(sheet, "askTick-1:locate4").mapToItem(list.contentItem, 0, 0).y;
+        tryCompare(findChild(head, "askStuckHeadText"), "text", "Locate 8 → /data/albums");
+        window.toggle("1:locate4");
+        compare(findChild(head, "askStuckHeadSide").text, "7 ticked");
+        verify(sheet.note.startsWith("26 ticked: 17 locates, 9 removes\n"), sheet.note);
+        // Just above the third group: the second's heading pushed up out of its way.
+        const third = findChild(sheet, "askTick-2:remove0").parent.parent;
+        list.contentY = third.mapToItem(list.contentItem, 0, 0).y - head.height / 2;
+        tryVerify(() => head.y < 0);
+        // At the bottom: the last group's.
+        list.contentY = list.contentHeight - list.height;
+        tryCompare(findChild(head, "askStuckHeadText"), "text", "Remove 9 from attic");
+        // Every remove unticked: they leave the count.
+        for (let i = 0; i < 9; ++i)
+            window.toggle("2:remove" + i);
+        verify(sheet.note.startsWith("17 locates ticked\n"), sheet.note);
+        window.refuse();
     }
 
     function test_the_window_goes_before_the_answer_runs() {

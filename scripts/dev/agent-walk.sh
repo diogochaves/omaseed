@@ -654,7 +654,7 @@ check "dry run: exit 0, both lines would ask" answered 0 plan-dry.json \
     '.dryRun == true and ([.lines[].would] == ["ask", "ask"])'
 asking plan "do" --plan "$TW/plan.json" --json
 check "the plan: one ask opens" ask_open
-step "The plan's ask" "'An agent asks to run a plan', 540 wide: Recheck 2 ($TA_NAME, $TB_NAME) and Reannounce 1, each ticked; the foot 'space ticks · tab · ↵ on a button · esc refuses'; refuse, allow these."
+step "The plan's ask" "'An agent asks to run a plan', 540 wide: Recheck 2 ($TA_NAME, $TB_NAME) and Reannounce 1, each ticked; the foot '3 ticked: 2 rechecks, 1 reannounce' over 'space ticks · tab · ↵ on a button · esc refuses'; refuse, allow these."
 ask_keys Tab space
 check "space unticks the first row" bash -c "omabox tree -b '$BOX' --window '$ASK' | grep -q 'check box \"$TA_NAME\" \[focused unchecked\]'"
 ask_keys Tab Tab Tab Tab

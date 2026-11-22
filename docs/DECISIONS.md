@@ -3196,6 +3196,12 @@ left to the build:
   the answer runs. The CLI prints "Asking in omaseed's window…" on stderr when the app broadcasts
   `Asking(u pid, s words)` for its pid ("… moves always ask.", "… removes always ask."); it waits
   asleep in an event loop. `OMASEED_ASK_TIMEOUT_MS` shortens the 2 minutes for tests and walks.
+  A plan's window (#305): past a screenful the list scrolls with the kit's bar beside it, the
+  group at the top keeps its heading pinned while its rows pass under it (the next group's
+  pushes it away), and the foot's note says what is ticked by action before the keys, live:
+  "27 ticked: 18 locates, 9 removes" (one action: "9 removes ticked"; "none ticked"), the lines
+  Settings allows counted apart ("· 4 allowed in Settings"). Each group carries its `count` and
+  its action's `unit`/`units` for it.
 - **Moves through `do`** wait for the move sheet's whole plan (up to 20 s); a plan that can't move
   is refused "Not moved: …" before any ask; one that leaves some out asks with the sheet's lines
   that bear on the answer. Behind a running move it is queued (`queued: N`, `job: null`, C44 L12).
@@ -3225,7 +3231,8 @@ left to the build:
   in and recheck" (`LocateCheck::unmountedDrive`). The keep runs after the ask, one torrent at a time; one that can't keep (its
   `.torrent` unreadable from here, the daemon's folder out of reach) refuses the whole remove
   `not-removable`, "omaseed keeps a way back before every remove"; a bare magnet keeps its link.
-  Add back (`App.addBack`) is the person's: another server's kept torrent is listed, its button off
+  Add back (`App.addBack`) is the person's; with two or more kept for the server on show the
+  sheet has `add back all`, those one after another as the strip's add back, the sheet left open: another server's kept torrent is listed, its button off
   until that server is on show ("switch to it first"); adding back never switches servers. A
   damaged keep folder is skipped and pruned by the day in its name; a folder not so named is never
   touched. An agent's remove strip is a done strip, so its `add back` goes after 6 s (C18 D3); the
