@@ -3242,6 +3242,14 @@ left to the build:
   time once the plan is refused; an off line lists none (the gate refuses them all). The text
   says each under its line ("2 of 3 refused", hash and why) and the plan's last line once, on
   stderr; a locate line counts files apart from torrents ("11 files found").
+- **errors for missing files** (v0.17.1, #299, #300). `kind` is `missing-files` on every engine:
+  the missing phase, qBittorrent's flag, or an engine error matched to the `missingFiles` or
+  `missing` cause (Transmission's "No data found"). Its `fix.do` is `locate` (needs `--to`) where
+  the window offers set location (`fix.words` stays the window's "move…"; the text answer says
+  "fix: locate --to FOLDER"). Where omaseed sees the disk and the save path's drive isn't mounted
+  (`LocateCheck::unmountedDrive`, read only for torrents in missing files, the mount table once
+  per answer), the sentence is "Its folder is on a drive that isn't mounted (…): plug it in, then
+  recheck." and the fix `{words: "recheck", do: "recheck"}`. The window's row is unchanged.
 - **`help agents`** is the CLI's own: it asks the running omaseed's `Status` for the address (5 s)
   and prints `<host>:<port>` with a line saying so when none answers; exit 0 always. A loopback
   server is named both as 127.0.0.1 and localhost. Claude Code: `Bash(*ADDR*)`, the bus tools on

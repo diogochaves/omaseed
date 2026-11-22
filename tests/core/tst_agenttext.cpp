@@ -371,6 +371,13 @@ void TestAgentText::errorsAsTheBoard()
     QVERIFY(painted.contains(QStringLiteral("\x1b[31mno access\x1b[0m")));
     QVERIFY(painted.contains(QStringLiteral("\x1b[33mdidn't move\x1b[0m")));
     QVERIFY(painted.contains(QStringLiteral("\x1b[31m2 need you\x1b[0m")));
+
+    // #299: missing files' fix is the agent's locate, not the window's words ("move…").
+    Answers::ErrorsInput missing = board();
+    missing.torrents[0].problemCause = QStringLiteral("missingFiles");
+    const QString text = lines(missing, false, 60);
+    QVERIFY2(text.contains(QStringLiteral("since 14:03 · fix: locate --to FOLDER\n")),
+             qPrintable(text));
 }
 
 void TestAgentText::nothingNeedsYou()

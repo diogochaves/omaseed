@@ -243,7 +243,10 @@ QString kindOf(const ErrorTorrent &torrent)
 {
     if (torrent.problem && torrent.stuckMove)
         return QStringLiteral("stuck-move");
-    if ((torrent.problem && torrent.missingFiles) || torrent.phase == TorrentPhase::Missing)
+    if (torrent.phase == TorrentPhase::Missing ||
+        (torrent.problem &&
+         (torrent.missingFiles || torrent.problemCause == QLatin1String("missingFiles") ||
+          torrent.problemCause == QLatin1String("missing"))))
         return QStringLiteral("missing-files");
     if (torrent.problem || torrent.failureLine.isEmpty())
         return QStringLiteral("error");
@@ -642,20 +645,37 @@ QByteArray errors(const ErrorsInput &input)
                 });
             }
         }
-        const FixDo fix = fixDo(torrent.fixAction);
+        const QString kind = kindOf(torrent);
+        FixDo fix = fixDo(torrent.fixAction);
+        QString sentence = torrent.sentence;
+        QString fixWords = torrent.fixWords;
+        if (kind == QLatin1String("missing-files")) {
+            if (!torrent.unmountedDrive.isEmpty()) {
+                // #300: not gone, unplugged (C50 GT1's guard): plug it in, then a recheck.
+                sentence = QStringLiteral("Its folder is on a drive that isn't mounted (%1): "
+                                          "plug it in, then recheck.")
+                               .arg(torrent.unmountedDrive);
+                fix = {QStringLiteral("recheck"), {}};
+                fixWords = QStringLiteral("recheck");
+            } else if (fix.action == QLatin1String("move")) {
+                // #299: the window's set location is `do locate` for files that are missing
+                // (C50 GT2); a move of files that aren't there can't run.
+                fix = {QStringLiteral("locate"), {QStringLiteral("--to")}};
+            }
+        }
         torrents.append(QJsonObject{
             {QStringLiteral("hash"), torrent.hash},
             {QStringLiteral("name"), torrent.name},
-            {QStringLiteral("kind"), kindOf(torrent)},
+            {QStringLiteral("kind"), kind},
             {QStringLiteral("cause"), causeOf(torrent)},
             {QStringLiteral("fact"), maskText(torrent.fact)},
-            {QStringLiteral("sentence"), maskText(torrent.sentence)},
+            {QStringLiteral("sentence"), maskText(sentence)},
             {QStringLiteral("since"), isoUtc(torrent.since)},
             {QStringLiteral("state"), phaseName(torrent.phase)},
             {QStringLiteral("savePath"), torrent.savePath},
             {QStringLiteral("fix"),
              QJsonObject{
-                 {QStringLiteral("words"), torrent.fixWords},
+                 {QStringLiteral("words"), fixWords},
                  {QStringLiteral("do"), fix.action},
                  {QStringLiteral("needs"), QJsonArray::fromStringList(fix.needs)},
              }},

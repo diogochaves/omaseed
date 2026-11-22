@@ -305,8 +305,12 @@ QString errors(const QJsonObject &answer, const TextStyle &style)
         const QString since = when(torrent.value(QLatin1String("since")), style);
         if (!since.isEmpty())
             meta << QStringLiteral("since ") + since;
+        // #299: a locate is the agent's action, not the window's words ("move…").
+        const QJsonObject fixObject = torrent.value(QLatin1String("fix")).toObject();
         const QString fix =
-            torrent.value(QLatin1String("fix")).toObject().value(QLatin1String("words")).toString();
+            fixObject.value(QLatin1String("do")).toString() == QLatin1String("locate")
+                ? QStringLiteral("locate --to FOLDER")
+                : fixObject.value(QLatin1String("words")).toString();
         if (!fix.isEmpty())
             meta << QStringLiteral("fix: ") + fix;
         if (!meta.isEmpty())

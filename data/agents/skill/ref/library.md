@@ -28,7 +28,7 @@ A failure is {"error": {"code", "message"}}; the message is for the person.
   landedToday, givingBack, resting}, moves, paused, and servers[] as last seen.
 - errors: torrents[] with kind, cause, fact, sentence, since, state, savePath,
   fix {words, do, needs} and up to 3 log lines. fix.do is the do action
-  for it; missing files say move, but files moved elsewhere are a locate.
+  for it: locate for missing files; recheck once a drive is plugged in.
   errors and log read only the server omaseed is on; --server another
   one is exit 4.
 - log: qBittorrent only (no-log on the others). lines[] oldest first, each
@@ -76,13 +76,14 @@ move adds job, locate found and files, remove kept (the day it goes).
   {"lines": [{"action": "locate", "torrents": ["71ad02bc"], "to": "/x"},
              {"action": "remove", "torrents": ["9c40e7a2"]}]}
 Every line is checked first: one off or refused line runs nothing
-(lines[].would, error say which). Else one window asks for the lot,
+(lines[].would; its torrents[], each with why). Else one window asks for the lot,
 each torrent ticked; the person may untick some. The answer: lines[]
 {action, done, failed, unticked, outcome}.
 
 ## Missing files, sorted out
 
-1. errors --json: kind missing-files or cause missingFiles; savePath.
+1. errors --json: kind missing-files; savePath. A drive not mounted: the
+   person plugs it in, then recheck.
 2. Look for each on disk with your shell: its name, then its size.
 3. A plan: locate where you found it, remove only what is nowhere.
 4. do --plan --dry-run, fix what it refuses (has files: locate or

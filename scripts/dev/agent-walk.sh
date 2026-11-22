@@ -567,7 +567,7 @@ mv "$TW/in/$TA_NAME" "$TW/found/"
 cp "$TW/found/$TA_NAME/b.txt" "$TW/partial/$TA_NAME/"
 check "a verify: $TA_NAME's data not found" files_gone "$TA"
 check "errors: $TA_NAME's files missing, locate offered" until_answer 30 errors-locate \
-    "[.torrents[] | select(.hash == \"$TA\" and .cause == \"missingFiles\")] | length == 1" errors --json
+    "[.torrents[] | select(.hash == \"$TA\" and .cause == \"missingFiles\" and .kind == \"missing-files\" and .fix.do == \"locate\")] | length == 1" errors --json
 word locate-wrong "do" locate "$TA" --to "$TW/wrong" --json
 check "locate --to a folder without them: exit 5, not-found, found 0 of 2" answered 5 locate-wrong.json \
     '.error.code == "not-found" and .failed[0].found == 0 and .failed[0].files == 2 and (.done | length) == 0'
