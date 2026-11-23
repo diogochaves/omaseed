@@ -414,7 +414,9 @@ RELEASE_FILES+=(dist/SHA256SUMS)
 log "Release artefacts in dist/:"
 printf '  %s\n' "${RELEASE_FILES[@]}" dist/RELEASE_NOTES.md
 
-RELEASE_ARGS=(release create "$TAG" "${RELEASE_FILES[@]}" --notes-file dist/RELEASE_NOTES.md)
+# An explicit title: with none, GitHub names the release "tag: <first paragraph of the notes>"
+# whenever the changelog section opens with a paragraph before its first ### heading.
+RELEASE_ARGS=(release create "$TAG" "${RELEASE_FILES[@]}" --title "$TAG" --notes-file dist/RELEASE_NOTES.md)
 if [[ $MAINTENANCE -eq 1 ]]; then
     # A patch to an older line, once a newer version is out, must not become GitHub's latest
     # (the README's releases/latest/download/ link): the newest tag here decides.
