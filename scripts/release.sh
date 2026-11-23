@@ -377,8 +377,9 @@ write_sums
 
 log "Writing release notes"
 {
-    printf '# omaseed %s\n\n' "$TAG"
-    printf '%s\n\n' "$CHANGELOG_SECTION" | unwrap_markdown
+    # No heading of our own: GitHub shows the release's name (the tag) and date above the notes,
+    # so the section's "## vX.Y.Z — date" line goes too, and its blank lines after it.
+    printf '%s\n\n' "$CHANGELOG_SECTION" | sed '1d' | sed '/./,$!d' | unwrap_markdown
     printf '## Install\n\n'
     if [[ -n "$PKG_NAME" ]]; then
         printf 'Arch / Omarchy, the prebuilt package (pacman pulls Qt and the rest from the Arch repos):\n\n'
