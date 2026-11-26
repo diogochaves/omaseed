@@ -5,6 +5,17 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.17.3 — 2026-11-26
+
+### Fixed
+
+- **"Finished downloading" counts what was downloaded.** With files skipped, the story named
+  the whole torrent's size; now it says the wanted files' size, then the whole: "43 KB of
+  24.1 MB in 14 s". (#262)
+- **The palettes' "N below" hint matches the list.** It was one short when a row sat under its
+  band, said nothing when the list was one row too long, and could leave a section's heading
+  at the bottom with its rows hidden below it. (#268)
+
 ## v0.17.2 — 2026-11-26
 
 ### Fixed
