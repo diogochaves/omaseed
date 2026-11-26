@@ -368,24 +368,40 @@ Item {
         }
         return -1;
     }
-    readonly property int _rawAbove: Math.max(0,
-            root._rowAt(list.contentY + 1, root._layoutRevision))
+    /// The first row wholly below content `edge` (#268): the row there when it crosses it,
+    /// so a row cut by the list's end or a band counts as out of view.
+    function _firstOutBelow(edge: real, revision: int): int {
+        const index = root._rowAt(edge - 1, revision);
+        if (index < 0)
+            return -1;
+        const box = root._rowBoxes[index];
+        return box[0] + box[1] > edge + 0.5 ? index : index + 1;
+    }
+    /// How many items are above the first wholly below content `edge` (#268).
+    function _firstInAbove(edge: real, revision: int): int {
+        const index = root._rowAt(edge + 1, revision);
+        if (index < 0)
+            return -1;
+        return root._rowBoxes[index][0] < edge - 0.5 ? index + 1 : index;
+    }
+    readonly property int _rawAbove: Math.max(0, root._firstInAbove(list.contentY,
+                                                                    root._layoutRevision))
     readonly property int _rawBelow: {
-        const last = root._rowAt(list.contentY + list.height - 1, root._layoutRevision);
-        return last < 0 ? 0 : list.count - 1 - last;
+        const from = root._firstOutBelow(list.contentY + list.height, root._layoutRevision);
+        return from < 0 ? 0 : list.count - from;
     }
     readonly property int _rowsAbove: {
         if (root._rawAbove === 0)
             return 0;
-        return root._rowsIn(0, Math.max(root._rawAbove,
-                root._rowAt(list.contentY + hint.bandHeight + 1, root._layoutRevision)));
+        return root._rowsIn(0, Math.max(root._rawAbove, root._firstInAbove(
+                                            list.contentY + hint.bandHeight, root._layoutRevision)));
     }
     readonly property int _rowsBelow: {
         if (root._rawBelow === 0)
             return 0;
-        const last = root._rowAt(list.contentY + list.height - hint.bandHeight - 1,
-                root._layoutRevision);
-        return root._rowsIn(last < 0 ? list.count - root._rawBelow : last + 1, list.count);
+        const from = root._firstOutBelow(list.contentY + list.height - hint.bandHeight,
+                                         root._layoutRevision);
+        return root._rowsIn(from < 0 ? list.count - root._rawBelow : from, list.count);
     }
 
     /// How much of a row counted above or below still shows past a band's inner edge (#8):
@@ -401,9 +417,18 @@ Item {
     }
     readonly property real _topCover: root._rowsAbove === 0 ? 0
             : root._straddle(list.contentY + hint.bandHeight, root._layoutRevision, false)
-    readonly property real _bottomCover: root._rowsBelow === 0 ? 0
-            : root._straddle(list.contentY + list.height - hint.bandHeight, root._layoutRevision,
-                             true)
+    readonly property real _bottomCover: {
+        if (root._rowsBelow === 0)
+            return 0;
+        const edge = list.contentY + list.height - hint.bandHeight;
+        const cover = root._straddle(edge, root._layoutRevision, true);
+        // #268: a heading whose rows are all under the band goes under it too, so the view
+        // never ends on a heading with nothing after it.
+        const index = root._rowAt(edge - cover - 1, root._layoutRevision);
+        if (index < 0 || root.items[index] === undefined || root.items[index].heading !== true)
+            return cover;
+        return edge - root._rowBoxes[index][0];
+    }
 
     // ---- dragging a row (`draggable`) ----------------------------------------------------
     /// Whether row `index` may be picked up.
