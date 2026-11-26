@@ -96,7 +96,7 @@ head -n1 "$NOTES" | grep -qxF "# omaseed $TAG" || fail "RELEASE_NOTES.md title i
 grep -qxF -- "- A bullet wrapped over two lines." "$NOTES" || fail "RELEASE_NOTES.md did not unwrap the changelog's lines"
 grep -A1 -xF "kept" "$NOTES" | grep -qxF "as is" || fail "RELEASE_NOTES.md unwrapped a code block"
 echo "$OUTPUT" | grep -qF \
-    "gh release create $TAG dist/omaseed-$VERSION.tar.gz dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" ||
+    "gh release create $TAG dist/omaseed-$VERSION.tar.gz dist/SHA256SUMS --title $TAG --notes-file dist/RELEASE_NOTES.md" ||
     fail "did not print the expected gh release create command"
 
 # ---- publish --------------------------------------------------------------------------------
@@ -183,7 +183,7 @@ compgen -G "$CLONE/dist/*debug*" >/dev/null && fail "the -debug package reached 
 grep -qF "releases/download/$TAG/$PKG" "$NOTES" || fail "the release notes do not give the package's URL"
 
 echo "==> gh was asked for the release, with both packages"
-grep -qxF "release create $TAG dist/omaseed-$VERSION.tar.gz dist/$PKG dist/$LATEST dist/SHA256SUMS --notes-file dist/RELEASE_NOTES.md" "$WORK/gh.log" ||
+grep -qxF "release create $TAG dist/omaseed-$VERSION.tar.gz dist/$PKG dist/$LATEST dist/SHA256SUMS --title $TAG --notes-file dist/RELEASE_NOTES.md" "$WORK/gh.log" ||
     fail "gh was not called as expected: $(cat "$WORK/gh.log")"
 [[ -z "$(git status --porcelain)" ]] || fail "publish left the tree dirty: $(git status --porcelain)"
 
