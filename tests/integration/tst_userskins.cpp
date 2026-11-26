@@ -44,6 +44,7 @@ private slots:
     void savedTwiceDrawsTheSecond();
     void aRewriteThatReadsTheSameIsSilent();
     void aNewFolderIsListed();
+    void theSkinsAccentIsTheAccent();
 
 private:
     /// A reader on the temporary folder, its skins folder m_dir, drawing `choice`.
@@ -345,6 +346,28 @@ void TestUserSkins::aNewFolderIsListed()
     QCOMPARE(folder->skins().first().name, QStringLiteral("paper"));
     QCOMPARE(folder->skins().first().description, QStringLiteral("Paper."));
     QVERIFY(listed.count() >= 2);
+}
+
+/// #287: a skin that casts another role as its accent repaints everything in the accent
+/// (`Theme.accent` and each ground's accent ink: the selection mark, the progress bars, the
+/// meter, links, the fix), not only its plates and edges; the theme role `accent` stays the
+/// theme's own, for a skin that names it.
+void TestUserSkins::theSkinsAccentIsTheAccent()
+{
+    put(QStringLiteral("warm"),
+        R"({"version": 1, "roles": {"accent": "orange", "signal": "accent"}})");
+    const auto plain = reader(QStringLiteral("omarchy"));
+    Theme omarchy(plain.get(), Theme::Hyprland{QString(), QString()});
+    QCOMPARE(omarchy.accent(), omarchy.themeAccent());
+    QCOMPARE(omarchy.on()->window()->accent(), omarchy.themeAccent());
+
+    const auto warmReader = reader(QStringLiteral("warm"));
+    THEME(warmReader);
+    QVERIFY(theme.orange() != theme.themeAccent());
+    QCOMPARE(theme.accent(), theme.orange());
+    QCOMPARE(theme.on()->window()->accent(), theme.orange());
+    QCOMPARE(theme.skinColor(QStringLiteral("accent")), theme.orange());
+    QCOMPARE(theme.skinColor(QStringLiteral("signal")), theme.themeAccent());
 }
 
 QTEST_MAIN(TestUserSkins)

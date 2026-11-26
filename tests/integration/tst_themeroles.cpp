@@ -172,9 +172,9 @@ void TestThemeRoles::everyColourAndAlphaRoleIsThere()
             QVERIFY2(alphas.contains(name), qPrintable(name));
         }
     }
-    // 18 palette roles and 7 state roles; the shell's 7 alphas, the spec's 4, the ground's 2,
-    // C30's cap and three tints.
-    QCOMPARE(colourRoles, 25);
+    // 18 palette roles, the theme's own accent beside the skin's (#287) and 7 state roles;
+    // the shell's 7 alphas, the spec's 4, the ground's 2, C30's cap and three tints.
+    QCOMPARE(colourRoles, 26);
     QCOMPARE(colors.size(), colourRoles);
     QCOMPARE(alphaRoles, 17);
     QCOMPARE(alphas.size(), alphaRoles);

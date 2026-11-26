@@ -88,7 +88,14 @@ class Theme : public QObject
     /// accent, red, yellow, orange, green, cyan, blue and magenta paint text and glyphs, so
     /// they get the same floor as dimForeground, by the same lift (Q19 amended, #89). muted,
     /// selection, brown and the grounds are never text and stay as the theme has them.
+    /// accent is the skin's accent (`roles.accent`, docs/DECISIONS.md C51 W1): the theme
+    /// role the skin casts as its accent, the theme's own accent under Omarchy's skin. All
+    /// that marks the selected or the current reads it, so a skin's accent reaches the
+    /// selection mark, the meter, links and the fix as it reaches plates and edges.
     Q_PROPERTY(QColor accent READ accent NOTIFY changed FINAL)
+    /// The theme's own accent, whatever the skin casts: what a skin means by the theme role
+    /// `accent` (`roles.signal: "accent"`), and what skinColor() and roleColor() resolve it to.
+    Q_PROPERTY(QColor themeAccent READ themeAccent NOTIFY changed FINAL)
     Q_PROPERTY(QColor muted READ muted NOTIFY changed FINAL)
     Q_PROPERTY(QColor selection READ selection NOTIFY changed FINAL)
     Q_PROPERTY(QColor red READ red NOTIFY changed FINAL)
@@ -212,7 +219,8 @@ public:
     QColor foreground() const { return m_foreground; }
     QColor dimForeground() const { return m_dimForeground; }
     QColor brightForeground() const { return m_brightForeground; }
-    QColor accent() const { return m_accent; }
+    QColor accent() const { return m_skinAccent; }
+    QColor themeAccent() const { return m_accent; }
     QColor muted() const { return m_muted; }
     QColor selection() const { return m_selection; }
     QColor red() const { return m_red; }
@@ -403,6 +411,8 @@ private:
     QColor m_dimForeground{QStringLiteral("#565f89")};
     QColor m_brightForeground{QStringLiteral("#c0caf5")};
     QColor m_accent{QStringLiteral("#7aa2f7")};
+    /// The skin's accent (#287), set with the grounds whenever the theme or the skin changes.
+    QColor m_skinAccent{QStringLiteral("#7aa2f7")};
     QColor m_muted{QStringLiteral("#414868")};
     QColor m_selection{QStringLiteral("#292e42")};
     QColor m_red{QStringLiteral("#f7768e")};

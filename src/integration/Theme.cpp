@@ -290,11 +290,16 @@ void Theme::resolveGrounds()
 {
     // Once per theme change, every role on every ground (C30 F7): a binding reads the
     // resolved colour, it never lifts one itself.
+    // The skin's accent (#287): every ground's accent ink is it, so a skin that casts
+    // another role as its accent repaints the text and marks in the accent as well.
+    const QColor skinAccent = skinColor(QStringLiteral("accent"));
+    m_skinAccent = skinAccent.isValid() ? skinAccent : m_accent;
+
     ThemeInk::Roles window;
     window[ThemeInk::Foreground] = m_foreground;
     window[ThemeInk::DimForeground] = m_dimForeground;
     window[ThemeInk::BrightForeground] = m_brightForeground;
-    window[ThemeInk::Accent] = m_accent;
+    window[ThemeInk::Accent] = m_skinAccent;
     window[ThemeInk::Red] = m_red;
     window[ThemeInk::Yellow] = m_yellow;
     window[ThemeInk::Orange] = m_orange;

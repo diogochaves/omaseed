@@ -1142,6 +1142,12 @@ QJsonObject SkinReader::schema()
     for (auto it = omarchyRoles().constBegin(); it != omarchyRoles().constEnd(); ++it) {
         QJsonObject role = ref(QStringLiteral("themeRole"));
         role.insert(QStringLiteral("default"), it.value());
+        // #287: what the accent reaches, and what it doesn't (a torrent's state colours).
+        if (it.key() == QLatin1String("accent"))
+            role.insert(QStringLiteral("description"),
+                        QStringLiteral("All that is selected or current: marks, edges, links, "
+                                       "the meter, a fix. A torrent's state keeps its own colour "
+                                       "(downloading blue, seeding green)."));
         roles.insert(it.key(), role);
     }
     properties.insert(QStringLiteral("roles"),
