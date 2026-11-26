@@ -111,6 +111,7 @@ private slots:
     void timesReadFromNow();
     void addedSaysWhere();
     void finishedSaysHowLong();
+    void finishedCountsTheWantedFiles();
     void aTorrentAddedCompleteNeverFinishes();
     void movesSayWithWhat();
     void theErrorAndTheFailureComeAtTheirLoggedTimes();
@@ -197,6 +198,21 @@ void TestTorrentStory::finishedSaysHowLong()
     QCOMPARE(titles(events), QStringList({"Finished downloading", "Added"}));
     QCOMPARE(events.at(0).detail, QStringLiteral("716 MB in 1h 27m"));
     QCOMPARE(events.at(0).time, QStringLiteral("10:42"));
+}
+
+// #262: with files skipped, the line counts what was fetched, the wanted files, then the
+// whole torrent's size; a torrent with every file wanted says one size.
+void TestTorrentStory::finishedCountsTheWantedFiles()
+{
+    StoryInput input;
+    input.now = at(24, 16, 0);
+    input.torrent = added(at(24, 10, 0));
+    input.torrent.completionOn = at(24, 10, 0).addSecs(14);
+    input.torrent.size = 43 * 1024;
+    input.torrent.totalSize = 24 * kMiB;
+    QCOMPARE(TorrentStory::events(input).at(0).detail, QStringLiteral("43 KB of 24.0 MB in 14 s"));
+    input.torrent.size = 24 * kMiB;
+    QCOMPARE(TorrentStory::events(input).at(0).detail, QStringLiteral("24.0 MB in 14 s"));
 }
 
 void TestTorrentStory::aTorrentAddedCompleteNeverFinishes()

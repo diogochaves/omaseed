@@ -241,11 +241,17 @@ QList<StoryEvent> TorrentStory::events(const StoryInput &input)
     // that says nothing, so it is left out.
     if (t.completionOn.isValid() && t.addedOn.isValid() && t.completionOn > t.addedOn) {
         const qint64 took = t.addedOn.secsTo(t.completionOn);
-        const qint64 size = t.totalSize > 0 ? t.totalSize : t.size;
-        QString detail = took > 0 ? tr("in %1").arg(Format::duration(took)) : QString();
+        // #262: what was fetched is the wanted files' size (`size`), as the pieces line's
+        // percent is "of wanted" (#189); with files skipped, the whole torrent's follows it.
+        const qint64 size = t.size > 0 ? t.size : t.totalSize;
+        QString amount;
         if (size > 0)
-            detail =
-                detail.isEmpty() ? Format::size(size) : tr("%1 %2").arg(Format::size(size), detail);
+            amount = t.totalSize > size
+                         ? tr("%1 of %2").arg(Format::size(size), Format::size(t.totalSize))
+                         : Format::size(size);
+        QString detail = took > 0 ? tr("in %1").arg(Format::duration(took)) : QString();
+        if (!amount.isEmpty())
+            detail = detail.isEmpty() ? amount : tr("%1 %2").arg(amount, detail);
         add(t.completionOn, StoryEvent::Kind::Plain, tr("Finished downloading"), detail);
     }
 

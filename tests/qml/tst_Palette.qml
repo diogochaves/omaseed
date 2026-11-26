@@ -166,9 +166,10 @@ TestCase {
         verify(hint.countBelow > 0, "no rows counted below");
         compare(findChild(hint, "moreBelow").visible, true);
         compare(findChild(hint, "moreAbove").visible, false);
-        // Every row is either counted, or at least partly on screen above the band.
+        // Every row is either counted, or wholly on screen above the band: the band reaches
+        // over a row it cuts (#8), so that row is counted too (#268).
         const rowHeight = palette.listView.contentHeight / 40;
-        const shown = Math.floor((palette.listView.height - hint.bottomInset - 1) / rowHeight) + 1;
+        const shown = Math.floor((palette.listView.height - hint.bottomInset + 0.5) / rowHeight);
         compare(hint.countBelow, 40 - shown);
 
         palette.cursorToKey(39);
@@ -220,6 +221,104 @@ TestCase {
         const rowHeight = list.contentHeight / 40;
         list.contentY = Math.round(rowHeight * 6.4);
         check("wheel");
+    }
+
+    // #268: what the bands say matches what is out of sight. A row is in view when it sits
+    // wholly between the bands (or the list's ends, where no band shows); every row that
+    // isn't is counted, above or below, and a heading is never counted.
+    function expectHonestBands(palette, what) {
+        const list = palette.listView;
+        const hint = findChild(palette, "scrollHint");
+        const above = findChild(hint, "moreAbove");
+        const below = findChild(hint, "moreBelow");
+        const top = list.contentY + (above.visible ? above.height : 0);
+        const bottom = list.contentY + list.height - (below.visible ? below.height : 0);
+        let hiddenAbove = 0;
+        let hiddenBelow = 0;
+        let lastShown = -1;
+        for (let i = 0; i < list.count; ++i) {
+            const row = list.itemAtIndex(i);
+            const heading = palette.items[i].heading === true;
+            const out = row === null ? (lastShown >= 0 ? 1 : -1)
+                      : row.y + row.height > bottom + 0.5 ? 1 : row.y < top - 0.5 ? -1 : 0;
+            if (out === 0)
+                lastShown = i;
+            if (heading)
+                continue;
+            if (out < 0)
+                ++hiddenAbove;
+            else if (out > 0)
+                ++hiddenBelow;
+        }
+        compare(hint.countBelow, hiddenBelow, what + ": rows below");
+        compare(hint.countAbove, hiddenAbove, what + ": rows above");
+        compare(below.visible, hiddenBelow > 0, what + ": the bottom band");
+        // The last thing in view is a row, never a heading left without its rows.
+        if (hiddenBelow > 0)
+            verify(palette.items[lastShown].heading !== true, what + ": a heading ends the view");
+    }
+
+    function headedRows(count) {
+        const rows = [];
+        for (let i = 0; i < count; ++i) {
+            if (i % 4 === 0)
+                rows.push({ "title": "section " + i, "meta": "3", "heading": true });
+            rows.push({ "title": "row " + i, "key": i });
+        }
+        return rows;
+    }
+
+    function test_the_bands_count_what_is_out_of_sight() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.longRows()
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        const list = palette.listView;
+        const rowHeight = list.contentHeight / 40;
+        const fits = Math.floor(list.height / rowHeight);
+        // From fewer than fit to a few over: one over still says so.
+        for (let n = fits - 1; n <= fits + 3; ++n) {
+            palette.items = testCase.longRows().slice(0, n);
+            waitForRendering(palette);
+            testCase.expectHonestBands(palette, n + " rows");
+        }
+        palette.items = testCase.longRows();
+        waitForRendering(palette);
+        for (let i = 0; i < 25; ++i) {
+            keyClick(Qt.Key_Down);
+            testCase.expectHonestBands(palette, "down " + i);
+        }
+        list.contentY = Math.round(rowHeight * 6.4);
+        waitForRendering(palette);
+        testCase.expectHonestBands(palette, "wheel");
+    }
+
+    function test_the_bands_count_what_is_out_of_sight_with_headings() {
+        const palette = createTemporaryObject(paletteComponent, testCase, {
+                                                  "items": testCase.headedRows(40)
+                                              });
+        palette.open();
+        waitForRendering(palette);
+        testCase.expectHonestBands(palette, "at the top");
+        for (let n = 6; n <= 14; ++n) {
+            palette.items = testCase.headedRows(n);
+            waitForRendering(palette);
+            testCase.expectHonestBands(palette, n + " rows in sections");
+        }
+        palette.items = testCase.headedRows(40);
+        waitForRendering(palette);
+        for (let i = 0; i < 25; ++i) {
+            keyClick(Qt.Key_Down);
+            testCase.expectHonestBands(palette, "down " + i);
+        }
+        // Every place a wheel can leave it, a pixel at a time.
+        const list = palette.listView;
+        for (let y = 0; y < list.contentHeight - list.height; y += 2) {
+            list.contentY = list.originY + y;
+            waitForRendering(palette);
+            testCase.expectHonestBands(palette, "at " + y);
+        }
     }
 
     function test_the_cursor_stays_clear_of_the_bands() {
@@ -1234,9 +1333,9 @@ TestCase {
         let visibleLast = -1;
         for (let i = 0; i < rows.length; ++i) {
             const item = palette.listView.itemAtIndex(i);
-            // The last row the band does not wholly hide, as the palette counts it.
-            if (item !== null && item.y < palette.listView.contentY + palette.listView.height
-                    - hint.bandHeight - 1)
+            // The last row wholly above the band: the band reaches over one it cuts (#8, #268).
+            if (item !== null && item.y + item.height <= palette.listView.contentY
+                    + palette.listView.height - hint.bandHeight + 0.5)
                 visibleLast = i;
         }
         let expected = 0;
