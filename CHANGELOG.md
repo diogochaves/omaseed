@@ -5,6 +5,15 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.17.4 — 2026-11-26
+
+### Fixed
+
+- **A skin's accent reaches every accent mark.** A skin that sets `roles.accent` now repaints
+  the selection mark, the highlighted menu item, the meter, links and the `move…` fix too, not
+  only plates and edges. A torrent's state keeps its own colour (downloading blue, seeding
+  green), and the skin guide says so. (#287)
+
 ## v0.17.3 — 2026-11-26
 
 ### Fixed
