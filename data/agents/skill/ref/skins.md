@@ -49,6 +49,9 @@ value; a clone names it in $schema. The families:
   faces     Plate, SelectionMark, Meter, Lamp: omarchy or console
 
 Rounder is radius (corners); cut is a chamfer, a different shape.
+roles.accent is all that is selected or current: marks, edges, links, the
+meter, a fix. A torrent's state keeps its own colour (downloading blue,
+seeding green): not the accent.
 
 ## What the picture doesn't show
 

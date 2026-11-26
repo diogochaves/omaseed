@@ -3288,3 +3288,19 @@ left to the build:
   got `unreachable` for up to 10 s, the engine's steady retry. The retry after a loss now starts
   at 1 s and doubles to 10 s, and holds at 2 s for a refused connection on this computer (Q16's
   note on the sync engine); `retryIn` follows it.
+
+## C51 — A skin's accent is the accent (#287, ruled 2026-11-26)
+
+A user skin that cast another theme role as `roles.accent` repainted plates, edges and the
+delete button, but the selection mark, the menu's highlight, the meter, links and the fix chip
+kept the theme's accent: they read `Theme.accent` and each ground's accent ink, which were the
+theme's. The trial agents took it for a limit of skins.
+
+- **W1.** `Theme.accent`, and the accent ink on every ground (`Theme.on.*.accent`), are the
+  skin's accent: the theme role its `roles.accent` names (the theme's own accent under Omarchy's
+  and Console's skins, so neither changes). `Theme.themeAccent` keeps the theme's own, which is
+  what a skin means by the theme role `accent` (`"signal": "accent"`), as `skinColor()` and
+  `roleColor()` resolve it.
+- **W2.** A torrent's state keeps its colour (downloading blue, seeding green, `Ink.state*`):
+  it says what the torrent is doing, not what is selected, so the accent never reaches it. The
+  guide (`ref/skins.md`) and `skin.schema.json`'s `roles.accent` say both.

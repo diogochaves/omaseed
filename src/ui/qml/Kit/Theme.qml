@@ -153,7 +153,8 @@ ThemeBase {
         case "brightForeground":
             return brightForeground;
         case "accent":
-            return accent;
+            // The theme role: the skin's own accent is `accent` cast through skin.roles (#287).
+            return themeAccent;
         case "muted":
             return muted;
         case "selection":
