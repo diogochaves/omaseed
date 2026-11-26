@@ -9,99 +9,68 @@
 [omaseed.app](https://omaseed.app) · an independent community project, not affiliated with or endorsed by
 Omarchy
 
-**Torrents, finally at home on Omarchy.** omaseed is a native desktop client for one
-qBittorrent, Transmission or Deluge server or many: this PC, a NAS, a seedbox, or all of them
-at once.
-It looks like the rest of your desktop and repaints the moment the Omarchy theme changes, every
-action has a key, and it keeps the seeding history the server does not. It opens `magnet:` links and
-`.torrent` files, lives in the Omarchy bar or the tray, and speaks up when a torrent handed
-over from outside goes in, a download finishes, a server goes away or a disk fills up, each
-notice with its own switch in Settings › Notifications.
+**Torrents, finally at home on Omarchy.** omaseed is a native desktop client for
+qBittorrent, Transmission or Deluge, on this PC, a NAS or a seedbox, or several at once. It looks
+like the rest of your desktop, every action has a key, and it keeps the seeding history the
+server does not. omaseed has no torrent engine of its own: the engine you already run does the
+transferring, and omaseed is the window you see it through.
 
-<img src="docs/screenshots/library-tokyo-night.png" alt="omaseed's library in Tokyo Night: the status, category, tag and tracker rail, the torrent table with two rows selected, and a torrent's details on the right" width="100%">
+<img src="docs/screenshots/library.png" alt="omaseed's library in Tokyo Night on a NAS with 3,500 torrents: the rail with the five questions, folders and servers; two torrents whose files are missing under needs you, one arriving, and the rest giving back; the story of the first on the right" width="100%">
 
-omaseed has no torrent engine of its own: qBittorrent, Transmission or Deluge, local or remote,
-does the transferring, and omaseed is the window you see it through. Built for Omarchy, it runs on
-any Linux, with a bundled theme when Omarchy is not there.
-
-- **Five questions, not columns**: the library grouped under needs you, arriving, landed
-  today, giving back and resting, each torrent saying in words what matters now; or the
-  classic table, or a map of where the space goes, remembered for each place you look
-- **The seed console**: what you give back, from the last hour to the last year, kept by
+- **[See where your disk went](#the-window)**: rows grouped by what needs you, one sorted table,
+  or space, a map of what each folder and torrent holds
+- **[Move a whole folder](#moving)** to another drive, with the files no torrent owns, checked
+  before anything is sent, and move it back later; on ntfs3, exFAT and FAT it checks the room
+  before a file takes its whole size
+- **[Your coding agent can look after your torrents](#ask-your-agent)**, as far as you let it:
+  it reads, and fixes only what you allow, through one window that asks you
+- **[The seed console](#the-seed-console)**: what you give back, from an hour to a year, kept by
   omaseed itself
-- **Knows your library before you add**: your newest downloads waiting, files already on disk
-  to seed from, duplicates caught before they're added
-- **Says why a torrent errored**, in plain words, with the keys that fix it
-- **In your bar**: a widget with the speeds, an hour of upload and what to add
-- **Keyboard first**: every action has a key, and `?` lists them all; the mouse works
-  everywhere too
-- **Every Omarchy theme, live**, the light ones included
-- **Two skins**: Omarchy's own look, or Console's cut plates, brackets and kana, by hand or
-  following the desktop's console skin
-- **Any server**: an API key, a username and password, or none; secrets in the system keyring
-- **Careful with your data**: deleting files another torrent still seeds, or the last copy
-  anyone has, asks first
-- **Backs itself up**, seeding history included
+- **[Any engine, any server](docs/ENGINES.md)**: qBittorrent, Transmission or Deluge, this PC or
+  a NAS; secrets in the system keyring; a library moved from one engine to another
+- **[At home on Omarchy](#on-omarchy)**: every theme live, the bar widget, Trigger › Torrents in
+  the Omarchy menu, keyboard first, and a second skin
 
-What it leaves out, on purpose: a torrent engine of its own, cross-seeding and *arr
-automation (that is [qui](https://github.com/autobrr/qui) and autobrr's ground), and the
-server-side things a desktop app has no use for, such as multiple users or metrics.
+What it leaves out, on purpose: a torrent engine of its own, cross-seeding and *arr automation,
+and the server-side things a desktop app has no use for, such as multiple users or metrics.
 
 ## Install
 
-### Arch / Omarchy
+On Arch and Omarchy, one line downloads the latest release, already built, and installs it;
+pacman pulls Qt and the rest from the Arch repos:
 
 ```
 curl -fLO https://github.com/diogochaves/omaseed/releases/latest/download/omaseed-x86_64.pkg.tar.zst && sudo pacman -U omaseed-x86_64.pkg.tar.zst
 ```
 
-That downloads the latest release, already built, and installs it; pacman pulls Qt and the
-rest of what omaseed needs from the Arch repos. (A bare `sudo pacman -U <url>` stops at
-"failed retrieving file ….sig": pacman wants a signature for a package it downloads itself,
-not for a file already on disk.) omaseed is not in a repo yet, so `pacman -Syu` does not
-update it: for a new release, run the same line again. A running omaseed keeps the old
-version until it starts again: `omaseed --quit` quits it as the tray's quit does (writing
-what it keeps, pausing a running move) and returns once it has, so the new one can start.
-A logout, a shutdown or `kill` (SIGTERM, SIGINT, SIGHUP) quit it the same way. An AI agent installing omaseed for
-you cannot type your password, so it should hand you the line.
+You need a torrent engine, on this machine or another: **qBittorrent** 5.2 or newer with its Web
+UI on, **Transmission** 4.1 or newer with remote access on, or **Deluge** 2.1 or newer through
+deluge-web. What each needs, and what omaseed does on each: [docs/ENGINES.md](docs/ENGINES.md).
 
-**You need** a torrent server, on this machine or another:
+omaseed is not in a repo yet, so `pacman -Syu` does not update it: for a new release, run the
+same line again, then `omaseed --quit` so the new one starts. (A bare `sudo pacman -U <url>`
+stops at "failed retrieving file ….sig": pacman wants a signature for a package it downloads
+itself.) An AI agent installing omaseed for you cannot type your password, so it should hand you
+the line.
 
-- **qBittorrent** 5.2 or newer with its Web UI turned on (`Tools → Options → Web UI` in the
-  desktop app, or `qbittorrent-nox`). omaseed signs in with an API key, a username and
-  password, or nothing for a server that lets localhost in. It never installs qBittorrent
-  itself, except when you accept first run's offer below.
-- **Transmission** 4.1 or newer with remote access on (`transmission-daemon`, or the desktop
-  app's Preferences › Remote), signed in with a username and password or none. An older
-  daemon is refused with words that say why: 4.1 changed its RPC.
-- **Deluge** 2.1 or newer through its web UI (`deluge-web`, signed in with its password) with
-  a daemon (`deluged`) behind it. When deluge-web drives no daemon, or knows several, the
-  server sheet asks which one to use; connecting one switches deluge-web for everyone who
-  uses it, so omaseed only ever connects one when deluge-web has none.
+### Build from source
 
-omaseed does everything on Transmission that Transmission can do over its RPC: the library,
-details, adding (magnets, `.torrent` files, labels, a folder), renaming, moving, labels,
-limits and turtle with its clock, errors in its own words, the seed console, and Settings ›
-Transmission. What Transmission has no way to do is left out rather than offered and
-failing, and its key says so once in the status line: categories, a magnet's files before
-the add, super seeding, first and last pieces first, automatic management, adding or
-banning peers, editing web seeds, the log face, search, creating a torrent, and
-qBittorrent's settings export and import. Its torrents do move: Settings › Transmission ›
-Backup exports them to a file and imports a file exported on any engine.
+The latest release, built on your machine:
 
-The same goes for Deluge: the library, details, adding (magnets with their files read before
-the add, `.torrent` files, a label, a folder), renaming (the name Deluge shows; the folder
-keeps its own), moving with Deluge's own percent, labels from its Label plugin (in the
-categories' place, lower case), ratio limits that stop or remove, errors in its own words,
-the seed console (counted from when omaseed began watching: Deluge keeps no all-time
-totals), and Settings › Deluge with its Plugins. A move Deluge fails pauses the torrent until
-a recheck, so recheck comes first; a move it takes and drops without a word reads as failed.
-Left out: tags, turtle, time limits, automatic management, banning peers, web seeds, the log
-face, search, creating a torrent, and qBittorrent's settings export and import. Its torrents
-move too: Settings › Deluge › Backup exports them to a file and imports a file exported on
-any engine, keeping one label per torrent (Deluge has one) and saying what is left behind.
+```
+git clone https://github.com/diogochaves/omaseed.git
+cd omaseed/packaging/arch
+makepkg -si
+```
 
-**What the package installs:** the `omaseed` binary, its `.desktop` file and D-Bus service
+`makepkg -si` asks for your password: pacman installs the build dependencies, then omaseed.
+An AI agent installing omaseed for you cannot type it, so it should clone the repo and hand
+you that command. With the dependencies already installed, it can build with plain
+`makepkg` and hand you `sudo pacman -U omaseed-[0-9]*.pkg.tar.zst` instead.
+
+### Turn on the Omarchy extras
+
+The package installs the `omaseed` binary, its `.desktop` file and D-Bus service
 file, icons, the MIT licence, the bar widget (`/usr/share/omaseed/plugin`) and three
 Omarchy extras under `/usr/share/omaseed/` that you turn on yourself, since a package must
 not edit your config:
@@ -132,21 +101,6 @@ not edit your config:
   last `}`; the switch then reads as on. A hand copy has no Servers › rows: those list your
   servers, so only omaseed writes them. omaseed is in the menu's Apps list without any of it.
 
-### Build from source
-
-The latest release, built on your machine:
-
-```
-git clone https://github.com/diogochaves/omaseed.git
-cd omaseed/packaging/arch
-makepkg -si
-```
-
-`makepkg -si` asks for your password: pacman installs the build dependencies, then omaseed.
-An AI agent installing omaseed for you cannot type it, so it should clone the repo and hand
-you that command. With the dependencies already installed, it can build with plain
-`makepkg` and hand you `sudo pacman -U omaseed-[0-9]*.pkg.tar.zst` instead.
-
 ## First run
 
 With no server set up, omaseed opens on a short setup instead of the library. `esc` leaves
@@ -168,273 +122,82 @@ at any point.
    now** (Settings › General can do it later).
 4. **The bar.** On Omarchy, put omaseed's widget in the bar, or **not now**.
 
-## The bar widget
+## The window
 
-<img src="docs/screenshots/widget-tokyo-night.png" alt="The Omaseed widget's popup under the Omarchy bar: upload speed with an hour's graph, a .torrent from Downloads ready to add, the session's share, the torrents kept alive, and what finished lately" width="420" align="right">
+<img src="docs/screenshots/space.png" alt="Space, for a films folder of 126 torrents: each torrent as big as it is on disk, coloured by what it is doing, the ones under 1 % in a line below, and move this folder in the title" width="100%">
 
-The widget, *Omaseed*, mirrors omaseed in the Omarchy bar: its arrows light while something
-downloads or uploads, and a click opens a popup with the speeds, an hour of upload, a list of
-`.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
-and what finished. It never talks to qBittorrent itself; it reads what omaseed writes and
-asks omaseed to act. While it runs, the tray icon steps aside, and nothing goes with it: the
-popup's ⋯ is the tray's menu (the servers, alternative limits, pause or resume torrents,
-settings, quit). Pause Torrents stops what is running and remembers it; Resume Torrents starts
-exactly those again, never a torrent you had kept stopped.
-A speed picked from out here, or over the bus (`PickAltSpeed` off, turtle or burst), sends a
-notice once it has taken effect: what was picked and its limits.
+The rail asks five questions (`1` to `5`): what needs you, what is arriving, what landed today,
+what is giving back and what is resting. The library answers in one of three displays, from the
+tool beside the filter, remembered for each folder, category, tag and question:
 
-First run offers it, Settings › Appearance › In the bar chooses the widget, the tray icon,
-both or neither, and from a terminal:
+- **Rows**, grouped under the five questions, each torrent saying in words what matters now
+  ("waiting · no seed", "ready in 3 min") before any figure.
+- **The table**, one sorted list with the columns you pick.
+- **Space**: a map of where the disk goes, by folder, then torrent; the folder under the cursor
+  can be moved from there.
 
-```
-omaseed --install-bar-widget
-```
+The details tell a torrent's story, newest first: what went wrong, a move, a rename, a new
+category, when it finished, and its lines in the engine's log. Its files are grouped by kind
+(videos, audio, subtitles, images, books, archives, disc images, extras), each kind with its
+count and size, ticked or skipped at once. Pick torrents and a bar floats over the list with the
+menu's verbs; what an action came to shows in a strip above it. `:` finds commands, settings,
+servers and torrents in one box; holding `alt` shows every control's key, and `?` lists them all
+([docs/KEYS.md](docs/KEYS.md)).
 
-That links `~/.config/omarchy/plugins/chaves.omaseed` to the installed widget, so upgrading
-omaseed upgrades the widget too. More in [plugin/README.md](plugin/README.md).
+## Moving
 
-<br clear="right">
+<img src="docs/screenshots/move-folder.png" alt="Move a folder: the new path, each torrent's place below it, the checks before anything moves (room on the drive, write access, the order), and the files no torrent owns, carried after the torrents" width="100%">
 
-## The seed console
+Right-click a folder in the rail (or pick it and press `M`) to move the whole folder to another
+drive: its torrents, then the files no torrent owns (subtitles you added, covers, notes), copied,
+checked and removed only once they have landed. Before anything is sent, the sheet checks the
+room on each drive, that the new place can be written, files already there and automatic
+management. Torrents go smallest first, a band under the title follows them until the last one
+lands (with pause and resume, even on a server whose disks omaseed can't see), and a summary
+ends it with **recheck** and **move back…**. `m` moves just the torrents you picked, to the places
+you moved things lately or the library's folders.
 
-<img src="docs/screenshots/seed-tokyo-night.png" alt="omaseed's seed console: given, taken, ratio and streak; the upload tide over the last day; a cell for every day of the last year; the torrents few others still seed; and the ratio ladder" width="100%">
+**Move back** takes the last 20 moves, or 30 days of them, from a torrent's details, the log or
+`:`. A torrent goes back only if it is still where that move put it, and the files a folder move
+carried come back too. Quitting while a move runs asks first, and a paused move picks up at the
+next start.
 
-qBittorrent counts your uploads but keeps no history of them. omaseed keeps its own, so a
-year of seeding is one key away: `` ` `` flips the window between the library and the seed console: what you have given and
-taken, the upload tide over an hour to a year, a cell for every day of the last year, the
-torrents only a few people still seed, a ratio ladder and the trackers you seed to. The rail
-and the filter scope it, and so does a selection. omaseed keeps this history itself, in
-`~/.local/share/omaseed/ledger/`, from the day you start using it, so it stays when a
-server is replaced.
-
-## When a torrent errors
-
-<img src="docs/screenshots/errored-tokyo-night.png" alt="An errored torrent: the table's status reads disk full, and General opens with The disk is full, qBittorrent's own words, the folder, and set location, try again and copy the line" width="100%">
-
-qBittorrent's API only says a torrent is in error, never why. omaseed reads qBittorrent's own
-log, ties each line to its torrent and says it in plain words: the table's status reads the
-short cause ("disk full", "no access"), and the torrent's story opens with what went wrong,
-the folder, and the keys that fix it. A notice says so too, with its own switch in Settings ›
-Notifications.
-
-## Search
-
-`ctrl+f` (or the rail's **search**, after log) searches through the search plugins of the
-qBittorrent you're on: the small Python files qBittorrent runs to ask a site, which you choose
-and install yourself in Settings › qBittorrent › Search plugins, from a URL or, when the server
-is this computer, a file. omaseed names, ships and suggests none, and never asks a site itself;
-every request is qBittorrent's.
-
-Each plugin is asked on its own, so the results fill in as each answers and nothing waits for
-the slowest. One row per torrent, however many plugins found it: the copy with the most seeds
-names it and the others' trackers join its magnet. A row says what is already yours ("in your
-library", "likely on disk") and reads seeds as health ("few seeds" in yellow, "?" when a plugin
-doesn't report them, never taken for dead). A plugin that fails or is slow is named, with its
-reason from qBittorrent's log. `enter` on a result opens the usual add sheet with its magnet,
-or its link fetched through the plugin; `space` shows it on the right, `c` copies its magnet,
-`o` opens its page in the browser, `/` filters the results. Search isn't offered on a server
-without plugins to run.
-
-## Create a torrent
-
-"+ add ▾", `ctrl+n`, `:` or a folder's menu in the rail opens **Create a torrent**; a folder
-dropped on the window does too. Pick the folder (or one file) with the Move sheet's places and
-browse, and say who it is for. The server's qBittorrent hashes it, in the band a move uses
-while it takes more than a few seconds; you can close the window meanwhile.
-
-- **For anyone**: it seeds at once from where the files are, nothing copied or moved, and its
-  magnet is on the clipboard. The trackers offered are the public ones your library uses most,
-  or the last ones you chose; none is fine (DHT and peer exchange).
-- **For a private tracker**: pick the tracker from your library's private ones; its announce
-  URL comes from your newest torrent there and the passkey only ever shows as dots, never in a
-  log or a file of omaseed's. The private flag, v1 and the source tag you used there are
-  filled in. The `.torrent` is saved as "NAME [HOST].torrent" in your Downloads, not added,
-  ready to drag into the site's upload form. When the site's copy comes back, the add sheet
-  knows it and points it at your folder, so it seeds without downloading anything.
-
-v1 is the default either way, and the piece size qBittorrent will choose shows before you
-create, with an override. omaseed checks the folder first and says in its own words when it is
-missing, unreadable or empty. Create needs qBittorrent's Web API 2.10.4 or later.
-
-## Keys
-
-Every key comes from one table (`src/ui/qml/Keymap.qml`), and the `?` sheet is drawn from
-it. A capital letter is the stronger variant of its lower-case neighbour (`p` stop/start,
-`P` force start; `d` delete, `D` delete with files). Keys are taught where you ask for them:
-menus and tooltips name them, holding `alt` badges the controls on screen, and the `?` sheet
-lists them all, one block the keys inside a sheet (add, move, settings). With torrents
-selected, an action bar floats over the list: the torrent menu's verbs with their icons, more ›
-for the rest and "esc" at its end.
-
-<p align="center"><img src="docs/screenshots/shortcuts-tokyo-night.png" alt="The shortcuts sheet: a filter field, and the keys to move, select, view and act on torrents, each with what it does" width="560"></p>
-
-**Move**
-
-| Key | Does |
-|---|---|
-| `j` `k` | move down / up |
-| `g` `G` | first / last row |
-| `h` `l` | rail · table · details |
-| `/` | filter (`is:stalled` and the like for any state) |
-| `1`–`5`, `0` | needs you, arriving, landed today, giving back, resting; the library |
-| `ctrl+k` | jump to a torrent by name, hash or tracker |
-| `ctrl+f` | search the server's search plugins (`enter` asks, `↓` the results, `enter` add…, `space` the result, `c` `o` copy magnet · its page) |
-| `ctrl+h` `ctrl+l` | scroll sideways |
-
-**Select**
-
-| Key | Does |
-|---|---|
-| `space` | toggle the row |
-| `v` | select a range |
-| `ctrl+a` | select every visible row |
-| `esc` | clear the selection, then the filter, then close what is open |
-
-**View**
-
-| Key | Does |
-|---|---|
-| `` ` `` | seed console |
-| `i` | details |
-| `1`–`5` | story · files · swarm · trackers · facts (in the details pane; `6` web seeds) |
-| `s` | sort |
-| `:` show as … | rows, table or space, for the place on show (also the title bar's tool) |
-| `\|` | columns (`alt+↑` `alt+↓` reorder them) |
-| `ctrl+b` | fold the rail to its glyphs (or the tab on its edge; drag the edge to size it) |
-| `I` | details right · bottom · auto |
-| `<` `>` | details smaller · larger |
-| `H` `L` | fold / unfold every folder (Files tab) |
-| `X` | hide skipped files (Files tab) |
-
-**Act on torrents**
-
-| Key | Does |
-|---|---|
-| `a` | add |
-| `ctrl+n` | create a torrent from a folder |
-| `enter` | actions menu |
-| `p` `P` | stop/start · force start |
-| `d` `D` | delete · delete with files |
-| `c` `R` | recheck · reannounce |
-| `C` `t` `m` `L` `r` | category · tags · location · limits · rename |
-| `[` `]` | queue up / down |
-| `o` | open folder |
-| `y` `Y` `n` | copy magnet · hash · name |
-| `p` `+` `-` `x` | file priority (Files tab) |
-| `O` `o` `r` | open · folder · rename a file (Files tab) |
-| `F` | free the space, or add it again (Files tab) |
-| `y` `enter` | copy a value · change an option (facts tab) |
-
-**App**
-
-| Key | Does |
-|---|---|
-| `A` | alternative speeds on or off (turtle, or the last preset picked; the status line's chip has both) |
-| `,` `ctrl+,` | settings |
-| `ctrl+shift+,` | the server's own settings (qBittorrent's, Transmission's or Deluge's) |
-| `ctrl+.` | the omaseed menu (the mark): servers, alternative speeds, add, settings, quit |
-| hold `alt` | show the keys of what is on screen |
-| `q` | hide to the tray |
-| `ctrl+q` | quit |
-| `?` `F1` | every key |
-
-Keys cannot be rebound yet. omaseed binds no global shortcut; to summon it with, say,
-`super+shift+t` (free in Omarchy's default bindings, 4.0 and 4.5 alike), add a line to
-`~/.config/hypr/bindings.lua` that launches `omaseed`: a second launch raises the running one.
-
-```lua
-o.bind("SUPER + SHIFT + T", "omaseed", { launch = "omaseed" })
-```
-
-## Theme
-
-<img src="docs/screenshots/library-lupine.png" alt="omaseed's library in Lupine, a light Omarchy theme" width="100%">
-
-omaseed reads the same `colors.toml` and `shell.toml` as the rest of the Omarchy shell and
-repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size follows
-`shell.toml`'s `[font] base-size`, and in the Omarchy skin window corners follow Hyprland's
-rounding. Without Omarchy it uses a bundled Tokyo Night at base size 12.
-
-The skin is the form the colours are drawn in. **Omarchy** (the default) is the shell's own;
-**Console** draws omarchy-console's look: cut corners, brackets on the cursor's row, square
-lamps, tracked upper-case labels with kana. **Follow the desktop** draws Console while
-omarchy-console's skin is on, and honours its `fx.fonts = system`. Console's fonts are optional
-(Chakra Petch, Share Tech Mono, Noto Sans CJK JP, Material Symbols Sharp); a missing one is
-drawn in a stand-in, and Appearance says which.
-
-Settings › Appearance has: the skin, follow the Omarchy theme, base size, the window's ground (opaque, or
-translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
-widget, the scroll hint, the rail's surface tint (off, 4 % or 8 %), tracker hosts, where the
-details panel sits, where the speeds are shown (the title bar or the status line), and the
-sending rows' pulse.
-
-## Make it yours
-
-Ask your coding agent for a look ("make omaseed warmer, and rounder") and it makes you a skin of
-your own. A skin is data, never code: a `skin.json` in `~/.config/omaseed/skins/<name>/` saying
-which roles and alphas paint which grounds, the line widths, cuts, rounding, fonts, the voices
-of labels, densities, glyphs and labels. The colours stay your Omarchy theme's, and text stays
-readable on every theme.
-
-Link omaseed's skill (`omaseed skill link`, see [Ask your agent](#ask-your-agent)) or start
-your agent in `~/.config/omaseed/`, where omaseed writes its guide on every start (`AGENTS.md`,
-with `skin.schema.json` beside it listing every token, its range and Omarchy's value). The agent works with four words, which you can type too:
-
-```
-omaseed skin list               # every skin, where it lives, whether it reads
-omaseed skin clone console warm # start one from a copy (of omarchy, console or one of yours)
-omaseed check warm              # what it reads and drops, and a picture, with no display
-omaseed skin use warm           # draw it in the open window, and keep it
-```
-
-`check` draws one fixed sheet on invented torrents in your theme and base size (`--theme NAME`
-for another), saves it to `~/.cache/omaseed/check/`, and exits 1 when the skin doesn't read.
-With [omabox](https://omabox.app) installed, `skin-check.sh` (in `/usr/share/omaseed/agents/`)
-draws the skin under every theme in a desktop nobody sees. Nothing captures your open window:
-your library never goes to the agent's model.
-
-Your skins are in Settings › Appearance › Skin, on a second line after the built-ins, with
-**open folder**. Saving the drawn skin repaints the window. A token omaseed can't use is left at
-Omarchy's, and a file that doesn't read is drawn as Omarchy's until the next good save: the
-yellow line under the row says which and why. The way back: `omaseed skin use omarchy`, the
-Skin row, or `OMASEED_SKIN=omarchy omaseed` for one run. A clone never touches its source.
-
-To share one, publish its folder (`skin.json`, a `RECIPE.md`, the `preview.png` check made)
-with the topic `omaseed-skin`. To add someone's, read every file, copy the folder into
-`~/.config/omaseed/skins/` under a name you don't have yet, and `omaseed check` it first.
-
-## Servers
-
-Settings › Servers lists every server, with **add**, **test**, **edit**, **remove** and
-**set as default**. Switch between them from the rail's Servers group or here; a right-click
-on a server in the rail opens its menu. Passwords
-and API keys go to the system keyring through libsecret, or to a 0600 file under
-`~/.config/omaseed/secrets/` when there is no keyring.
-
-For a server whose files appear under another path here (a NAS mount, a seedbox), Settings ›
-General's **path mapping** rewrites the server's save path before open folder.
-
-Settings › qBittorrent edits the server's own settings (downloads, connection, speed,
-BitTorrent, RSS, Web UI, advanced) without opening its web UI; Settings › Transmission does
-the same for a Transmission (speed and turtle, discovery and privacy, connection, seeding,
-queue, downloads), and Settings › Deluge for a Deluge (the same sections from its core.conf,
-then which of its plugins are on). Each engine with a saved server keeps its group in Settings.
-
-## Backups
-
-Settings › Backup saves omaseed's servers, settings and seeding history to one `.omaseed`
-file, and restores from one (keeping a copy of what it replaces first). Automatic copies run
-weekly by default (or daily, or off) into `~/.local/share/omaseed/backups/`, keeping the last
-four. Passwords and API keys are not in a backup; the keyring keeps those. A backup carries a
-copy of each qBittorrent server's settings; a Transmission's or a Deluge's settings stay on
-it, as Settings › Backup says. Torrents are in no backup of omaseed's: each engine's group in
-Settings ends with its own Backup, which exports a server's torrents to a file and imports
-one from any engine.
+**The drive it lands on.** On ntfs3, exFAT and FAT a file you tick takes its whole size the
+moment it is wanted. The add sheet and details › Files name the drive's file system, check the
+room before a tick reaches the server, and name files of 4 GiB or more on FAT32, with "skip
+these". A tick that adds more than 1 GiB, or one that doesn't fit, waits 3 s with Undo (`u`). A
+torrent whose files are gone says where it last saw them; one on a drive that isn't mounted says
+to plug it in and recheck; and `omaseed do locate <hash> --to FOLDER` points a torrent at files
+you moved yourself, after checking every file is there at its size.
 
 ## Ask your agent
 
-A coding agent in a terminal (or you) can ask the running omaseed about your library, as a
-word after `omaseed`:
+Ask Claude Code, Codex, pi or Gemini why a download stopped, and it asks the running omaseed.
+Everything that changes a torrent is off until you turn it on, moves and removes always ask you
+first, and no command deletes a file.
+
+<img src="docs/screenshots/agent-plan.png" alt="An agent asks to run a plan: omaseed's own window lists each line with its torrents ticked, where they go and what was checked, with refuse and allow these" width="100%">
+
+**What it may do** is Settings › General › Agents, four lines:
+
+| Line | Levels | What it covers |
+|---|---|---|
+| Reads | on, off | `status`, `errors`, `log`, `moves` |
+| Fixes | off, ask, allow | retry, start here, recheck, reannounce, pause, resume, dismiss, locate |
+| Moves | off, ask | move to a folder, move back |
+| Remove | off, ask | a torrent whose files are gone, never its files |
+
+`omaseed do <action> <hash…>` runs a fix the window offers, when its line allows it; `do
+--list` says what is allowed now, and `--dry-run` makes every check and does nothing. `do --plan
+FILE` checks a whole list first (one refused line runs nothing), then opens one window that asks
+for all of it, each torrent ticked so you can untick some. Esc refuses, and nothing happens if
+nobody answers in 2 minutes. What an agent did ends in "by an agent" on the strip and in the
+torrent's story, and a removed torrent is kept 30 days for **add back**. Deleting files,
+renaming, categories and tags, adds, settings and servers stay yours. `omaseed help do` lists
+every action; `omaseed help agents` prints deny rules for your agent's own settings, filled in
+with your server, so the agent stays out of the server itself.
+
+**What it may read**, as a word after `omaseed`:
 
 ```
 omaseed status    # the server, what it is doing, how many need you
@@ -474,6 +237,135 @@ On every start omaseed also writes the map to `~/.config/omaseed/AGENTS.md` (wit
 names, folders and log lines go to whatever model your agent uses; logins, API keys and
 tracker passkeys never leave omaseed.
 
+## The seed console
+
+<img src="docs/screenshots/seed-console.png" alt="omaseed's seed console for a NAS of 3,500 torrents: given, taken, ratio, buffer, on offer and streak; the upload tide over 30 days; a cell for every day of the last year; and the torrents few others still seed" width="100%">
+
+Your engine counts what you upload but keeps no history of it. omaseed keeps its own: `` ` ``
+flips the window to what you have given and taken, the upload tide from an hour to a year, a
+cell for every day of the last year, the torrents few others still seed, a ratio ladder and the
+trackers you seed to. The rail, the filter and a selection scope it. The history lives in
+`~/.local/share/omaseed/ledger/`, from the day you start using omaseed, so it stays when a server
+is replaced.
+
+## Adding torrents
+
+<img src="docs/screenshots/add-sheet.png" alt="The add sheet in two columns: the source, name, category, tags and save folder with the room it needs on that drive; the torrent's files as kinds (14 audio files, 1 disc image, 1 extra) with their sizes, and what the torrent says about itself" width="100%">
+
+Magnet links and `.torrent` files open in omaseed, from the browser, the file manager, the
+clipboard, a drag or your Downloads folder; one handed over from outside opens the add sheet in a
+small window on the workspace you are on. The sheet knows your library: your newest downloads
+wait in it, a torrent you already have is caught before it is added twice, and when another
+torrent already has the same files on disk, one click saves this one beside them so it seeds
+without downloading. It says what the torrent needs on that drive and what it leaves.
+
+**When a torrent errors**, omaseed reads the engine's log, ties each line to its torrent and says
+it in plain words: the row reads the short cause ("disk full", "no access"), and the story opens
+with what went wrong, the folder, and the keys that fix it. A move or a rename the engine
+accepted and then couldn't do says so on the torrent too.
+
+## On Omarchy
+
+### Theme and skins
+
+<img src="docs/screenshots/library-light.png" alt="omaseed's library in Catppuccin Latte, a light Omarchy theme" width="49%"> <img src="docs/screenshots/console-skin.png" alt="The same library in the Console skin: cut corners, tracked upper-case labels with kana, brackets on the cursor's row" width="49%">
+
+omaseed reads the same `colors.toml` and `shell.toml` as the rest of the Omarchy shell and
+repaints as soon as `omarchy-theme-set` runs, on every bundled theme. Text size follows
+`shell.toml`'s `[font] base-size`, and in the Omarchy skin window corners follow Hyprland's
+rounding. Without Omarchy it uses a bundled Tokyo Night at base size 12.
+
+The skin is the form the colours are drawn in. **Omarchy** (the default) is the shell's own;
+**Console** draws omarchy-console's look: cut corners, brackets on the cursor's row, square
+lamps, tracked upper-case labels with kana. **Follow the desktop** draws Console while
+omarchy-console's skin is on, and honours its `fx.fonts = system`. Console's fonts are optional
+(Chakra Petch, Share Tech Mono, Noto Sans CJK JP, Material Symbols Sharp); a missing one is
+drawn in a stand-in, and Appearance says which.
+
+Settings › Appearance has: the skin, follow the Omarchy theme, base size, the window's ground (opaque, or
+translucent with its transparency), tray icon (`auto` hides it while the bar widget runs), bar
+widget, the scroll hint, the rail's surface tint (off, 4 % or 8 %), tracker hosts, where the
+details panel sits, where the speeds are shown (the title bar or the status line), and the
+sending rows' pulse.
+
+### The bar widget
+
+<img src="docs/screenshots/widget.png" alt="The Omaseed widget's popup under the Omarchy bar: upload speed with an hour's graph, .torrent files from Downloads ready to add, the session's share, the torrents kept alive, and what finished lately" width="420" align="right">
+
+The widget, *Omaseed*, mirrors omaseed in the Omarchy bar: its arrows light while something
+downloads or uploads, and a click opens a popup with the speeds, an hour of upload, a list of
+`.torrent` files to add, today's share, the torrents you keep alive, and what is downloading
+and what finished. It never talks to qBittorrent itself; it reads what omaseed writes and
+asks omaseed to act. While it runs, the tray icon steps aside, and nothing goes with it: the
+popup's ⋯ is the tray's menu (the servers, alternative limits, pause or resume torrents,
+settings, quit). Pause Torrents stops what is running and remembers it; Resume Torrents starts
+exactly those again, never a torrent you had kept stopped.
+A speed picked from out here, or over the bus (`PickAltSpeed` off, turtle or burst), sends a
+notice once it has taken effect: what was picked and its limits.
+
+First run offers it, Settings › Appearance › In the bar chooses the widget, the tray icon,
+both or neither, and from a terminal:
+
+```
+omaseed --install-bar-widget
+```
+
+That links `~/.config/omarchy/plugins/chaves.omaseed` to the installed widget, so upgrading
+omaseed upgrades the widget too. More in [plugin/README.md](plugin/README.md).
+
+<br clear="right">
+
+### Make it yours
+
+Ask your coding agent for a look ("make omaseed warmer, and rounder") and it makes you a skin of
+your own. A skin is data, never code: a `skin.json` in `~/.config/omaseed/skins/<name>/` with
+grounds, lines, cuts, rounding, fonts, label voices, densities and glyphs, drawn in your Omarchy
+theme's colours and kept readable on every theme. The agent works with four words, which you
+can type too:
+
+```
+omaseed skin list               # every skin, where it lives, whether it reads
+omaseed skin clone console warm # start one from a copy (of omarchy, console or one of yours)
+omaseed check warm              # what it reads and drops, and a picture, with no display
+omaseed skin use warm           # draw it in the open window, and keep it
+```
+
+`check` draws a fixed sheet on invented torrents in your theme, so your library never goes to
+the agent's model. The way back: `omaseed skin use omarchy`. To share one, publish its folder
+with the topic `omaseed-skin`; to add someone's, read every file and `omaseed check` it first.
+
+## More
+
+### Search
+
+`ctrl+f` searches through the search plugins of the qBittorrent you're on: small Python files
+you choose and install yourself (Settings › qBittorrent › Search plugins). omaseed names, ships
+and suggests none, and never asks a site itself. Results fill in as each plugin answers, one row
+per torrent with the other copies folded in, saying what is already yours ("in your library",
+"likely on disk"); a plugin that fails or is slow is named, with the reason from qBittorrent's
+log. `enter` opens the add sheet with its magnet.
+
+### Create a torrent
+
+`ctrl+n`, or a folder dropped on the window. **For anyone**, it seeds at once from where the
+files are, nothing copied or moved, and its magnet is on the clipboard. **For a private
+tracker**, the announce comes from your newest torrent there, its passkey only ever shown as
+dots, and the private flag, v1 and source tag filled in; the `.torrent` is saved to your
+Downloads for the upload, and when the site's copy comes back, the add sheet points it at your
+folder so it seeds without downloading. The server's qBittorrent hashes it (Web API 2.10.4 or
+later).
+
+### Backups
+
+Settings › Backup saves omaseed's servers, settings and seeding history to one `.omaseed`
+file, and restores from one (keeping a copy of what it replaces first). Automatic copies run
+weekly by default (or daily, or off) into `~/.local/share/omaseed/backups/`, keeping the last
+four. Passwords and API keys are not in a backup; the keyring keeps those. A backup carries a
+copy of each qBittorrent server's settings; a Transmission's or a Deluge's settings stay on
+it, as Settings › Backup says. Torrents are in no backup of omaseed's: each engine's group in
+Settings ends with its own Backup, which exports a server's torrents to a file and imports
+one from any engine.
+
 ## Troubleshooting
 
 - **Where is the tray icon?** With the bar widget running, `auto` hides it. Otherwise the
@@ -510,16 +402,6 @@ scripts/dev/lint.sh build                             # qmllint and clang-format
 cmake --build build --target update_translations      # after adding a `%n` string
 ```
 
-`-DOMASEED_WERROR=ON` turns warnings into errors (CI uses it); `-DBUILD_TESTING=OFF` skips
-the tests. [docs/TESTING.md](docs/TESTING.md) covers the rest: live tests, the walks in an
-omabox, the visual check and the manual test plans.
-
-The live tests (`ctest -L live`) talk to two throwaway qBittorrent servers that
-`scripts/dev/test-server.sh` runs: `start` (port 8081, no login from localhost) and `start
---strict` (port 8082, real logins). The first `start --strict` makes a random login and API
-key and saves them to `~/.config/omaseed/dev.env`, outside the repo; load it with
-`set -a; . ~/.config/omaseed/dev.env; set +a`. Without it the strict tests skip and say why.
-
 To build a package from the working tree instead of a release:
 
 ```
@@ -527,11 +409,13 @@ mkdir -p build/makepkg-scratch && cp packaging/arch/PKGBUILD.local build/makepkg
 cd build/makepkg-scratch && makepkg -f
 ```
 
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is how the code is laid out and the theme rules
-every QML file follows; [docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) is the design and the
-numbered boards after it design one feature each (open them in a browser);
-[docs/DECISIONS.md](docs/DECISIONS.md) keeps the rulings the code cites;
-[docs/RELEASING.md](docs/RELEASING.md) is how a release is cut.
+CI builds with `-DOMASEED_WERROR=ON`. [docs/TESTING.md](docs/TESTING.md) covers the live tests
+(throwaway servers from `scripts/dev/test-server.sh`, never your own library), the walks in an
+omabox, the visual check and the manual test plans. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+is how the code is laid out and the theme rules every QML file follows;
+[docs/05-ui-spec-v2.html](docs/05-ui-spec-v2.html) is the design and the numbered boards after it
+design one feature each; [docs/DECISIONS.md](docs/DECISIONS.md) keeps the rulings the code
+cites; [docs/RELEASING.md](docs/RELEASING.md) is how a release is cut.
 
 ## Built with omabox
 
