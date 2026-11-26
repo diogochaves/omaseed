@@ -5,6 +5,15 @@ All notable changes to omaseed are logged here, newest first. Loosely follows
 versioning stability (pre-1.0). `scripts/release.sh` requires a `## v<version>` section here
 before it will tag a release.
 
+## v0.17.2 — 2026-11-26
+
+### Fixed
+
+- **Space on a large library** no longer freezes the window. With thousands of torrents
+  under 1 %, the window used to stop answering for about two minutes before the map drew.
+  Now the chips that fit are measured in one pass and drawn at once, and the rest are
+  "… N more". (#309)
+
 ## v0.17.1 — 2026-11-22
 
 From a check with 35 torrents in missing files at once.

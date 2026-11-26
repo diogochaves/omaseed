@@ -19,8 +19,6 @@ Item {
     required property string text
     /// LibrarySpace's count of changes to the rows.
     required property int revision
-    /// Whether it is drawn: the line has room for it (LibrarySpace's "… n more" takes the rest).
-    property bool fits: true
 
     readonly property bool isCursor: chip.table.cursorIndex >= chip.first && chip.table.cursorIndex
                                      < chip.first + chip.count
@@ -55,10 +53,8 @@ Item {
     Accessible.selectable: !chip.folder
     Accessible.selected: chip.isSelected
     Accessible.onPressAction: chip.click(Qt.NoModifier)
-    enabled: chip.fits
     height: label.implicitHeight + 2 * Theme.spaceChipPadY
     objectName: (chip.folder ? "spaceFolderChip_" : "spaceChip_") + chip.first
-    opacity: chip.fits ? 1 : 0
     width: Math.min(label.implicitWidth, Theme.spaceChipMaxWidth) + 2 * Theme.spaceChipPadX
 
     Plate {

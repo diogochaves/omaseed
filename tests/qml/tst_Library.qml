@@ -281,13 +281,18 @@ TestCase {
         verify(view.table.isRowSelected(first.row));
         const inSpace = tile.mapToItem(view.librarySpace, 4, 4);
         compare(view.librarySpace.rowAt(inSpace.x, inSpace.y), first.row);
-        // The chips that fit are drawn, none wider than the cap (a long name elides).
-        compare(findChild(view.librarySpace, "spaceSmall").visible, layout.chips.length > 0);
-        for (const chip of layout.chips) {
+        // The chips that fit are drawn, none wider than the cap (a long name elides), and
+        // only those are made (#309): the rest are "… n more".
+        const small = findChild(view.librarySpace, "spaceSmall");
+        compare(small.visible, layout.chips.length > 0);
+        compare(small.fitted + small.hidden, layout.chips.length);
+        layout.chips.forEach((chip, i) => {
             const item = findChild(view.librarySpace, (chip.folder ? "spaceFolderChip_" : "spaceChip_") + chip.first);
-            verify(item !== null);
-            verify(item.width <= Theme.spaceChipMaxWidth + 2 * Theme.spaceChipPadX);
-        }
+            compare(item !== null, i < small.fitted, "chip " + i);
+            if (item !== null)
+                verify(item.width <= Theme.spaceChipMaxWidth + 2 * Theme.spaceChipPadX);
+        });
+        compare(findChild(view.librarySpace, "spaceMore").visible, small.hidden > 0);
         // The map keeps its place while the action bar shows over its foot.
         compare(map.height, findChild(view.librarySpace, "spaceSmall").y - Theme.spaceGap - map.y);
         view.table.clearSelection();
@@ -336,6 +341,25 @@ TestCase {
         compare(folderChip.first, 2);
         compare(folderChip.count, 3);
         verify(folderChip.text.startsWith("/b · 3"));
+    }
+
+    // #309: thousands under 1 % measure a line's worth of chips, at once. The chips that fit
+    // leave room for "… n more", and every one fits when the line holds them all.
+    function test_space_fits_the_small_line_in_one_pass() {
+        const space = view.librarySpace;
+        const width = space.chipWidth("a torrent · 1.0 MB");
+        const many = [];
+        for (let i = 0; i < 5000; ++i)
+            many.push({ "first": i, "count": 1, "folder": false, "text": "a torrent · 1.0 MB" });
+        const started = Date.now();
+        const fitted = space.fitChips(many, 10 * width);
+        verify(Date.now() - started < 200, "measuring took " + (Date.now() - started) + " ms");
+        verify(fitted > 0 && fitted < 10, "fitted " + fitted);
+        const room = 10 * width + 9 * Theme.spaceChipGap;
+        compare(space.fitChips(many.slice(0, 10), room), 10, "ten that fit exactly need no words");
+        verify(space.fitChips(many.slice(0, 11), room) < 10, "one more brings the words");
+        compare(space.fitChips(many, 0), 0);
+        compare(space.fitChips([], 100), 0);
     }
 
     // #201 F16: h / l move the keys across rail, list and details; the list's cursor keeps its

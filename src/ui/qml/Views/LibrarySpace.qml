@@ -245,12 +245,50 @@ Item {
         return null;
     }
 
+    /// A chip's width for `text`, as SpaceChip draws it.
+    function chipWidth(text: string): real {
+        return Math.min(Math.ceil(chipMetrics.advanceWidth(text)), Theme.spaceChipMaxWidth) + 2
+                * Theme.spaceChipPadX;
+    }
+
+    /// How many of `all` (gathered chips, in order) fit a line `room` wide: every one when they
+    /// all do, else as many as leave room for "… n more". Stops at the first that doesn't, so a
+    /// library of thousands measures a line's worth (#309).
+    function fitChips(all: var, room: real): int {
+        const gap = Theme.spaceChipGap;
+        const widths = [];
+        let end = 0;
+        for (const chip of all) {
+            const width = root.chipWidth(chip.text);
+            const next = (widths.length > 0 ? end + gap : 0) + width;
+            if (next > room)
+                break;
+            widths.push(width);
+            end = next;
+        }
+        if (widths.length === all.length)
+            return all.length;
+        // Some are left out: the words take their room (sized for the most they could say).
+        const words = Math.ceil(chipMetrics.advanceWidth(qsTr("… %1 more").arg(all.length)));
+        const left = room - words - 2 * Theme.spaceChipPadX - gap;
+        let count = 0;
+        end = 0;
+        for (const width of widths) {
+            const next = (count > 0 ? end + gap : 0) + width;
+            if (next > left)
+                break;
+            ++count;
+            end = next;
+        }
+        return count;
+    }
+
     /// The chip standing for `row` (its own, or its folder's), when drawn, else null.
     function chipOf(row: int): Item {
         for (let i = 0; i < chipRepeater.count; ++i) {
             const chip = chipRepeater.itemAt(i) as SpaceChip;
             if (chip !== null && row >= chip.first && row < chip.first + chip.count)
-                return chip.fits ? chip : null;
+                return chip;
         }
         return null;
     }
@@ -282,7 +320,7 @@ Item {
         }
         for (let i = 0; i < chipRepeater.count; ++i) {
             const chip = chipRepeater.itemAt(i) as SpaceChip;
-            if (chip === null || chip.folder || !chip.fits)
+            if (chip === null || chip.folder)
                 continue;
             const inChip = root.mapToItem(chip, x, y);
             if (inChip.x >= 0 && inChip.x < chip.width && inChip.y >= 0 && inChip.y < chip.height)
@@ -518,30 +556,16 @@ Item {
         }
     }
 
-    // Under 1 % (`.small`): the label, the chips that fit, "… n more".
+    // Under 1 % (`.small`): the label, the chips that fit, "… n more". Which chips fit is
+    // measured here in one pass, and only those are made (#309): a chip deciding for itself
+    // from its place in the row looped through every one of thousands.
     Item {
         id: smallLine
 
+        /// How many of the gathered chips the line has room for.
+        readonly property int fitted: root.fitChips(root.gathered.chips, smallLine.width - chips.x)
         /// How many chips the line has no room for.
-        readonly property int hidden: {
-            let count = 0;
-            for (let i = 0; i < chipRepeater.count; ++i) {
-                const chip = chipRepeater.itemAt(i) as SpaceChip;
-                if (chip !== null && !chip.fits)
-                    ++count;
-            }
-            return count;
-        }
-        /// The right end of the last chip that fits.
-        readonly property real fitEnd: {
-            let end = 0;
-            for (let i = 0; i < chipRepeater.count; ++i) {
-                const chip = chipRepeater.itemAt(i) as SpaceChip;
-                if (chip !== null && chip.fits)
-                    end = chip.x + chip.width;
-            }
-            return end;
-        }
+        readonly property int hidden: root.gathered.chips.length - smallLine.fitted
 
         height: root.gathered.chips.length > 0 ? chips.height : 0
         objectName: "spaceSmall"
@@ -549,6 +573,13 @@ Item {
         width: parent.width - 2 * Theme.spaceInset
         x: Theme.spaceInset
         y: root.height - Math.max(root.reserve, Theme.spaceInsetBottom) - smallLine.height
+
+        FontMetrics {
+            id: chipMetrics
+
+            font.family: Theme.valueFamily
+            font.pixelSize: Theme.spaceLineSize
+        }
 
         Text {
             id: smallLabel
@@ -565,23 +596,19 @@ Item {
         Row {
             id: chips
 
-            readonly property real room: smallLine.width - chips.x - moreWords.implicitWidth - 2
-                                         * Theme.spaceChipPadX - Theme.spaceChipGap
-
             spacing: Theme.spaceChipGap
             x: smallLabel.width + Theme.spaceChipGap
 
             Repeater {
                 id: chipRepeater
 
-                model: root.gathered.chips
+                model: root.gathered.chips.slice(0, smallLine.fitted)
 
                 SpaceChip {
                     required property var modelData
 
                     count: modelData.count
                     first: modelData.first
-                    fits: x + width <= chips.room
                     folder: modelData.folder
                     revision: root.revision
                     table: root.table
@@ -601,7 +628,7 @@ Item {
             text: qsTr("… %1 more").arg(smallLine.hidden)
             textFormat: Text.PlainText
             visible: smallLine.hidden > 0
-            x: chips.x + smallLine.fitEnd + Theme.spaceChipGap + Theme.spaceChipPadX
+            x: chips.x + chips.width + Theme.spaceChipGap + Theme.spaceChipPadX
         }
     }
 }
